@@ -1,0 +1,5542 @@
+.goko-view {
+  /* One floating surface, defined once. The selection toolbar is the
+     reference: every bar, menu and popup over the wall is the same material,
+     so they read as one system rather than four things that happen to be
+     dark. Change it here, not in the rules below. */
+  /* A panel sitting slightly above the wall, and not much more than that.
+     The specular rim and top sheen this replaced were the glossy part: they
+     read as varnish rather than as glass, and there is no version of that
+     which is subtle. Flat fill, one hairline, one soft shadow. */
+  --pg-surface: rgba(32, 32, 35, 0.88);
+  --pg-surface-radius: 22px;
+  --pg-surface-pad: 10px;
+
+  /* One scale for every control that floats over the wall: the rail and
+     panel toggles, the filter, search and create buttons, the selection bar
+     and the detail view's own bar. They had drifted apart — 38px pills
+     standing beside a 52px bar — and a row of controls that are nearly the
+     same size reads as a mistake rather than as a hierarchy. Smaller than the
+     largest of them was, deliberately: these sit over the work, not beside
+     it, and the wall is what should be taking the room.
+
+     Measured out of the Figma file rather than chosen here: pad 4, a 1px
+     border, a 30px button and 4 again make exactly the 40 the design draws,
+     and the four buttons with their gaps and one rule make exactly its 155.
+     The arithmetic closing like that is the check that the numbers are the
+     design's and not an approximation of it.
+
+     The pills are gone. A bar of round-ended buttons inside a round-ended bar
+     has two radii saying the same thing at two sizes; one 12 outside and one
+     8 inside says it once. */
+  --pg-bar-h: 40px;
+  --pg-bar-radius: 12px;
+  --pg-bar-pad: 4px;
+  --pg-bar-gap: 6px;
+  --pg-bar-btn: 30px;
+  --pg-bar-btn-radius: 8px;
+  --pg-bar-icon: 16px;
+  /* A control that stands on its own rather than in a bar: the way out of a
+     folder, and the way out of the full screen. Square, so it reads as one
+     cell of a toolbar that happens to be alone. */
+  --pg-control-size: 40px;
+
+  /* Enough to separate the panel from a busy cover, no brightness pump. */
+  --pg-surface-blur: blur(24px) saturate(130%);
+
+  /* Barely there. The separation from the wall should come from the fill
+     being lighter than what is behind it, with the edge only just resolving
+     the boundary. At 0.075 it was drawing an outline, which puts the panel
+     in front of the wall rather than just above it. */
+  --pg-surface-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --pg-surface-ring-line: rgba(255, 255, 255, 0.05);
+  /* Every value below is a role, not a colour, so the light theme can
+     restate the set without touching a single rule that uses them. The
+     alphas differ between themes on purpose: a wash that reads as a gentle
+     lift on a dark panel reads as a smudge on a light one. */
+  --pg-surface-mid: rgba(255, 255, 255, 0.72);
+  --pg-surface-dim: rgba(255, 255, 255, 0.45);
+  --pg-surface-faint: rgba(255, 255, 255, 0.35);
+  --pg-inner-active: rgba(255, 255, 255, 0.14);
+  --pg-inner-press: rgba(255, 255, 255, 0.22);
+  --pg-inner-well: rgba(255, 255, 255, 0.07);
+  --pg-inner-chip: rgba(255, 255, 255, 0.1);
+  --pg-rule: rgba(255, 255, 255, 0.12);
+  --pg-scrim: rgba(0, 0, 0, 0.42);
+
+  /* What sits above what inside a card. Written down because it was not:
+     the reel's strip was appended last and painted over the badge layer, so
+     hovering a stack hid the badges hovering is for. Every layer inside
+     .pg-frame declares one of these and none rely on document order. */
+  --pg-layer-media: 0;
+  --pg-layer-reel: 1;
+  --pg-layer-chrome: 2;
+  --pg-layer-badges: 3;
+  --pg-peek-ring: rgba(255, 255, 255, 0.55);
+  --pg-stage-lift: 0 24px 70px rgba(0, 0, 0, 0.45);
+  /* Stronger than a label, which is what makes a matched run read as one. */
+  --pg-mark: #fff;
+  /* The plugin's own accent, not the vault's.
+     --color-accent is a user setting and can be any hue at any lightness, so
+     rules built on it have no contrast guarantee and occasionally land
+     somewhere ugly against a panel that is otherwise all greys. These two are
+     tuned per theme instead: lifted here so it reads against near-black,
+     deepened in light so it carries white. It stays chromatic because the
+     selection ring sits over arbitrary photographs, where white and black both
+     occur constantly and a neutral ring simply disappears. */
+  --pg-accent: #6ea8fe;
+  --pg-on-accent: #0b0d12;
+  /* Tile shadows are the thing that gives a light wall away fastest: an
+     alpha tuned against near-black is a bruise against white. */
+  --pg-tile-lift: 0 6px 18px rgba(0, 0, 0, 0.3);
+  --pg-tile-lift-selected: 0 8px 22px rgba(0, 0, 0, 0.38);
+  --pg-tile-lift-strong: 0 10px 26px rgba(0, 0, 0, 0.42);
+
+  /* Soft and close. A deep shadow ringed the panel in dark, which read as a
+     second outline underneath the first. */
+  --pg-surface-lift: 0 1px 6px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.16);
+
+  --pg-surface-text: rgba(255, 255, 255, 0.88);
+
+  /* Concentric: an inner corner should be the outer corner less the padding
+     between them, or the two curves fight each other at the corner. */
+  --pg-inner-radius: calc(var(--pg-surface-radius) - var(--pg-surface-pad));
+  --pg-inner-hover: rgba(255, 255, 255, 0.09);
+
+  position: relative;
+  height: 100%;
+  padding: 0;
+  /* clip, not hidden: hidden still leaves an element programmatically
+     scrollable, which is how focus, scrollIntoView and an overscrolling
+     child list kept dragging the whole stage around. clip makes it not a
+     scroll container at all, so the class of bug cannot recur. */
+  overflow: clip;
+  background: var(--background-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Obsidian carries the theme on the body, so the panels follow it with no
+   setting of ours and no flash on load. */
+.theme-light .goko-view {
+  --pg-surface: rgba(252, 252, 253, 0.9);
+  --pg-surface-ring: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --pg-surface-ring-line: rgba(0, 0, 0, 0.08);
+  --pg-surface-lift: 0 1px 6px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.09);
+  --pg-surface-text: rgba(22, 22, 26, 0.92);
+  --pg-surface-mid: rgba(22, 22, 26, 0.72);
+  --pg-surface-dim: rgba(22, 22, 26, 0.5);
+  --pg-surface-faint: rgba(22, 22, 26, 0.38);
+  --pg-inner-hover: rgba(0, 0, 0, 0.06);
+  --pg-inner-active: rgba(0, 0, 0, 0.09);
+  --pg-inner-press: rgba(0, 0, 0, 0.14);
+  --pg-inner-well: rgba(0, 0, 0, 0.05);
+  --pg-inner-chip: rgba(0, 0, 0, 0.07);
+  --pg-rule: rgba(0, 0, 0, 0.1);
+  --pg-scrim: rgba(0, 0, 0, 0.25);
+  --pg-peek-ring: rgba(28, 28, 32, 0.6);
+  --pg-stage-lift: 0 20px 56px rgba(0, 0, 0, 0.18);
+  --pg-mark: rgba(10, 10, 12, 1);
+  --pg-accent: #2563c9;
+  --pg-on-accent: #ffffff;
+  --pg-tile-lift: 0 4px 14px rgba(0, 0, 0, 0.12);
+  --pg-tile-lift-selected: 0 6px 18px rgba(0, 0, 0, 0.16);
+  --pg-tile-lift-strong: 0 8px 22px rgba(0, 0, 0, 0.2);
+}
+
+.pg-viewport {
+  flex: 1 1 auto;
+  position: relative;
+  /* The rail takes its width off the left of the wall. A margin rather than a
+     flex sibling: everything over the wall is positioned against the view,
+     and a rail that took part in the layout would have meant rebuilding all
+     of it. Zero when the rail is away, so no gap is left behind. */
+  margin-left: var(--pg-sidebar-w, 0px);
+  /* Nothing on the right. The panel of card details slides over the wall
+     rather than beside it, so opening it never lays the masonry out again
+     and never moves the card that was just clicked. What it covers is the
+     last column, which a scroll answers, and the wall's own controls, which
+     step aside by --pg-inspector-w on their own. */
+  overflow: hidden;
+  contain: strict;
+  overscroll-behavior: contain;
+  touch-action: none;
+}
+
+/* ── The rail of grids ──────────────────────────────────────────────────────
+   Every board, how many cards are on it, and somewhere to drop one. Pinned to
+   the left of the view rather than laid out with the wall, and hidden by
+   width-zero rather than display-none so the wall's margin and the rail
+   always agree about how much room it takes. */
+
+.pg-sidebar {
+  /* Two widths and one gap, and every row spends them in the same order:
+     the icon's box, the gap after it, and the right-hand slot the count and
+     the fold arrow share. A child row spends the indent as well. */
+  --pg-rail-icon: 16px;
+  --pg-rail-gap: 8px;
+  --pg-rail-pad: 8px;
+  --pg-rail-indent: 18px;
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: var(--pg-layer-chrome);
+  display: none;
+  flex-direction: column;
+  border-right: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+}
+
+.pg-sidebar.is-showing {
+  display: flex;
+}
+
+.pg-sidebar-list {
+  flex: 1 1 auto;
+  padding: 10px 6px 16px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.pg-sidebar-caption {
+  margin: 14px var(--pg-rail-pad) 4px;
+  color: var(--text-faint);
+  font-size: var(--font-smallest);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Selector carries the rail as well as the class, as the space bar's do: a
+   theme that styles every button outranks a bare class, and these went back
+   to being filled boxes with their own radius under one. */
+.pg-sidebar button.pg-sidebar-row,
+.pg-sidebar button.pg-sidebar-add {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--pg-rail-gap);
+  box-sizing: border-box;
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  padding: 0 var(--pg-rail-pad);
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--font-ui-small);
+  font-weight: 400;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.pg-sidebar button.pg-sidebar-row:hover,
+.pg-sidebar button.pg-sidebar-add:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* The wall you are looking at. Marked by the accent rather than by a slightly
+   different grey: a rail is read at a glance, and "which one am I on" is the
+   one question it has to answer without being studied. */
+.pg-sidebar-row.is-on {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
+.pg-sidebar-row.is-on::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--interactive-accent);
+}
+
+.pg-sidebar-row.is-on .pg-sidebar-glyph {
+  color: var(--text-normal);
+}
+
+/* The row a card is over. A drag sends no hover, so this is the only thing
+   that says where it would land: an inset ring rather than a border, so the
+   row does not change size as the drag crosses it, and the accent behind the
+   text as well, since the ring alone was easy to miss under a card. */
+.pg-sidebar-row.is-target {
+  background: var(--background-modifier-hover);
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+  color: var(--text-normal);
+}
+
+.pg-sidebar-row.is-target .pg-sidebar-glyph,
+.pg-sidebar-row.is-target .pg-sidebar-count {
+  color: var(--interactive-accent);
+}
+
+/* A folder belongs to the grid above it, and says so with an elbow as well
+   as with distance.
+
+   The selector carries the rail and the element for the same reason the
+   shared row rule does — and it has to, or that rule's own padding outranks
+   this one and the indent silently does nothing. */
+.pg-sidebar button.pg-sidebar-row.is-folder {
+  padding-left: calc(var(--pg-rail-pad) + var(--pg-rail-indent));
+}
+
+.pg-sidebar-elbow {
+  position: absolute;
+  top: 0;
+  left: calc(var(--pg-rail-pad) + 3px);
+  width: 9px;
+  height: 50%;
+  border-bottom: 1px solid var(--background-modifier-border);
+  border-left: 1px solid var(--background-modifier-border);
+  border-bottom-left-radius: 4px;
+  pointer-events: none;
+}
+
+/* Obsidian's own icon variable rather than a width on the svg: its icons are
+   drawn on a 24 grid with a stroke, and scaling one to an arbitrary size puts
+   the stroke between pixels — which is what made them look bent. */
+.pg-sidebar-glyph {
+  --icon-size: var(--pg-rail-icon);
+  display: inline-grid;
+  flex: 0 0 var(--pg-rail-icon);
+  place-items: center;
+  width: var(--pg-rail-icon);
+  height: var(--pg-rail-icon);
+  color: var(--text-faint);
+}
+
+/* The line box has to be taller than the letters, or `overflow: hidden` —
+   which is what gives the ellipsis — cuts the descenders off: the g in "New
+   grid" lost its tail to a line-height of 1. */
+.pg-sidebar-name {
+  flex: 1 1 auto;
+  line-height: 1.5;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* The right-hand slot, shared. The count is what a row says at rest; the
+   fold arrow takes its place under the pointer, so neither costs the list a
+   column of its own. */
+.pg-sidebar-count,
+.pg-sidebar-twist {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  color: var(--text-faint);
+  font-size: var(--font-smallest);
+  font-variant-numeric: tabular-nums;
+}
+
+.pg-sidebar-count:empty {
+  display: none;
+}
+
+.pg-sidebar-twist {
+  --icon-size: 14px;
+  position: absolute;
+  right: var(--pg-rail-pad);
+  border-radius: 4px;
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.pg-sidebar-twist:hover {
+  background: var(--background-modifier-border);
+  color: var(--text-normal);
+}
+
+@media (hover: hover) {
+  .pg-sidebar-row.is-foldable:hover .pg-sidebar-count {
+    opacity: 0;
+  }
+
+  .pg-sidebar-row.is-foldable:hover .pg-sidebar-twist {
+    opacity: 1;
+  }
+}
+
+/* A row folded shut keeps its arrow up, or nothing says the children are
+   there to be brought back. */
+.pg-sidebar-row.is-foldable.is-folded .pg-sidebar-twist {
+  opacity: 1;
+}
+
+.pg-sidebar-row.is-foldable.is-folded .pg-sidebar-count {
+  opacity: 0;
+}
+
+.pg-sidebar-row.is-smart .pg-sidebar-glyph {
+  color: var(--text-faint);
+}
+
+/* The library and the inbox are the rail's two plain rows: their glyphs are
+   the body colour whether or not they are the wall on screen, so nothing
+   about them changes but the marker when you move off them. */
+.pg-sidebar-row.is-system .pg-sidebar-glyph {
+  color: var(--text-normal);
+}
+
+/* A row being dragged to a new place, and where it would land: a line along
+   the top or bottom edge of the row under the pointer. Inset shadows, so the
+   rows do not move as the line crosses them. The selector carries the rail
+   and the element to outrank the row's own `box-shadow: none`. */
+.pg-sidebar button.pg-sidebar-row.is-moving {
+  opacity: 0.5;
+}
+
+.pg-sidebar button.pg-sidebar-row.is-drop-before {
+  box-shadow: inset 0 2px 0 var(--interactive-accent);
+}
+
+.pg-sidebar button.pg-sidebar-row.is-drop-after {
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+
+/* The line under the two system rows. Not a border on a row: a rule is
+   between things rather than part of one. */
+.pg-sidebar-rule {
+  height: 1px;
+  margin: 8px var(--pg-rail-pad);
+  background: var(--background-modifier-border);
+}
+
+/* The row that makes another, at the icons' own indent. */
+.pg-sidebar button.pg-sidebar-add {
+  margin-top: 6px;
+  color: var(--text-faint);
+}
+
+/* The right edge, dragged to set the width. Six pixels of target over a
+   one-pixel line: a border is too thin to catch, and a wider bar would eat
+   into the list. */
+.pg-sidebar-handle {
+  position: absolute;
+  inset: 0 -3px 0 auto;
+  width: 6px;
+  cursor: col-resize;
+}
+
+.pg-sidebar-handle:hover {
+  background: var(--interactive-accent);
+  opacity: 0.35;
+}
+
+/* While a width is being dragged, nothing else should be selecting text or
+   changing the cursor under the pointer. */
+body.pg-resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* What the cursor carries while a card is being dragged: a small copy of it,
+   so the rail it is heading for stays visible. Off-screen because it only has
+   to exist long enough for the browser to rasterise it. */
+/*
+ * What the cursor carries.
+ *
+ * Smaller than the smallest card on the wall and see-through: the drag image
+ * follows the pointer exactly, so anything bigger is a lid over the very row
+ * or island being aimed at. Several cards fan out behind the one grabbed,
+ * which is what a handful of pictures looks like when it is picked up, and
+ * the count says how many are really there.
+ *
+ * The browser rasterises this element once, at dragstart, and the picture it
+ * takes is of the element's own painting. An element's `opacity` is how it
+ * composites into its parent, and in a snapshot there is no parent to
+ * composite into — so the fade has to live on the cards inside, where it is
+ * part of what is painted.
+ */
+.pg-drag-ghost {
+  position: fixed;
+  top: -1000px;
+  left: -1000px;
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+}
+
+.pg-drag-ghost.is-stack {
+  width: 112px;
+  height: 92px;
+}
+
+.pg-drag-card {
+  position: absolute;
+  width: 68px;
+  height: 68px;
+  /* See-through, so the row or island being aimed at stays readable under
+     the thing being aimed with. */
+  opacity: 0.66;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--background-secondary);
+  box-shadow:
+    0 6px 18px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1.5px var(--background-primary);
+}
+
+.pg-drag-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* A card of words travelling: its site's letter on the sheet's own paper,
+   so the fan reads as cards even when one of them has no picture. */
+.pg-drag-note {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  font-size: 26px;
+  font-weight: 600;
+}
+
+/* The fan. The grabbed card is slot 0 and sits square in the middle; the
+   others lean out behind it, alternating sides so the stack stays balanced
+   whether it is two cards or three. */
+.pg-drag-card[data-slot="1"] {
+  transform: translateX(-20px) rotate(-9deg);
+}
+
+.pg-drag-card[data-slot="2"] {
+  transform: translateX(20px) rotate(9deg);
+}
+
+.pg-drag-ghost-count {
+  position: absolute;
+  /* Full strength while the cards behind it are not: it is the one part of
+     the drag image that has to be read rather than seen through. */
+  opacity: 0.92;
+  z-index: 2;
+  right: 14px;
+  bottom: 8px;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* The cards left behind. They have been picked up, and a card that looks
+   exactly as it did is a card the wall is pretending is still there. */
+.pg-tile.is-dragging .pg-frame {
+  opacity: 0.3;
+  box-shadow: none;
+}
+
+/* Every row that can take the card says so while one is in flight, rather
+   than each waiting to be found under the pointer. Faint and dashed: an
+   invitation, not a target yet. The row under the cursor lights properly,
+   which is the rule below this one. */
+.pg-sidebar.is-dropping .pg-sidebar-row.is-droppable {
+  outline: 1px dashed var(--pg-rule);
+  outline-offset: -1px;
+  border-radius: 8px;
+}
+
+/* A folder card taking a drop, marked the way the rail's rows are. */
+.pg-folder-tile.is-drop-into .pg-frame {
+  box-shadow: inset 0 0 0 3px var(--interactive-accent);
+}
+
+/* A picture from outside over a card. The band across the card's foot takes
+   it as that card's cover; everywhere else the drop is a new clipping, and
+   the wall's frame says so.
+
+   The layer covers the wall as the drop frame does and sits above it, the
+   frame's scrim being blurred and the band having to read through it. It
+   clips the band to the wall, so a card half under the panel of card details
+   does not paint its band over the panel. Never hit: the card underneath
+   has to keep receiving the drag, or the drop would land nowhere. */
+.pg-cover-layer {
+  display: none;
+  position: absolute;
+  inset: 0 var(--pg-inspector-w, 0px) 0 var(--pg-sidebar-w, 0px);
+  z-index: 63;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pg-cover-layer.is-offered {
+  display: block;
+}
+
+/* Placed and sized by the grid in screen pixels, from the same arithmetic the
+   drop is decided by. The corners are the card's own 10px at the camera's
+   scale, so the band's foot follows the card's. */
+.pg-cover-band {
+  position: absolute;
+  left: var(--pg-band-x, 0px);
+  top: var(--pg-band-y, 0px);
+  width: var(--pg-band-w, 0px);
+  height: var(--pg-band-h, 0px);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  overflow: hidden;
+  border-radius: 0 0 calc(10px * var(--pg-band-scale, 1)) calc(10px * var(--pg-band-scale, 1));
+  background: var(--pg-surface);
+  color: var(--pg-surface-text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.15;
+  text-align: center;
+  /* Wrapped rather than cut: a zoomed-out card is narrower than the words,
+     and three short lines still fit the band's minimum height. */
+  text-wrap: balance;
+}
+
+/* The pointer is on the band. The same ring and wash the folder card shows,
+   because it is the same promise: what you are carrying lands here and not
+   on the wall behind it. */
+.pg-cover-band.is-aimed {
+  background:
+    linear-gradient(
+      hsl(from var(--interactive-accent) h s l / 0.32),
+      hsl(from var(--interactive-accent) h s l / 0.32)
+    ),
+    var(--pg-surface);
+  box-shadow: inset 0 0 0 3px var(--interactive-accent);
+}
+
+/* A card being dragged off the wall. The browser paints the drag image; this
+   is the card left behind, which should read as picked up rather than gone. */
+.pg-tile[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Drop target: drawn on the view rather than inside the viewport, so it frames
+   the whole wall including its chrome, and as pseudo-elements so it costs no
+   DOM at all until a drag actually arrives.
+
+   The scrim and the label are separate because the label shimmers, and a
+   shimmer is a gradient clipped to the glyphs. Clip the scrim's own element
+   and the scrim would be clipped to the letters along with it.
+
+   pointer-events stay off throughout. An overlay that could be hit would take
+   the dragover events itself, and the drop would land on a target that had
+   just stopped being able to hear about it. */
+.goko-view.is-drop-target::before {
+  content: "";
+  position: absolute;
+  inset: 10px calc(10px + var(--pg-inspector-w, 0px)) 10px calc(10px + var(--pg-sidebar-w, 0px));
+  z-index: 60;
+  border-radius: var(--pg-surface-radius);
+  background-color: var(--pg-scrim);
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  pointer-events: none;
+  animation: pg-drop-in 140ms ease both;
+}
+
+/* The label is set by the view, which knows where the drop will actually
+   land: nothing is filed into a smart grid, so one on screen sends the
+   clipping home, and that is better said by the frame before the drop than by
+   a toast after it. */
+.goko-view.is-drop-target::after {
+  content: var(--pg-drop-label, "Drop to add");
+  position: absolute;
+  inset: 10px calc(10px + var(--pg-inspector-w, 0px)) 10px calc(10px + var(--pg-sidebar-w, 0px));
+  z-index: 62;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--pg-surface-text);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  pointer-events: none;
+  animation: pg-drop-in 140ms ease both;
+}
+
+/* A slow sweep from secondary to primary, lighting each letter as it reaches
+   it and letting it fall back behind.
+
+   Painted as a gradient clipped to the glyphs, so it is the letters that
+   change weight rather than a band drawn over them. The two colours are the
+   surface's own secondary and primary text, which is what makes it read as the
+   words waking up rather than as something coloured passing through: an accent
+   flare was tried first and looked like a effect, not like text.
+
+   Guarded, because the colour has to be transparent for the clip to show, and
+   text that cannot be clipped would then be text that cannot be read. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .goko-view.is-drop-target::after {
+    /* The range has to be wide or there is nothing to see. Secondary to
+       primary is 0.72 alpha to 0.88, which spread across half the label is a
+       change no eye picks up; this runs from a little over half opacity to the
+       surface's fullest mark, and narrows the band so the lift arrives as a
+       glint rather than a wash. */
+    /* Two glints to a tile, not one.
+
+       Slower and more often pull against each other while there is a single
+       band: one cycle carries the tile exactly one width, so the only way to
+       raise the cadence is to shorten the cycle, which speeds the travel up.
+       A second band in the same tile breaks the tie. The cycle can then be
+       lengthened, which slows the sweep, while a glint arrives every half
+       cycle rather than every whole one. */
+    background-image: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--pg-surface-text) 58%, transparent) 0%,
+      color-mix(in srgb, var(--pg-surface-text) 58%, transparent) 17%,
+      var(--pg-mark) 25%,
+      color-mix(in srgb, var(--pg-surface-text) 58%, transparent) 33%,
+      color-mix(in srgb, var(--pg-surface-text) 58%, transparent) 67%,
+      var(--pg-mark) 75%,
+      color-mix(in srgb, var(--pg-surface-text) 58%, transparent) 83%,
+      color-mix(in srgb, var(--pg-surface-text) 58%, transparent) 100%
+    );
+    /* Tiled, not no-repeat. Outside a no-repeat image there is nothing to clip
+       to, so the letters the sweep had left behind were painting as nothing at
+       all rather than as secondary text. Both ends of the gradient are the
+       same colour, so the tiling seam is invisible. */
+    background-size: 200% 100%;
+    background-repeat: repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation:
+      pg-drop-in 140ms ease both,
+      pg-drop-shimmer 4800ms linear infinite;
+  }
+}
+
+/* Exactly one background width per cycle, so every pass is the same pass and
+   the loop has no step in it. Right to left in position terms is left to right
+   on screen: an image wider than its box moves the other way. */
+@keyframes pg-drop-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* The dashes, travelling slowly round the frame for as long as the file is
+   held over the wall. This is the state worth animating: the entrance is over
+   in a seventh of a second, and a drag sits here as long as it takes to aim.
+
+   Geometry in CSS rather than attributes, so the rect follows the frame at any
+   pane size without being measured. */
+.pg-drop-frame {
+  display: none;
+}
+
+/* Covers the whole view, with the frame's inset carried by the rect instead.
+
+   An svg is a replaced element: given inset alone and width auto it does not
+   stretch to the box, it falls back to its intrinsic 300x150 and draws itself
+   in the corner. Sizing it outright and insetting the geometry is what avoids
+   that entirely. */
+.goko-view.is-drop-target .pg-drop-frame {
+  display: block;
+  position: absolute;
+  inset: 0 var(--pg-inspector-w, 0px) 0 var(--pg-sidebar-w, 0px);
+  z-index: 61;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+/* 11px, being the overlay's own 10px inset plus half the stroke, so the dashes
+   sit inside the frame the way a border would rather than straddling it.
+
+   The radius comes in by the same 1px. Two rounded corners inset differently
+   but given the same radius are not concentric: their curves diverge, the
+   stroke wanders off the scrim's corner, and what is behind the pane shows
+   through the gap between them. Only the corners were ever wrong, the
+   straights having nothing to be concentric about. */
+.goko-view.is-drop-target .pg-drop-frame rect {
+  x: 11px;
+  y: 11px;
+  width: calc(100% - 22px);
+  height: calc(100% - 22px);
+  rx: calc(var(--pg-surface-radius) - 1px);
+  fill: none;
+  stroke: var(--pg-accent);
+  stroke-width: 2;
+  /* Both set by the view, which measures the perimeter and rounds the period
+     to divide it evenly. The fallbacks are only ever seen if that measurement
+     fails, and carry the seam it exists to remove. */
+  stroke-dasharray: 5 6;
+  animation: pg-drop-march 1100ms linear infinite;
+}
+
+/* Exactly one period per cycle, so the loop closes on itself. */
+@keyframes pg-drop-march {
+  to {
+    stroke-dashoffset: calc(var(--pg-drop-period, 11px) * -1);
+  }
+}
+
+@keyframes pg-drop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goko-view.is-drop-target::before,
+  .goko-view.is-drop-target::after,
+  .goko-view.is-drop-target .pg-drop-frame rect {
+    animation: none;
+  }
+
+  /* Without the sweep the gradient parks mid-band, so the colour comes back
+     and the letters are simply the colour they always were. */
+  .goko-view.is-drop-target::after {
+    background-image: none;
+    color: var(--pg-surface-text);
+  }
+}
+
+.pg-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+/* Space is held: the wall is ready to be grabbed. */
+.pg-viewport.is-pannable,
+.pg-viewport.is-pannable .pg-tile {
+  cursor: grab;
+}
+
+.pg-viewport.is-panning,
+.pg-viewport.is-panning .pg-tile {
+  cursor: grabbing;
+}
+
+/* Dragging must not select text or start a native image drag. */
+.pg-viewport.is-pannable {
+  user-select: none;
+}
+
+.pg-viewport.is-pannable .pg-media {
+  pointer-events: none;
+}
+
+/* Layout box only. Transparent and unclipped: the visible card is the frame
+   inside it, which is what lets selection expand without overlapping.
+   Deliberately not paint-contained, which would clip the selection ring
+   and shadow to the tile box. */
+.pg-tile {
+  position: absolute;
+  top: 0;
+  left: 0;
+  contain: layout;
+  cursor: pointer;
+}
+
+.pg-frame {
+  position: absolute;
+  inset: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--background-secondary);
+  transform: scale(1);
+  /* Resting state, so this is the transition that runs on the way OUT.
+     Long and soft, so a card settles back to flat instead of snapping.
+     `inset` is here for the tightest stage, where a hover grows the box
+     rather than scaling it. */
+  transition:
+    transform 460ms cubic-bezier(0.19, 1, 0.28, 1),
+    inset 200ms cubic-bezier(0.33, 0, 0.2, 1),
+    box-shadow 320ms ease;
+}
+
+.pg-media {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity 260ms ease;
+}
+
+.pg-media.is-loaded {
+  opacity: 1;
+}
+
+
+/* ── A clipping with no picture ───────────────────────────────────
+   A sheet of paper lying on the card, not a coloured rectangle.
+
+   The card itself is a light neutral surface; the sheet is inset on it, with
+   its own corners and its own small shadow. That is what makes it read as an
+   object of a different kind among the photographs rather than as a hole
+   where a picture failed to load.
+
+   No colour is invented. The only colour anywhere here is the site's own
+   favicon, which is enough to tell GitHub from Substack across the room.
+
+   Every number below is mirrored in core/tile.ts, which has to predict this
+   height before anything is in the DOM. Change one, change both. */
+
+.pg-tile.is-note .pg-frame {
+  background: var(--background-secondary);
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.pg-sheet {
+  position: absolute;
+  inset: 10px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--background-primary);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.09),
+    0 6px 14px rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+  text-align: left;
+  /* A sheet is read, not tapped: a click on the card selects it and Open
+     goes to the note. The card above still takes every gesture, so nothing
+     here may swallow one. */
+  pointer-events: none;
+}
+
+.pg-sheet-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+  margin-bottom: 8px;
+}
+
+/* The site's mark, or the letter its name starts with until the mark
+   arrives — and for good on the many sites that keep no /favicon.ico. */
+.pg-sheet-mark {
+  position: relative;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  overflow: hidden;
+}
+
+/* Once the icon has pixels it covers the letter. The letter stays in the
+   DOM rather than being replaced, so an icon that loads late does not
+   reflow the row it sits in. */
+.pg-sheet-mark.has-icon {
+  background: transparent;
+  color: transparent;
+}
+
+.pg-sheet-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+}
+
+.pg-sheet-host {
+  min-width: 0;
+  font-size: 10px;
+  line-height: 18px;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Clamped to exactly the lines the measured height paid for: the card must
+   never show a word its own box has no room for. */
+.pg-sheet-title {
+  flex: 0 0 auto;
+  font-size: 13.5px;
+  line-height: 19px;
+  font-weight: 600;
+  color: var(--text-normal);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.pg-sheet-text {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 8;
+  line-clamp: 8;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* The same chip the wall puts on a PDF, on the sheet's own paper: a card
+   with no site says what kind of file it came from instead. Same shape as
+   .pg-format, because the two are the same statement — but not the same
+   colours: that one is white on black to be read over a photograph, and
+   this one sits on paper, where black on near-black would vanish in a dark
+   theme. It takes the mark's colours instead, so the head row looks like
+   itself whichever of the two is standing in it. */
+.pg-sheet-format {
+  flex: 0 0 auto;
+  border-radius: 4px;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+
+/* Nothing but a name: the mark carries the card, so give it room to. */
+.pg-sheet.is-bare:not(:has(.pg-sheet-title)) {
+  align-items: center;
+  justify-content: center;
+}
+
+.pg-sheet.is-bare:not(:has(.pg-sheet-title)) .pg-sheet-head {
+  height: auto;
+  margin: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pg-sheet.is-bare:not(:has(.pg-sheet-title)) .pg-sheet-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  font-size: 17px;
+  line-height: 34px;
+}
+
+/* The hover badges are drawn over the card, which is right over a photograph
+   and wrong over a page of words: the pills landed in the middle of a
+   sentence. The sheet fades into its own paper under them, so the text
+   visibly runs out rather than colliding with a tag.
+
+   Only while hovered, because that is the only time there is anything there
+   to run into. Under the badge layer, so the pills stay legible. */
+.pg-tile.is-note:hover .pg-sheet::after,
+.pg-tile.is-note.is-selected .pg-sheet::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 52px;
+  background: linear-gradient(to top, var(--background-primary) 40%, transparent);
+  pointer-events: none;
+}
+
+/* Sorting runs the wall at its tiniest stage, where the sheet is the size of
+   a stamp. A name and a mark is all a card that small can honestly show, so
+   the body is dropped — core/tile.ts drops it from the measurement at the
+   same width, COMPACT_COLUMN. */
+.pg-viewport[data-density="xs"] .pg-sheet {
+  inset: 6px;
+  padding: 8px;
+}
+
+.pg-viewport[data-density="xs"] .pg-sheet-host,
+.pg-viewport[data-density="xs"] .pg-sheet-text {
+  display: none;
+}
+
+.pg-viewport[data-density="xs"] .pg-sheet-title {
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+/* Except under the cursor. A magnified card is nearly twice the size, and
+   the room a magnification buys is exactly the room the words needed: this
+   is what makes a wall of tiny cards readable without leaving sorting. */
+@media (hover: hover) and (pointer: fine) {
+  .pg-viewport[data-density="xs"]:not(.is-dropping) .pg-tile:hover .pg-sheet-host {
+    display: block;
+  }
+
+  .pg-viewport[data-density="xs"]:not(.is-dropping) .pg-tile:hover .pg-sheet-text {
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    line-clamp: 4;
+  }
+}
+
+/* Hover reveals one block at the foot of the card — pills, then the name —
+   over a fade rather than a band: the card stays a picture, and what the
+   pills say is chosen in Settings → Goko → Show on tiles. Pointer events
+   stay off so a pill can never take a click meant for the card. */
+.pg-meta {
+  position: absolute;
+  inset: 0;
+  /* Above the picture, the reel and our own chrome: these are what a hover is
+     for, and nothing a hover also brings up may cover them. */
+  z-index: var(--pg-layer-badges);
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  /* One block, in one corner. */
+  justify-content: flex-end;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+
+/* Same reason as the tips: a tapped card would keep its hover state, and
+   the pills it reveals, long after the finger had gone. */
+@media (hover: hover) {
+  .pg-tile:hover .pg-meta {
+    opacity: 1;
+  }
+}
+
+/* At the tightest stage a column is narrower than a pill row needs, and the
+   stage exists to show more of the picture. The card stays a picture — until
+   the cursor rests on it, when it grows to twice its size and brings its
+   chrome back with it. That is the bargain of this stage: the whole wall at
+   a glance, and any one card in full without leaving it.
+
+   Only where there is a cursor. A finger cannot hover, so on touch the
+   chrome stays as it is at every other stage. */
+@media (hover: hover) {
+  /*
+   * Hidden at rest and faded in with the growth, rather than switched off.
+   * `display: none` cannot be animated and, worse, a chip that flicked into
+   * being over a card still the size of a stamp read as a glitch: the chrome
+   * has to arrive after the card is big enough to hold it.
+   */
+  .pg-viewport[data-density="xs"] .pg-marks,
+  .pg-viewport[data-density="xs"] .pg-dots,
+  .pg-viewport[data-density="xs"] .pg-suggest {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+
+  .pg-viewport[data-density="xs"] .pg-tile:hover .pg-marks,
+  .pg-viewport[data-density="xs"] .pg-tile:hover .pg-dots,
+  .pg-viewport[data-density="xs"] .pg-tile:hover .pg-suggest {
+    opacity: 1;
+    transition-delay: 420ms;
+  }
+
+  .pg-viewport[data-density="xs"] .pg-tile:hover .pg-suggest {
+    pointer-events: auto;
+  }
+
+  /* The pills and the caption ride the same delay. They are already an
+     opacity the wall fades on hover, so this only holds them back. */
+  .pg-viewport[data-density="xs"] .pg-tile:hover .pg-meta {
+    transition-delay: 420ms;
+  }
+
+  /* Above the selection ring's layer, so a magnified card is over its
+     neighbours whatever state they are in. */
+  .pg-viewport[data-density="xs"] .pg-tile:hover {
+    z-index: 8;
+  }
+
+  /*
+   * Twice the size, grown rather than scaled.
+   *
+   * A negative inset doubles the frame, and because it is the box that
+   * changes rather than a transform, the picture is laid out at the size it
+   * is shown at and stays sharp. A scale would have rasterised the card at
+   * 120px and stretched that. How much of the growth goes to each side is
+   * the wall's business — see setMagnify — so that a card against an edge
+   * grows inward instead of off the end of the wall, where the viewport
+   * would cut it and the rail would cover what was left.
+   *
+   * The delay is the point of the whole thing. Without it every card the
+   * cursor crossed on its way somewhere would swell and subside, and the
+   * wall would boil under the hand. With it the wall is still until you
+   * stop, and then the card you stopped on opens. Leaving has no delay: a
+   * card you have moved off is a card you are done with.
+   */
+  .pg-viewport[data-density="xs"]:not(.is-dropping) .pg-tile:hover .pg-frame {
+    inset:
+      calc(4px - var(--pg-grow-t, 0px))
+      calc(4px - var(--pg-grow-r, 0px))
+      calc(4px - var(--pg-grow-b, 0px))
+      calc(4px - var(--pg-grow-l, 0px));
+    transform: none;
+    transition:
+      inset 300ms cubic-bezier(0.22, 0.61, 0.36, 1) 300ms,
+      box-shadow 300ms ease 300ms;
+  }
+
+  /*
+   * The ring goes with it.
+   *
+   * At every other size the ring sits at the tile's own edge, because a
+   * selected card scales its frame out to exactly there. A magnified card
+   * does not scale — it grows — so the ring has to be told the same box, or
+   * it stays the size the card used to be and reads as a selection that
+   * came undone.
+   */
+  .pg-viewport[data-density="xs"]:not(.is-dropping) .pg-tile.is-selected:hover::after {
+    inset:
+      calc(4px - var(--pg-grow-t, 0px))
+      calc(4px - var(--pg-grow-r, 0px))
+      calc(4px - var(--pg-grow-b, 0px))
+      calc(4px - var(--pg-grow-l, 0px));
+    transition: inset 300ms cubic-bezier(0.22, 0.61, 0.36, 1) 300ms;
+  }
+}
+
+/* ---- Suggestions -------------------------------------------------------- */
+
+/* Where a card is suggested to go, in its corner. Bottom left, away from what
+   a card says about itself: the kind mark is top left, the media count top
+   right, the reel's dots along the top. Up at rest rather than on hover,
+   since it is the thing to tap. Two segments — the place, and a no — so
+   agreeing and disagreeing are one tap each. Where a card also carries a
+   place chip, this sits above it. */
+.pg-suggest {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  display: flex;
+  align-items: stretch;
+  max-width: calc(100% - 16px);
+  height: 24px;
+  border-radius: 12px;
+  z-index: calc(var(--pg-layer-badges) + 2);
+  background: rgba(20, 20, 24, 0.72);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background-color 120ms ease;
+}
+
+/* A strong suggestion — a rule, a tag that is the grid's name — wears the
+   accent: it can be accepted without a second look, and it says so. */
+.pg-suggest.is-strong {
+  background: color-mix(in srgb, var(--pg-accent) 82%, #000);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.28);
+}
+
+.pg-suggest-yes,
+.pg-suggest-no {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    opacity 120ms ease;
+}
+
+.pg-suggest-yes {
+  gap: 5px;
+  min-width: 0;
+  padding: 0 8px 0 7px;
+}
+
+.pg-suggest-yes:hover {
+  background: var(--pg-accent);
+}
+
+.pg-suggest.is-strong .pg-suggest-yes:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.pg-suggest-icon {
+  display: flex;
+  flex: none;
+  --icon-size: 13px;
+}
+
+.pg-suggest-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The no: a narrow segment past a hairline. On a pointer device it is
+   folded away until the card is hovered, so at rest the chip is the place
+   alone and the wall is quieter; the answer given less often appears when
+   the hand is already there. On a touch screen there is no hover, so it is
+   always out. */
+.pg-suggest-no {
+  flex: none;
+  justify-content: center;
+  width: 22px;
+  border-left: 1px solid rgba(255, 255, 255, 0.16);
+  --icon-size: 12px;
+  transition:
+    width 140ms ease,
+    opacity 140ms ease,
+    background-color 120ms ease;
+}
+
+.pg-suggest-no:hover {
+  background: var(--text-error, #e5534b);
+}
+
+@media (hover: hover) {
+  .pg-suggest-no {
+    width: 0;
+    opacity: 0;
+    border-left-width: 0;
+    overflow: hidden;
+  }
+
+  .pg-tile:hover .pg-suggest-no,
+  .pg-suggest:hover .pg-suggest-no {
+    width: 22px;
+    opacity: 1;
+    border-left-width: 1px;
+  }
+}
+
+/* The hover pills and the caption share the bottom of the card. With a chip
+   there they stand above it, or the caption would print across the chip. */
+.pg-tile:has(.pg-suggest) .pg-meta {
+  padding-bottom: 40px;
+}
+
+/* The rule question, at the bottom of the wall above the wall's own bar and
+   the selection bar, both of which it must not cover. */
+.pg-rule-strip {
+  position: absolute;
+  bottom: calc(82px + var(--pg-bottom-inset, 0px));
+  left: calc(50% + var(--pg-sidebar-w, 0px) / 2 - var(--pg-inspector-w, 0px) / 2);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(64ch, 80vw);
+  padding: var(--pg-bar-pad) calc(var(--pg-bar-pad) + 4px) var(--pg-bar-pad) calc(var(--pg-bar-pad) + 8px);
+  border-radius: var(--pg-bar-radius);
+  background-color: var(--pg-surface);
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  transform: translate(-50%, calc(100% + 30px));
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 260ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    opacity 180ms ease;
+}
+
+.pg-rule-strip.is-visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.pg-rule-strip-icon {
+  display: flex;
+  flex: none;
+  color: var(--pg-accent);
+  --icon-size: 15px;
+}
+
+.pg-rule-strip-text {
+  min-width: 0;
+  color: var(--pg-surface-text);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pg-rule-strip button.pg-rule-strip-yes,
+.pg-rule-strip button.pg-rule-strip-no {
+  flex: none;
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 13px;
+  background-color: var(--pg-inner-active);
+  background-image: none;
+  box-shadow: none;
+  color: var(--pg-surface-text);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.pg-rule-strip button.pg-rule-strip-yes {
+  background-color: var(--pg-accent);
+  color: var(--pg-on-accent);
+  font-weight: 600;
+}
+
+.pg-rule-strip button.pg-rule-strip-yes:hover {
+  filter: brightness(1.08);
+}
+
+.pg-rule-strip button.pg-rule-strip-no:hover {
+  background-color: var(--pg-inner-hover);
+}
+
+/* The band behind an island: its floor. Faint at rest, so the groups read as
+   zones without the cards having to fight a background; lit while a card is
+   dragged over it, since the whole island is the drop target and the whole
+   island has to say so. Behind the tiles, which is what the negative z-index
+   is for inside the canvas's own stacking context, and out of the pointer's
+   way: drops are resolved from where the pointer is, not from what it hits. */
+.pg-island-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  z-index: -1;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text-normal) 4%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-normal) 6%, transparent);
+  pointer-events: none;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+/* Dashed: the pile is the absence of a decision, not one of the options. */
+.pg-island-band.is-unsure {
+  background: transparent;
+  box-shadow: none;
+  border: 1px dashed color-mix(in srgb, var(--text-normal) 14%, transparent);
+}
+
+.pg-island-band.is-drop-into {
+  background: color-mix(in srgb, var(--pg-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 2px var(--pg-accent);
+}
+
+/* An island's heading, laid out with the wall and carried by the camera, so
+   it belongs to the cards under it rather than floating over them. Its height
+   is the ISLAND_HEADER_H the layout reserved. */
+.pg-island {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* The left padding is the layout's ISLAND_INSET, so the icon stands over
+     the cards' left edge rather than the band's. */
+  padding: 0 12px 0 14px;
+  z-index: var(--pg-layer-chrome);
+  color: var(--text-normal);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Says the island folds, and which way it is. Quiet until the heading is
+   hovered, the way the rail's chevrons are. */
+.pg-island-fold {
+  color: var(--text-faint);
+  transition: color 120ms ease;
+}
+
+.pg-island:hover .pg-island-fold {
+  color: var(--text-muted);
+}
+
+.pg-island-icon {
+  color: var(--text-muted);
+}
+
+.pg-island-name {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pg-island-count {
+  flex: none;
+  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--pg-inner-active);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* Why these cards are here, which is the thing to disbelieve when an island
+   is wrong. Quiet, and first to go when the pane is narrow. */
+.pg-island-why {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The pile of cards nothing spoke up for: the work, not one of the answers.
+   Nothing to fold and nothing to accept, so no cursor promising either. */
+.pg-island.is-unsure {
+  cursor: default;
+}
+
+.pg-island.is-unsure .pg-island-name,
+.pg-island.is-unsure .pg-island-icon {
+  color: var(--text-muted);
+}
+
+/* The yes. A word on a button rather than a bare circle: the island is a
+   proposal, and the control that agrees to it has to read as one. Pushed to
+   the right edge, past the reason, so the eye lands on it last. */
+.pg-island button.pg-island-accept {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  margin-left: auto;
+  height: 26px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 13px;
+  background-color: var(--pg-inner-active);
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-normal);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    transform 160ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.pg-island button.pg-island-accept:hover {
+  background-color: var(--pg-accent);
+  color: var(--pg-on-accent);
+}
+
+.pg-island button.pg-island-accept:active {
+  transform: scale(0.96);
+}
+
+/* The pile's own offer — a new grid for what its cards share — in the place
+   an island keeps its Accept, with a plus to say it makes something. */
+.pg-island button.pg-island-offer {
+  gap: 6px;
+  background-color: var(--pg-accent);
+  color: var(--pg-on-accent);
+}
+
+.pg-island button.pg-island-offer:hover {
+  filter: brightness(1.08);
+}
+
+.pg-island-offer-icon {
+  display: flex;
+  --icon-size: 13px;
+}
+
+/* Lit with its band while a card is over it. */
+.pg-island.is-drop-into .pg-island-name,
+.pg-island.is-drop-into .pg-island-icon {
+  color: var(--pg-accent);
+}
+
+/* A pocket: a folder on the island's grid, drawn as a band inside the
+   island's band, one inset in, with a smaller heading of its own. The cards
+   in it are the ones going into that folder. */
+.pg-pocket-band {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  z-index: -1;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--text-normal) 5%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-normal) 9%, transparent);
+  pointer-events: none;
+  transition:
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.pg-pocket-band.is-drop-into {
+  background: color-mix(in srgb, var(--pg-accent) 14%, transparent);
+  box-shadow: inset 0 0 0 2px var(--pg-accent);
+}
+
+.pg-pocket {
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  /* The pocket's cards sit one inset in from the pocket's edge. */
+  padding: 0 12px 0 14px;
+  z-index: var(--pg-layer-chrome);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.pg-pocket-icon {
+  display: flex;
+  flex: none;
+  color: var(--text-faint);
+  --icon-size: 14px;
+}
+
+.pg-pocket-name {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pg-pocket-count {
+  flex: none;
+  min-width: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--pg-inner-active);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+
+.pg-pocket-why {
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pg-pocket.is-drop-into .pg-pocket-name,
+.pg-pocket.is-drop-into .pg-pocket-icon {
+  color: var(--pg-accent);
+}
+
+.pg-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 0;
+  max-height: 41px;
+  overflow: hidden;
+}
+
+
+
+.pg-viewport[data-density="s"] .pg-badges {
+  max-height: 19px;
+}
+
+/* ── The name, under its tags ───────────────────────────────────────────────
+   The one thing a wall of pictures cannot say for itself. The fade is on the
+   meta layer, so the tags and the name both sit on it rather than each
+   carrying its own. */
+
+/* The fade is for anything white over a photograph, not for the name alone:
+   a card showing two tags and no name needs it just as much. */
+.pg-meta.has-fade {
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.35) 38%, transparent 62%);
+  color: #fff;
+}
+
+/* Tags and the name as one block in one corner. They were at opposite ends
+   of the card, which on something that is mostly picture read as two
+   unrelated things rather than as one label. */
+.pg-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.pg-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+
+
+.pg-badge {
+  display: inline-block;
+  flex: none;
+  max-width: 100%;
+  padding: 4px 6px;
+  border-radius: 5px;
+  background: rgba(20, 20, 24, 0.62);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.44px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The count of values that did not get a pill: quieter, since it is about
+   the pills rather than one of them. */
+.pg-badge.is-more {
+  font-weight: 500;
+  letter-spacing: 0;
+  opacity: 0.85;
+}
+
+.pg-media {
+  -webkit-user-drag: none;
+}
+
+.pg-progress {
+  position: absolute;
+  inset: 0 var(--pg-inspector-w, 0px) auto var(--pg-sidebar-w, 0px);
+  z-index: 20;
+  height: 2px;
+  background: var(--pg-rule);
+  opacity: 0;
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+
+.pg-progress.is-visible {
+  opacity: 1;
+}
+
+.pg-progress-fill {
+  height: 100%;
+  width: 0;
+  background: var(--pg-accent);
+  transition: width 220ms ease;
+}
+
+/* Work of unknown length: a travelling sliver rather than a fake percentage. */
+.pg-progress.is-indeterminate .pg-progress-fill {
+  width: 30%;
+  transition: none;
+  animation: pg-progress-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes pg-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+.pg-progress-label {
+  position: absolute;
+  top: 8px;
+  left: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--background-primary);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+/* A job of many things says how many, and offers a way out.
+   The bar itself takes no clicks, so the button turns them back on for
+   itself alone — it is the one part of this that is a control. */
+.pg-progress-count {
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+  background: var(--background-primary);
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pg-progress:not(.is-counted) .pg-progress-count {
+  display: none;
+}
+
+.pg-progress button.pg-progress-stop {
+  position: absolute;
+  top: 8px;
+  right: 84px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--background-modifier-border);
+  box-shadow: none;
+  color: var(--text-normal);
+  font-size: 11px;
+  line-height: 16px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pg-progress button.pg-progress-stop:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* A button inside a notice, for an offer the notice is making. */
+.pg-notice-action {
+  margin-left: 10px;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--interactive-accent);
+  box-shadow: none;
+  color: var(--text-on-accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pg-marquee {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 15;
+  display: none;
+  pointer-events: none;
+  border: 1px solid var(--pg-accent);
+  background: hsl(from var(--pg-accent) h s l / 0.12);
+  border-radius: 2px;
+}
+
+.pg-marquee.is-active {
+  display: block;
+}
+
+/* Selection expands the card into the inset it already reserves, so it can
+   never overlap a neighbour however tall the tile is. */
+.pg-tile.is-selected {
+  z-index: 5;
+}
+
+.pg-tile.is-selected .pg-frame {
+  transform: scale(var(--pg-sx, 1), var(--pg-sy, 1));
+  box-shadow: var(--pg-tile-lift-selected);
+}
+
+/* The ring, on a layer of its own above everything else the card draws.
+ *
+ * It was an outline on the frame, and the frame sits under the badge layer:
+ * hovering a selected card brought up the title fade over the ring, so
+ * selection appeared to come undone under the cursor. A card's chrome
+ * answers a hover; whether it is selected is not something a hover may have
+ * an opinion about. */
+.pg-tile.is-selected::after {
+  content: "";
+  position: absolute;
+  /* At the tile's own edge, not the frame's resting inset: a selected or
+     hovered card scales its frame up by exactly the four pixels the frame
+     was inset by, so the drawn frame fills the tile. At inset 4 the ring sat
+     inside the picture with its corners cutting across it. Drawn against the
+     tile rather than the frame for the other half of the same reason — the
+     scale is anisotropic, and a ring on the frame had its stroke stretched
+     wider one way than the other. */
+  inset: 0;
+  z-index: calc(var(--pg-layer-badges) + 1);
+  /* The frame's radius as that scale draws it, one axis at a time. The ring
+     and the scaled picture share the tile's edge, so their corners have to
+     be the same curve: at 14px, the ring's corner cut inside the picture's
+     and the picture showed past it at all four corners. */
+  border-radius: calc(10px * var(--pg-sx, 1)) / calc(10px * var(--pg-sy, 1));
+  box-shadow: inset 0 0 0 3px var(--pg-accent);
+  /* Matches the frame's own resting transition, for the tightest stage where
+     a hover grows the box instead of scaling it. */
+  transition: inset 200ms cubic-bezier(0.33, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.pg-confirm-list {
+  margin: 0 0 8px;
+  padding-left: 20px;
+  max-height: 180px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.pg-confirm-more {
+  list-style: none;
+  margin-left: -12px;
+  opacity: 0.7;
+}
+
+/* The card currently open in the detail view. Hidden outright rather than
+   faded, so the returning flight lands on empty space instead of on a
+   duplicate of itself. */
+.pg-tile.is-focus-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Reflow: a tile that keeps its identity glides to its new spot. Applied
+   only to continuing tiles, never to a pooled element reused for another
+   clipping, which would otherwise fly across the canvas. */
+.pg-tile.is-gliding {
+  /* Opacity rides along: the spotlight dims tiles that are gliding to make
+     room for the new folder, and a transform-only list here snapped them. */
+  transition:
+    transform 300ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    opacity 520ms ease-in-out;
+}
+
+/* Arrival: overshoot past full size, dip, settle. The keyframes carry the
+   overshoot, so the easing between them stays a plain ease-out; a springy
+   curve here as well would compound into a second, unwanted bounce.
+
+   Every frame repeats the tilt transform rather than writing a bare scale().
+   transform is one property, so a keyframe setting scale() alone drops the
+   perspective and rotation, and a card entering under the cursor would snap
+   flat for the length of the animation. */
+.pg-tile.is-entering .pg-frame {
+  animation: pg-pop 460ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
+  animation-delay: var(--pg-enter-delay, 0ms);
+}
+
+@keyframes pg-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+  80% {
+    transform: scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Departure: tip away and shrink out while the survivors glide up behind it.
+   Starts from whatever tilt the card was holding, so deleting the card under
+   the cursor does not snap it flat before it goes. */
+.pg-tile.is-leaving {
+  pointer-events: none;
+  z-index: 1;
+}
+
+.pg-tile.is-leaving .pg-frame {
+  animation: pg-vanish 220ms cubic-bezier(0.55, 0, 0.85, 0.35) both;
+}
+
+@keyframes pg-vanish {
+  from {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.7) rotate(-3deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-tile.is-gliding,
+  .pg-tile.is-entering .pg-frame,
+  .pg-tile.is-leaving .pg-frame,
+  .pg-media {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* Hover lifts a card the same way selection does, minus the ring. Only one
+   element can be hovered, so moving quickly between tiles crossfades: the
+   one being left transitions back down as the new one comes up. */
+.pg-tile:hover {
+  z-index: 4;
+}
+
+/* The lift answers a cursor, and the tilt inside it is driven by where that
+   cursor is. A finger has neither, and a tapped card would keep the raised
+   shadow after the finger had gone, so on touch a card simply stays flat. */
+@media (hover: hover) {
+  .pg-tile:hover .pg-frame {
+    transform: scale(var(--pg-sx, 1), var(--pg-sy, 1));
+    box-shadow: var(--pg-tile-lift);
+    /* While engaged, short enough to follow the cursor. Leaving hover falls
+       back to the resting transition above, which is the gentle one. */
+    transition:
+      transform 120ms cubic-bezier(0.22, 0.9, 0.28, 1),
+      box-shadow 190ms ease;
+  }
+
+  /* Selection outranks hover, so a selected card keeps its ring and depth. */
+  .pg-tile.is-selected:hover .pg-frame {
+    box-shadow: var(--pg-tile-lift-strong);
+  }
+}
+
+/* Dragging should not leave a trail of tiles popping under the cursor. */
+.pg-viewport.is-panning .pg-tile:hover .pg-frame,
+.pg-viewport.is-selecting .pg-tile:hover .pg-frame {
+  transform: scale(1);
+  box-shadow: none;
+}
+
+.pg-viewport.is-selecting .pg-tile.is-selected .pg-frame {
+  transform: scale(var(--pg-sx, 1), var(--pg-sy, 1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-tile:hover .pg-frame {
+    transform: none;
+  }
+}
+
+/* Archived clip standing in for the poster still inside a note. */
+.pg-note-video {
+  max-width: 100%;
+  border-radius: 8px;
+  display: block;
+}
+
+
+
+.pg-actionbar-count {
+  padding: 0 0 0 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pg-surface-mid);
+  white-space: nowrap;
+}
+
+/* Rules a bar into groups. One definition for both bars: they are the same
+   control in two places, and two rules meaning one thing is how they came to
+   differ by two pixels in the first place. */
+.pg-bar-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 18px;
+  background: var(--pg-rule);
+}
+
+
+
+
+
+/* Shared by the grid's selection bar and the detail view's action bar, so
+   the two cannot drift. The host button must be position: relative. */
+.pg-tip {
+  position: absolute;
+  /* Measured from the button, which sits inside the bar's padding, so the
+     offset has to clear that padding before any gap is visible. */
+  bottom: calc(100% + 21px);
+  left: 50%;
+  transform: translateX(-50%) translateY(6px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  /* Fully round rather than the surface radius: at this height the two are
+     the same shape anyway, and a label should read as a pill. */
+  border-radius: 999px;
+  background-color: var(--pg-surface);
+  background-image: none;
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  color: var(--pg-surface-text);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+/* Only where there is a pointer that can hover. A touch applies :hover on
+   tap and leaves it applied until something else is tapped, so on a phone
+   these labels would appear on use and then sit there, captioning a button
+   nobody is pointing at. */
+@media (hover: hover) {
+  .pg-actionbar-button:hover .pg-tip,
+  .pg-detail-button:hover .pg-tip,
+  .pg-detail-back:hover .pg-tip,
+  .pg-spacebar button:hover .pg-tip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* The wall's own controls stand alone rather than inside a bar, so there is
+   no padding to clear and the offset above would leave a visible gap between
+   the label and the button it belongs to. */
+.pg-spacebar .pg-tip {
+  bottom: calc(100% + 10px);
+}
+
+/* Read, never drawn. Carries a control's accessible name where an aria-label
+   would otherwise make Obsidian draw a second tooltip beside our own. */
+.pg-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.pg-tip-key {
+  opacity: 0.55;
+  font-weight: 500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-actionbar,
+  .pg-tip {
+    transition: none;
+  }
+}
+
+/* Right-click menu. The backdrop dims the wall so the choice is the only
+   thing in focus, and swallows the click that dismisses it. */
+.pg-menu-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: var(--pg-scrim);
+  opacity: 0;
+  /* Exit: quicker than the entry, so a dismissed menu is gone by the time you
+     have looked away, while arriving still has time to read as a movement. */
+  transition: opacity 100ms ease;
+}
+
+/* Inert while arriving and while leaving. A backdrop still fading would
+   otherwise swallow the click that opens whatever you turned to next. */
+.pg-menu-backdrop:not(.is-open) {
+  pointer-events: none;
+}
+
+.pg-menu-backdrop.is-open {
+  opacity: 1;
+  transition: opacity 140ms ease;
+}
+
+.pg-menu {
+  position: absolute;
+  z-index: 41;
+  min-width: 260px;
+  padding: var(--pg-surface-pad);
+  border-radius: var(--pg-surface-radius);
+  background-color: var(--pg-surface);
+  background-image: none;
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  opacity: 0;
+  transform: scale(0.94);
+  /* Exit. Shorter than the entry and with no overshoot: a menu should spring
+     open and then simply be gone, not bounce on the way out. */
+  transition:
+    opacity 100ms ease,
+    transform 100ms ease;
+}
+
+/* Inert while arriving and while leaving, so a panel on its way out cannot
+   take a click meant for the wall or for the menu replacing it. */
+.pg-menu:not(.is-open) {
+  pointer-events: none;
+}
+
+.pg-menu.is-open {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 130ms ease,
+    transform 160ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.pg-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 13px;
+  border-radius: var(--pg-inner-radius);
+  color: var(--pg-surface-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.pg-menu-item:hover {
+  background: var(--pg-inner-hover);
+}
+
+/* The keyboard's cursor in a submenu, lit exactly as hover lights a row: the
+   two are the same idea arriving by different means, and showing them
+   differently would suggest they do different things. */
+.pg-menu-item.is-active {
+  background: var(--pg-inner-hover);
+}
+
+/* The row stays lit while its submenu is open, so the choice keeps the
+   context it was made from. */
+.pg-menu-item.is-open-parent {
+  background: var(--pg-inner-hover);
+}
+
+.pg-menu-arrow {
+  display: flex;
+  align-items: center;
+  margin-left: 2px;
+  color: var(--pg-surface-text);
+  opacity: 0.5;
+}
+
+.pg-menu-arrow .svg-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* Above its parent, and never wider than it needs to be: a list of grid
+   names should not inherit the parent's min-width. */
+.pg-menu-sub {
+  z-index: 42;
+  min-width: 180px;
+  overscroll-behavior: contain;
+  /* A source or category list grows with the collection, so it scrolls
+     rather than running off the top of the pane. */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* Opened from the detail view's bar, which outranks a menu in the normal
+   stack, so the panel would otherwise be built behind the overlay and never
+   be seen. Scoped to that one caller rather than raising menus generally:
+   they sit below the palette on purpose, and a blanket raise would silently
+   invert that relationship too. */
+.pg-menu-backdrop.is-elevated {
+  z-index: 51;
+}
+
+.pg-menu.is-elevated {
+  z-index: 52;
+}
+
+.pg-menu.pg-menu-sub.is-elevated {
+  z-index: 53;
+}
+
+.pg-menu-item.is-destructive:hover {
+  background: rgba(255, 82, 82, 0.18);
+}
+
+.pg-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  opacity: 0.9;
+}
+
+.pg-menu-label {
+  flex: 1 1 auto;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.pg-menu-detail {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--pg-surface-dim);
+  white-space: nowrap;
+}
+
+/* Always present so a row can be patched in place, and out of the way until
+   it has something to say. */
+.pg-menu-detail:empty {
+  display: none;
+}
+
+/* A mark reads as state, not as a footnote, so it comes up to full strength
+   where the count it replaced was deliberately quiet. */
+.pg-menu-detail.is-marked {
+  display: flex;
+  align-items: center;
+  color: var(--pg-surface-text);
+}
+
+.pg-menu-detail.is-marked .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* No row here has a left icon, so nothing reserves the gutter. Both forms:
+   the top panel carries the class itself, while a submenu carries it on the
+   element its rows live in, beneath the search field. */
+.pg-menu.is-iconless .pg-menu-icon,
+.pg-menu .is-iconless .pg-menu-icon {
+  display: none;
+}
+
+/* A sentence above a sheet's rows, for a choice that has to say what it will
+   do before it is made. Indented to the rows' text, not the panel's edge, so
+   it reads as belonging to the list rather than to the window. */
+.pg-sheet-note {
+  margin: 2px 0 10px;
+  padding: 0 13px;
+  color: var(--pg-surface-mid);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* The submenu's search field.
+
+   A real input rather than a div a key handler writes into. Every global
+   shortcut in the plugin steps aside for a focused field, so this is what
+   suspends the wall's keys while you type, and it is why the shortcuts that
+   belong to a field work here at all. */
+.pg-menu input.pg-menu-query {
+  /* Row metrics, so the text sits on the same left edge and at the same size
+     as the labels it is narrowing. At its own smaller size it read as a
+     caption about the list rather than as part of it. */
+  display: block;
+  width: 100%;
+  margin: 0 0 4px;
+  padding: 10px 13px;
+  border: 0;
+  border-radius: var(--pg-inner-radius);
+  background-color: var(--pg-inner-well);
+  background-image: none;
+  box-shadow: none;
+  color: var(--pg-surface-text);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.3;
+  height: auto;
+}
+
+/* Restates the well, and does not merely drop the border. This field is
+   focused the entire time it is visible, so a reset that skips the background
+   hands the host's focused-form-field wash a state the resting rule never
+   gets to answer, and the well silently becomes whatever the theme paints. */
+.pg-menu input.pg-menu-query:hover,
+.pg-menu input.pg-menu-query:active,
+.pg-menu input.pg-menu-query:focus,
+.pg-menu input.pg-menu-query:focus-visible {
+  border: 0;
+  background-color: var(--pg-inner-well);
+  background-image: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.pg-menu input.pg-menu-query::placeholder {
+  color: var(--pg-surface-faint);
+}
+
+/* Collapsed while empty, so a submenu you are only pointing at looks the way
+   it always did and the field appears as you use it. It stays in the document
+   and keeps its focus, which is the whole point: zero height, not hidden. */
+.pg-menu input.pg-menu-query.is-empty {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The .is-open rules carry their own transition and outrank a bare
+     .pg-menu here, so they have to be named or the entry animation survives
+     the preference that asked for it to stop. */
+  .pg-menu,
+  .pg-menu.is-open,
+  .pg-menu-backdrop,
+  .pg-menu-backdrop.is-open {
+    transition: none;
+  }
+}
+
+/* Detail view: a single clipping, flown out of the card that was clicked. */
+.pg-detail {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+}
+
+.pg-detail-backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--background-primary);
+  /* Opaque at rest. The fade in is animated from fly(), not declared here,
+     because the backdrop is created and given is-open inside one task; the
+     return is still a cut, since the card flying home needs the wall to land
+     on rather than a surface dissolving underneath it. */
+  opacity: 1;
+}
+
+.pg-detail:not(.is-open) .pg-detail-backdrop {
+  opacity: 0;
+}
+
+.pg-detail-stage {
+  position: absolute;
+  overflow: hidden;
+  /* The flight is transform-only, so this keeps it entirely on the
+     compositor instead of repainting the image each frame. */
+  will-change: transform;
+  border-radius: 6px;
+  /* No fill. The stage is sized to the media's own aspect, so any surface
+     showing through would be letterboxing rather than design. */
+  background: transparent;
+  box-shadow: var(--pg-stage-lift);
+}
+
+/* Carries the zoom transform. Kept off the stage on purpose: the stage's own
+   transform belongs to the flight animation, which fills forwards and would
+   override anything written to the stage inline. */
+.pg-detail-zoom {
+  position: absolute;
+  inset: 0;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+
+.pg-detail.is-zoomable .pg-detail-stage {
+  cursor: zoom-in;
+}
+
+.pg-detail.is-zoomed .pg-detail-stage {
+  cursor: grab;
+}
+
+.pg-detail.is-panning .pg-detail-stage {
+  cursor: grabbing;
+}
+
+.pg-detail-media {
+  width: 100%;
+  height: 100%;
+  /* Contain, never cover: the stage is re-fitted to the media's true aspect
+     shortly after opening, but until then cover would crop the image. The
+     black bars came from a black fill behind this, not from contain. */
+  object-fit: contain;
+  display: block;
+  background: transparent;
+  /* Electron starts a native image drag otherwise, which swallows the pan. */
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.pg-detail button.pg-detail-back {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 2;
+  opacity: 0;
+  /* The leave, plus the shared button transitions repeated. `transition` is
+     one property, so a rule that touches it at all has to restate the legs it
+     is not changing or they are dropped. */
+  transition:
+    opacity 90ms ease,
+    background-color 120ms ease,
+    transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    box-shadow 180ms ease;
+}
+
+.pg-detail.is-open button.pg-detail-back {
+  opacity: 1;
+  /* Delays here are measured against FLIGHT_MS. The chrome layers in over the
+     last third of the flight and settles as the card lands, rather than
+     arriving while it is still travelling. Only the opacity leg differs from
+     the rule above; the rest repeat for the reason given there. */
+  transition:
+    opacity 320ms ease 250ms,
+    background-color 120ms ease,
+    transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    box-shadow 180ms ease;
+}
+
+/* The tip belongs under this one. Every other tip rises above its button,
+   which from the top left corner would place it off the top of the pane. */
+.pg-detail-back .pg-tip {
+  top: calc(100% + 14px);
+  bottom: auto;
+  transform: translateX(-50%) translateY(-6px);
+}
+
+.pg-detail-meta {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  /* No top padding: the panel's own top edge is set to the image's in
+     paintMeta, so padding here would push the first field below it. Left
+     padding stays small for the same reason, the gap being positional. */
+  /* The bottom padding grows by whatever Obsidian's navbar covers, so the
+     last field can be scrolled clear of it rather than ending underneath. */
+  padding: 0 40px calc(40px + var(--pg-bottom-inset, 0px)) 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  opacity: 0;
+  transform: translateX(10px);
+  /* Cut, not faded. The panel is text pinned to the right edge, so any
+     lingering makes it read as debris the returning card flies underneath. */
+  transition: none;
+}
+
+.pg-detail.is-open .pg-detail-meta {
+  opacity: 1;
+  transform: translateX(0);
+  /* No transition. The entrance is played by detail.ts, because this panel is
+     built and given is-open inside one task and a transition between the two
+     needs a style flush to land in between, which never happens. These two
+     rules are only the resting states: hidden before it opens, and shown
+     while it is open so a close cuts it rather than letting it linger as
+     debris the returning card flies underneath. */
+}
+
+/* Stacked (narrow pane): the details run under the picture, so they end
+   behind the action bar pinned to the bottom. Enough bottom padding that the
+   last field can scroll clear of it, and no right padding, since the column
+   is already as wide as the picture and nothing sits to its right. */
+.pg-detail.is-stacked .pg-detail-meta {
+  padding-right: 4px;
+  /* The inset is repeated rather than inherited: this longhand overrides the
+     padding shorthand above, so without it the last field goes back under
+     Obsidian's navbar and 0.1.7 is undone in the one layout that most needs
+     it. */
+  padding-bottom: calc(96px + var(--pg-bottom-inset, 0px));
+}
+
+/* Beside a picture the column shares the pane's bottom with the floating
+   action bar, so it ends above the bar instead of running underneath it:
+   content that overflows scrolls inside, and the last field or the palette
+   can never sit half-hidden behind the buttons. Stacked mode keeps its own
+   bottom padding, which serves the same purpose there. */
+.pg-detail:not(.is-stacked) .pg-detail-meta {
+  bottom: calc(92px + var(--pg-bottom-inset, 0px));
+  padding-bottom: 24px;
+}
+
+.pg-detail-field {
+  margin-bottom: 22px;
+}
+
+.pg-detail-label {
+  margin-bottom: 4px;
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-normal);
+}
+
+.pg-detail-value {
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The source row's link out. Muted like its siblings until pointed at, so
+   the panel stays a description rather than a row of controls. */
+.pg-detail-link {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.pg-detail-link:hover {
+  color: var(--text-normal);
+  text-decoration: underline;
+}
+
+/* The picture's palette, last in the details panel so it reads as another
+   field rather than a widget bolted on underneath. */
+.pg-swatches {
+  /* Nothing follows it, and the panel already pads its own bottom. */
+  margin-bottom: 0;
+}
+
+.pg-swatches-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.pg-detail button.pg-swatch {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  /* The colour itself is set inline; this only has to not fight it. */
+  background-image: none;
+  /* An inset ring, not a border. A near-black swatch needs an edge against a
+     dark panel and a near-white one against a light panel, and an inset ring
+     stays the swatch's own shape instead of growing it. */
+  box-shadow: inset 0 0 0 1px var(--pg-rule);
+  cursor: pointer;
+  transition: transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.pg-detail button.pg-swatch:hover {
+  transform: scale(1.12);
+}
+
+.pg-detail button.pg-swatch:active {
+  transform: scale(0.94);
+}
+
+/* One readout for the whole row rather than a tip on each swatch: the panel
+   scrolls, and a scroll container clips absolutely positioned children, which
+   would cut the tips off the swatches at either end of the row. It is always
+   in the document and only fades, so showing a value cannot reflow the panel. */
+.pg-swatches-readout {
+  width: fit-content;
+  margin: 10px auto 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background-color: var(--pg-surface);
+  background-image: none;
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  color: var(--pg-surface-text);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  opacity: 0;
+  /* Centred by the auto margins, then carried sideways to sit under whichever
+     swatch is being pointed at, which swatch-strip.ts measures and clamps. One
+     label that travels rather than one per swatch: the panel scrolls, and a
+     scroll container clips absolutely positioned children, so a tip on each
+     would be cut off the first and the last. This one stays in the flow.
+
+     Both offsets ride in the single transform, since the second declaration of
+     a property replaces the first rather than adding to it, and the sideways
+     move has to survive the vertical one arriving. */
+  transform: translate(var(--pg-readout-x, 0px), -4px);
+  pointer-events: none;
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.pg-swatches-readout.is-visible {
+  opacity: 1;
+  transform: translate(var(--pg-readout-x, 0px), 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-detail button.pg-swatch,
+  .pg-swatches-readout {
+    transition: none;
+    animation: none;
+  }
+}
+
+.pg-detail-actions {
+  position: absolute;
+  bottom: calc(26px + var(--pg-bottom-inset, 0px));
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  padding: var(--pg-bar-pad) calc(var(--pg-bar-pad) + 8px);
+  border-radius: var(--pg-bar-radius);
+  background-color: var(--pg-surface);
+  background-image: none;
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  transform: translate(-50%, 14px);
+  opacity: 0;
+  /* Exit: a quick drop away with no delay, short enough to be finished
+     while the card is still early in its return rather than trailing it. */
+  transition:
+    opacity 110ms ease,
+    transform 110ms ease;
+}
+
+.pg-detail.is-open .pg-detail-actions {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  transition:
+    opacity 320ms ease 320ms,
+    transform 360ms cubic-bezier(0.19, 1, 0.26, 1) 320ms;
+}
+
+.pg-detail button.pg-detail-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--pg-bar-btn);
+  height: var(--pg-bar-btn);
+  padding: 0;
+  border: 0;
+  border-radius: var(--pg-bar-btn-radius);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--pg-surface-text);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.pg-detail button.pg-detail-button:hover {
+  background-color: var(--pg-inner-hover);
+}
+
+/* A button that is reporting rather than offering: this frame is already the
+   one the wall shows. Dimmed and inert, not hidden, so the row does not
+   change length as you step through the reel. */
+.pg-detail button.pg-detail-button.is-on {
+  color: var(--pg-accent);
+  cursor: default;
+}
+
+.pg-detail button.pg-detail-button.is-on:hover {
+  background-color: transparent;
+}
+
+.pg-detail button.pg-detail-button.is-on:active {
+  transform: none;
+}
+
+.pg-detail button.pg-detail-button:active {
+  transform: scale(0.93);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-detail-backdrop,
+  .pg-detail-meta,
+  .pg-detail-actions,
+  .pg-detail.is-open .pg-detail-meta,
+  .pg-detail.is-open .pg-detail-actions,
+  /* Named with their element, to match the specificity of the rules that
+     set these transitions. A bare .pg-detail-back would lose to them and
+     the animation would survive the preference asking it to stop. */
+  .pg-detail button.pg-detail-back,
+  .pg-detail.is-open button.pg-detail-back {
+    transition: none;
+  }
+}
+
+
+
+
+
+
+
+/* Lit while filtering, because a filtered wall and an empty grid look
+   identical from the outside otherwise. */
+.pg-space-filter.is-active {
+  color: var(--pg-accent);
+}
+
+
+.pg-space-count {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 15px;
+  padding: 0 3px;
+  border-radius: 8px;
+  background: var(--pg-accent);
+  color: var(--pg-on-accent);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+
+.pg-space-count:empty {
+  display: none;
+}
+
+
+
+
+
+
+
+
+/* Menu additions: a rule for grouping, and a row that is shown but inert. */
+/* A tertiary caption over a group of menu rows.
+
+   Same treatment as the palette's section headings, because they are the same
+   thing on a different surface, and left aligned to the rows' text rather than
+   the panel's edge so it reads as belonging to the list under it. */
+.pg-menu-section {
+  padding: 8px 13px 4px;
+  color: var(--pg-surface-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pg-menu-divider {
+  height: 1px;
+  margin: 5px 10px;
+  background: var(--pg-rule);
+}
+
+.pg-menu-item.is-disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pg-menu-item.is-disabled:hover {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-spacebar button,
+  .pg-actionbar button.pg-actionbar-button,
+  .pg-detail button.pg-detail-button {
+    transition: none;
+  }
+
+  /* Back shares the wall chrome's rules, so it shares their exemption. */
+
+  /* The flex is motion, not decoration, so it goes entirely. */
+  .pg-spacebar button:active,
+  .pg-actionbar button.pg-actionbar-button:active,
+  .pg-detail button.pg-detail-button:active,
+  .pg-detail button.pg-detail-back:active {
+    transform: none;
+  }
+}
+
+/* Centred search: one input over the wall that finds both the clippings on
+   it and the things you can do to them. Same surface, same rows and the same
+   inner radius as the menus, so it reads as the menu system opened from the
+   keyboard rather than a second design. */
+.pg-palette-backdrop {
+  position: absolute;
+  inset: 0;
+  /* Above the detail overlay (50) and the menu it may have opened (52): a
+     sheet is a prompt, and a prompt that opened behind the thing that asked
+     for it looked like a button that did nothing. */
+  z-index: 56;
+  background: var(--pg-scrim);
+  opacity: 0;
+  transition: opacity 140ms ease;
+}
+
+.pg-palette-backdrop.is-open {
+  opacity: 1;
+}
+
+.pg-palette {
+  position: absolute;
+  z-index: 57;
+  /* High enough that the list grows downward into open space, low enough
+     that the wall behind it still reads as the thing being searched. */
+  top: 14vh;
+  left: 50%;
+  width: min(620px, calc(100% - 32px));
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--pg-surface-pad);
+  border-radius: var(--pg-surface-radius);
+  background-color: var(--pg-surface);
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  opacity: 0;
+  /* The translate has to survive the entry transform, or the panel walks
+     half its own width across the screen as it opens. */
+  transform: translateX(-50%) scale(0.96);
+  transition:
+    opacity 130ms ease,
+    transform 160ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.pg-palette.is-open {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.pg-palette-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 13px 12px;
+  border-bottom: 1px solid var(--pg-rule);
+}
+
+.pg-palette-search {
+  display: flex;
+  align-items: center;
+  color: var(--pg-surface-text);
+  opacity: 0.45;
+}
+
+.pg-palette-search .svg-icon {
+  width: 18px;
+  height: 18px;
+}
+
+/* The command you are answering, kept in view while you answer it. */
+.pg-palette-chip {
+  display: none;
+  flex: 0 0 auto;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 8px;
+  background: var(--pg-inner-chip);
+  color: var(--pg-surface-text);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.pg-palette-chip.is-visible {
+  display: flex;
+}
+
+/* A scope written into the query as `@grid` or `#tag`, shown back as a pill
+   with a way out. The token stays in the field — that is where it lives, and
+   it is why backspace can edit one like the text it is — so this is a display
+   of what is there rather than a second place the state is kept. */
+.pg-palette-narrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0 0 0 2px;
+  border-radius: 6px;
+  color: var(--pg-surface-text);
+}
+
+.pg-palette-narrow + .pg-palette-narrow {
+  border-left: 1px solid var(--pg-surface-faint);
+  padding-left: 7px;
+}
+
+.goko-view .pg-palette button.pg-palette-narrow-x {
+  display: inline-grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--pg-surface-dim);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.goko-view .pg-palette button.pg-palette-narrow-x:hover {
+  background: var(--pg-inner-chip);
+  color: var(--pg-surface-text);
+}
+
+/* Selector carries the view as well as the panel, so it outranks Obsidian's
+   own input styling, which otherwise paints a filled box with its own border. */
+.goko-view .pg-palette input.pg-palette-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  color: var(--pg-surface-text);
+  /* 16px: anything smaller is what makes a mobile browser zoom on focus. */
+  font-size: 16px;
+  line-height: 1.4;
+}
+
+/* Every state, not just the resting one.
+   The field is focused for its whole life here, since the panel focuses it on
+   open and exists to be typed into, so a resting-state-only reset is a reset
+   that never actually applies. Listing the states is what stops the host's
+   focused-form-field wash painting the box back in behind the text, which is
+   the filled rectangle this file has now been written twice to prevent.
+   background-image as well as the colour: the host states one and some themes
+   state the other, and clearing one alone leaves the other showing. */
+.goko-view .pg-palette input.pg-palette-input,
+.goko-view .pg-palette input.pg-palette-input:hover,
+.goko-view .pg-palette input.pg-palette-input:active,
+.goko-view .pg-palette input.pg-palette-input:focus,
+.goko-view .pg-palette input.pg-palette-input:focus-visible {
+  border: none;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  outline: none;
+}
+
+.pg-palette input.pg-palette-input::placeholder {
+  color: var(--pg-surface-faint);
+}
+
+.pg-palette-list {
+  flex: 1 1 auto;
+  /* Positioned, so a row's offsetTop is measured against the list itself. */
+  position: relative;
+  overflow-y: auto;
+  /* Or a wheel past the last row keeps going into the pane behind it. */
+  overscroll-behavior: contain;
+  /* Both ends, and they have to match. The bottom was missing, so rows sat
+     against the footer's rule while clearing the head's, which reads as the
+     list having slipped down. A long list hides it by scrolling; a list of one
+     row is nothing but the gap, which is where it was finally seen. */
+  padding-block: 8px;
+  /* Keeps the row that scrollIntoView lands on clear of the rounded corner. */
+  scroll-padding: 8px 0;
+}
+
+.pg-palette-section {
+  padding: 8px 13px 4px;
+  color: var(--pg-surface-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pg-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 13px;
+  border-radius: var(--pg-inner-radius);
+  color: var(--pg-surface-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+/* The handle at the end of a row that can be carried up and down the list.
+
+   The grab cursor lives here and not on the row, because the row has two
+   things it can do and only one of them is a drag: the body opens it, this
+   moves it. A whole row that says grab is promising the wrong one, and was
+   also taking the pointer capture that stopped the row being clicked. */
+.pg-palette-grip {
+  display: flex;
+  align-items: center;
+  margin-left: 2px;
+  color: var(--pg-surface-faint);
+  cursor: grab;
+  /* Or a touch drag scrolls the list underneath the row instead of moving it.
+     Confined to the handle, so the rest of the row still scrolls by touch. */
+  touch-action: none;
+}
+
+.pg-palette-item:hover .pg-palette-grip,
+.pg-palette-item.is-active .pg-palette-grip {
+  color: var(--pg-surface-mid);
+}
+
+.pg-palette-item.is-dragging .pg-palette-grip {
+  cursor: grabbing;
+}
+
+/* Lifted while it is being carried. No transform: the row is genuinely
+   changing places as the pointer crosses each neighbour, so anything that
+   displaced it as well would be showing the move twice. */
+.pg-palette-list .pg-palette-item.is-dragging {
+  cursor: grabbing;
+  background: var(--pg-inner-active);
+  box-shadow: var(--pg-tile-lift);
+}
+
+/* One highlight, driven by the keyboard. Hover moves it rather than adding a
+   second lit row, so the thing Enter will run is never in doubt. */
+.pg-palette-item.is-active {
+  background: var(--pg-inner-hover);
+}
+
+.pg-palette-item.is-destructive.is-active {
+  background: rgba(255, 82, 82, 0.18);
+}
+
+.pg-palette-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  opacity: 0.9;
+}
+
+.pg-palette-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  white-space: nowrap;
+  /* Clipping titles are page titles: long, and they must not push the grid
+     name and shortcut hint off the row. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pg-palette-mark {
+  color: var(--pg-mark);
+  font-weight: 600;
+}
+
+.pg-palette-detail {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--pg-surface-dim);
+  white-space: nowrap;
+}
+
+.pg-palette-detail:empty {
+  display: none;
+}
+
+/* A mark reads as state, not as a footnote, so it comes up to full strength
+   where the count it replaced was deliberately quiet. */
+.pg-palette-detail.is-marked {
+  display: flex;
+  align-items: center;
+  color: var(--pg-surface-text);
+}
+
+.pg-palette-detail.is-marked .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* No row in this list has a left icon, so nothing reserves the gutter. */
+.pg-palette-list.is-iconless .pg-palette-icon {
+  display: none;
+}
+
+.pg-palette-arrow {
+  display: flex;
+  align-items: center;
+  color: var(--pg-surface-text);
+  opacity: 0.5;
+}
+
+.pg-palette-arrow .svg-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.pg-palette-empty {
+  padding: 26px 13px 30px;
+  color: var(--pg-surface-dim);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Swatches: one value being picked, drawn as a wrapped grid of round buttons
+   rather than a column of rows. Twelve icons as twelve full-width rows was a
+   scrolling list for a choice of one, and gave the chosen icon nowhere to
+   show itself. The column count is the layout's own business: the keyboard
+   steps one swatch in reading order regardless, so nothing outside this rule
+   needs to agree with it. */
+.pg-swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  padding: 8px 13px 12px;
+  justify-items: center;
+}
+
+/* A group caption inside the swatch grid takes the whole row. */
+.pg-swatch-grid .pg-palette-section {
+  grid-column: 1 / -1;
+  justify-self: stretch;
+  padding: 10px 0 0;
+}
+
+.pg-swatch-grid .pg-palette-section:first-child {
+  padding-top: 0;
+}
+
+.pg-swatch-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background-color: var(--pg-inner-well);
+  box-shadow: inset 0 0 0 1px var(--pg-rule);
+  color: var(--pg-surface-mid);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.pg-swatch-option .svg-icon {
+  width: 20px;
+  height: 20px;
+}
+
+/* Pointer feedback only, deliberately weaker than the chosen state and
+   deliberately CSS. A swatch is a value that has to survive the pointer
+   leaving on its way back to the field, so hover must not be able to move
+   what will be saved; only a click or an arrow key does that. */
+.pg-swatch-option:hover {
+  background-color: var(--pg-inner-active);
+  color: var(--pg-surface-text);
+}
+
+.pg-swatch-option:active {
+  transform: scale(0.93);
+}
+
+/* An icon id setIcon did not recognise. Drawn as a plain hole rather than left
+   looking like a sparse glyph, so an icon Lucide has since renamed is
+   obvious on sight instead of passing for a design choice. */
+.pg-swatch-option.is-missing {
+  border: 1px dashed var(--pg-rule);
+  box-shadow: none;
+  opacity: 0.5;
+}
+
+/* Chosen: filled and knocked out, not merely tinted. Anything subtler reads
+   as another hover, which is the whole reason the old list had no sense of a
+   selection.
+
+   Neutral rather than accent. The accent appears on this surface as a ring, a
+   text colour or a tint at 12%, never as a field of colour, and a 44px disc of
+   it shouted over a panel that is otherwise entirely greys. --pg-mark is the
+   emphasis neutral this file already defines and already inverts per theme:
+   white on dark, near-black on light. */
+.pg-swatch-option.is-active {
+  background-color: var(--pg-mark);
+  box-shadow: none;
+  color: var(--background-primary);
+}
+
+.pg-swatch-option.is-active:hover {
+  background-color: var(--pg-mark);
+  color: var(--background-primary);
+}
+
+.pg-palette-foot {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 13px 3px;
+  border-top: 1px solid var(--pg-rule);
+  color: var(--pg-surface-faint);
+  font-size: 11.5px;
+}
+
+/* Pushed to the far end, so the hints keep reading as a row of keys and the
+   commit is plainly the one thing you press. Selector carries the panel, for
+   the same reason every other control here does: Obsidian styles buttons. */
+.pg-palette .pg-palette-foot button.pg-sheet-cta {
+  margin-left: auto;
+  padding: 4px 12px;
+  border: 0;
+  border-radius: 7px;
+  background-color: var(--pg-mark);
+  background-image: none;
+  box-shadow: none;
+  color: var(--background-primary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: filter 120ms ease;
+}
+
+.pg-palette .pg-palette-foot button.pg-sheet-cta:hover {
+  filter: brightness(1.08);
+}
+
+.pg-palette .pg-palette-foot button.pg-sheet-cta:active {
+  filter: brightness(0.94);
+}
+
+.pg-palette-hint {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.pg-palette-key {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--pg-inner-well);
+  color: var(--pg-surface-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-palette,
+  .pg-palette-backdrop {
+    transition: none;
+  }
+}
+
+/* A clipping is a picture, so the palette shows the picture rather than a
+   generic file icon. Same gutter either way, so nothing shifts. */
+.pg-palette-icon.is-thumb {
+  width: 26px;
+  height: 26px;
+  margin: -3px 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--pg-inner-well);
+}
+
+.pg-palette-icon.is-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ---------------------------------------------------------------------------
+   Settings tab: the filter-property chips.
+
+   These live in Obsidian's own settings pane, outside .goko-view, so the
+   plugin's surface tokens are out of scope here and would resolve to nothing.
+   Obsidian's variables instead, which is also what keeps the section looking
+   like the rest of the settings rather than like the wall.
+--------------------------------------------------------------------------- */
+
+.pg-props {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 18px;
+}
+
+.pg-prop {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 10px;
+  border-radius: 999px;
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+  font-size: var(--font-ui-smaller);
+}
+
+.pg-prop button.pg-prop-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.pg-prop button.pg-prop-remove:hover {
+  background-color: var(--pg-rule);
+  color: var(--text-normal);
+}
+
+.pg-props-empty {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+/* Touch scrolls the wall with the browser's own scroller.
+
+   The momentum and the rubber-banding at the edges are WebKit's, written by
+   the people who decided what those should feel like and running off the
+   main thread. Reimplementing them in JavaScript means guessing constants
+   and arriving somewhere worse, so the viewport becomes a real scroll box
+   and pg-scroll is the spacer, sized to the scaled wall, that gives it
+   something to travel over.
+
+   Desktop keeps the transform camera above: it has a wheel, a held space
+   and a marquee, and a scroll box would improve none of them. */
+.pg-viewport.is-native-scroll {
+  overflow: auto;
+  /* Names the pans the browser may take for itself. Pinch is deliberately
+     absent, so a two-finger gesture reaches the pointer handlers as a zoom
+     instead of being swallowed as a page zoom. */
+  touch-action: pan-x pan-y;
+}
+
+/* Centres a wall narrower than the viewport, which is what clampCamera does
+   for the transform camera. */
+.pg-viewport.is-native-scroll .pg-scroll {
+  position: relative;
+  margin: 0 auto;
+}
+
+/* Obsidian's mobile navbar is laid over the view rather than above it, so
+   every bar that floats at the bottom clears whatever of our bottom edge it
+   covers. The figure is measured in view.ts, because Obsidian publishes no
+   height for it, and is simply absent on desktop. */
+
+/* Two fingers zoom the picture, so the browser must not read the gesture as
+   a page zoom. The detail view is an overlay rather than a scroller, so it
+   wants none of the browser's panning either. */
+.pg-detail-stage {
+  touch-action: none;
+}
+
+/* For the length of a pinch the wall comes off the scroller and onto the
+   camera, so it is exactly what it is on desktop and what the detail view is
+   always: one transform, clamped as it goes. The scroller cannot represent
+   every position a transform can show, and handing between the two at the
+   end is what used to snap. */
+.pg-viewport.is-pinching {
+  overflow: hidden;
+}
+
+/* One bar at a time across a phone.
+
+   The selection bar is centred and the space bar runs the full width beneath
+   it, which on a desktop pane leaves room either side of centre and at 390px
+   does not: the selection bar lands on the grid switcher. So the wall's own
+   controls give up the bottom while a selection is up, which is also how
+   Photos and Files put it, and suits a mode a long press enters and a tap on
+   empty space leaves. Set from view.ts, and only on mobile. */
+.pg-spacebar.is-hidden {
+  transform: translateY(calc(100% + 30px));
+  opacity: 0;
+}
+
+/* The row is transparent to the pointer and its buttons take that back, so
+   stopping the row is not enough to stop them. */
+.pg-spacebar.is-hidden button {
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-spacebar {
+    transition: none;
+  }
+}
+
+/* The hidden webview the Threads video sniffer loads a post in. Rendered
+   at phone-ish size but parked far off screen: display:none would stop the
+   player from ever mounting, and an unmounted player fetches nothing. */
+.pg-sniff-frame {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  width: 420px;
+  height: 760px;
+}
+
+
+
+
+
+
+
+
+/* The filter-properties section is one declarative render row; the default
+   two-column setting layout would squeeze it, so it flows as a block. */
+.pg-props-setting {
+  display: block;
+}
+
+/* The name and description come from the row's definition; the chips and
+   the add row are drawn under them, so the row's own control box is empty
+   and would otherwise leave a gap between the two. */
+.pg-props-setting > .setting-item-control:empty {
+  display: none;
+}
+
+/* A video tool's status, under what the tool is for: muted when the tool is
+   there, the warning colour when it is missing, with the install command in
+   monospace so it reads as something to paste. */
+.pg-tool-status {
+  margin-top: 6px;
+  color: var(--text-muted);
+}
+
+.pg-tool-status.is-missing {
+  color: var(--text-warning);
+}
+
+.pg-tool-status code {
+  font-family: var(--font-monospace);
+  user-select: text;
+}
+
+/* A description in labelled lines: each state of a switch, or each choice
+   of a dropdown, on a line of its own, its label in the body colour and a
+   step heavier, the rest left muted. */
+.pg-setting-lead + .pg-setting-line {
+  margin-top: 6px;
+}
+
+.pg-setting-line + .pg-setting-line {
+  margin-top: 2px;
+}
+
+.pg-setting-line-label {
+  color: var(--text-normal);
+  font-weight: var(--font-medium);
+}
+
+/* A row that does something ends in Obsidian's own button, with a glyph
+   before the word the way the empty wall's buttons carry one. */
+button.pg-setting-button {
+  gap: var(--size-2-3);
+}
+
+.pg-setting-button-glyph {
+  display: flex;
+  --icon-size: var(--icon-s);
+}
+
+/* ---- Folders ------------------------------------------------------------
+
+   A folder is a card on the wall like any other, so it takes the tile's
+   inset, radius, lift and pop. Inside it is a collage of its members' covers,
+   with the name and count as the same pills a tile shows on hover, and four
+   corner brackets that drag it to one, two or every column. The brackets
+   show on hover where there is a hover, and after a long press where there
+   is not. */
+
+.pg-folder {
+  background: var(--background-secondary);
+  cursor: pointer;
+}
+
+/* Clipped here as well as by the frame: the frame keeps a 3D transform for
+   the tilt, and Chromium lets descendants of a preserve-3d element escape
+   its overflow, which left the covers' corners square outside the card. */
+.pg-folder-collage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  /* The wall's own spacing: the 6px layout gap plus the 4px inset either
+     card keeps, so the covers sit apart the way tiles do. */
+  gap: 14px;
+  padding: 14px;
+  overflow: hidden;
+  border-radius: inherit;
+  /* Two rows at every width; the columns grow with the card. Each cover
+     carries a span from collagePlan, and dense flow packs them so the card
+     is full whatever the count. */
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr 1fr;
+  grid-auto-flow: dense;
+}
+
+.pg-folder-tile[data-width="2"] .pg-folder-collage {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.pg-folder-tile[data-width="3"] .pg-folder-collage {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.pg-folder-cover[data-span="1x1"] { grid-column: span 1; grid-row: span 1; }
+.pg-folder-cover[data-span="2x1"] { grid-column: span 2; grid-row: span 1; }
+.pg-folder-cover[data-span="3x1"] { grid-column: span 3; grid-row: span 1; }
+.pg-folder-cover[data-span="2x2"] { grid-column: span 2; grid-row: span 2; }
+.pg-folder-cover[data-span="3x2"] { grid-column: span 3; grid-row: span 2; }
+.pg-folder-cover[data-span="4x2"] { grid-column: span 4; grid-row: span 2; }
+.pg-folder-cover[data-span="6x2"] { grid-column: span 6; grid-row: span 2; }
+
+.pg-folder-cover {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--background-modifier-hover);
+}
+
+.pg-folder-cover img,
+.pg-folder-cover video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* As for a tile's media: holding and moving pans the wall or drags a
+     handle, and must never pick the picture up. */
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+.pg-folder-cover.is-broken img {
+  visibility: hidden;
+}
+
+/* An empty folder shows its own icon, large and quiet, where covers would be. */
+/* A clipping of words in a folder's collage: the same sheet its own card
+   draws, at the size of a stamp. Paper and a name — at a quarter of a folder
+   card there is no room for a favicon or a body, and the name is what tells
+   two pages apart. */
+.pg-folder-page {
+  width: 100%;
+  height: 100%;
+  padding: 8px;
+  background: var(--background-primary);
+  overflow: hidden;
+  user-select: none;
+  pointer-events: none;
+}
+
+.pg-folder-page-title {
+  font-size: 10px;
+  line-height: 13px;
+  font-weight: 600;
+  color: var(--text-normal);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* A folder with one thing in it gives that thing the whole card, and a page
+   filling a folder card can afford to look like a page. */
+.pg-folder-collage[data-count="1"] .pg-folder-page {
+  padding: 14px;
+}
+
+.pg-folder-collage[data-count="1"] .pg-folder-page-title {
+  font-size: 13px;
+  line-height: 18px;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+}
+
+.pg-folder-empty {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-faint);
+}
+
+.pg-folder-empty .svg-icon {
+  width: 36px;
+  height: 36px;
+}
+
+/* The tile's own hover band, always on: a folder's name is what it is for. */
+.pg-folder-head {
+  position: absolute;
+  inset: 0;
+  padding: 10px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.pg-folder-name,
+.pg-folder-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 100%;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(20, 20, 24, 0.62);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pg-folder-name {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.pg-folder-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pg-folder-icon {
+  display: flex;
+  flex: none;
+}
+
+.pg-folder-icon .svg-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* Corner brackets: two edges of a square, curved at the card's own radius so
+   they read as the card's corners lifting. Hidden until asked for. */
+.pg-folder-handle {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  opacity: 0;
+  transition: opacity 140ms ease;
+  touch-action: none;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.pg-folder-handle::before {
+  content: "";
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border: 3px solid #fff;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+}
+
+.pg-folder-handle.is-tl { top: 0; left: 0; cursor: nwse-resize; }
+.pg-folder-handle.is-tr { top: 0; right: 0; cursor: nesw-resize; }
+.pg-folder-handle.is-bl { bottom: 0; left: 0; cursor: nesw-resize; }
+.pg-folder-handle.is-br { bottom: 0; right: 0; cursor: nwse-resize; }
+
+/* Each bracket sits on the card's edge and curves with its 10px radius. */
+.pg-folder-handle.is-tl::before { top: 0; left: 0; border-right: 0; border-bottom: 0; border-top-left-radius: 10px; }
+.pg-folder-handle.is-tr::before { top: 0; right: 0; border-left: 0; border-bottom: 0; border-top-right-radius: 10px; }
+.pg-folder-handle.is-bl::before { bottom: 0; left: 0; border-right: 0; border-top: 0; border-bottom-left-radius: 10px; }
+.pg-folder-handle.is-br::before { bottom: 0; right: 0; border-left: 0; border-top: 0; border-bottom-right-radius: 10px; }
+
+@media (hover: hover) {
+  .pg-folder-tile:hover .pg-folder-handle {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.pg-folder-tile.is-handles .pg-folder-handle,
+.pg-folder-tile.is-resizing .pg-folder-handle {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Held, the card reads as selected: the same accent ring, and the brackets
+   take the accent too. */
+.pg-folder-tile.is-handles .pg-frame,
+.pg-folder-tile.is-resizing .pg-frame {
+  outline-color: var(--pg-accent);
+  box-shadow: var(--pg-tile-lift-selected);
+}
+
+.pg-folder-tile.is-handles .pg-folder-handle::before,
+.pg-folder-tile.is-resizing .pg-folder-handle::before {
+  border-color: var(--pg-accent);
+}
+
+/* While a corner is held the card should not tilt under it. */
+.pg-folder-tile.is-resizing .pg-frame {
+  transform: scale(1);
+}
+
+/* A folder just made pops in alone while everything else steps back. The
+   dimming is on the tile, so a card that keeps its transition eases back up
+   as one with the rest of the wall. */
+.pg-tile {
+  transition: opacity 520ms ease-in-out;
+}
+
+.pg-viewport.is-spotlight .pg-tile:not(.is-spotlit) {
+  opacity: 0.18;
+}
+
+.pg-tile.is-spotlit {
+  z-index: 6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-viewport.is-spotlight .pg-tile:not(.is-spotlit) {
+    opacity: 1;
+  }
+}
+
+/* The way back out of a folder: the detail view's back button, in its
+   corner, shown while a folder is open. Its selectors join the detail
+   view's below so it takes every rule that one takes, tip included. */
+.goko-view button.pg-folder-back {
+  position: absolute;
+  top: 20px;
+  left: calc(20px + var(--pg-sidebar-w, 0px));
+  z-index: 28;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 90ms ease,
+    background-color 120ms ease,
+    transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    box-shadow 180ms ease;
+}
+
+.goko-view button.pg-folder-back.is-open {
+  opacity: 1;
+  pointer-events: auto;
+  transition:
+    opacity 220ms ease 120ms,
+    background-color 120ms ease,
+    transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    box-shadow 180ms ease;
+}
+
+/* ── The marks a card wears at rest ─────────────────────────────────────────
+   What the card is, as against what the hover badges say about it: how many
+   pictures it stands for, and whether the picture is of a document. Shown at
+   rest, unlike the hover badges, because a reader who has to hover every card
+   to find out has learned nothing from the wall.
+
+   Top LEFT, because the media count holds the right one. */
+
+.pg-marks {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: var(--pg-layer-chrome);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+}
+
+/* The kind marker and the format chip are the same control: one says what a
+   thing is with a shape, the other with a word. Same box, so a wall of mixed
+   cards has one mark in one place rather than two that nearly agree. */
+.pg-format,
+.pg-kind {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: rgba(20, 20, 24, 0.55);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  user-select: none;
+}
+
+.pg-kind {
+  width: 18px;
+  padding: 0;
+}
+
+.pg-kind .svg-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* The opposite corner from the kind marker, because they answer different
+   questions and one card can raise both. */
+.pg-count {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: var(--pg-layer-chrome);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: rgba(20, 20, 24, 0.55);
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.22px;
+  pointer-events: none;
+  user-select: none;
+}
+/* ── The filmstrip ──────────────────────────────────────────────────────────
+   A clipped post keeps every picture it had, and the wall can only show one.
+   The strip is the way to the rest: the pictures themselves, above the action
+   bar, one click from any of them. Arrows would page through something the
+   reader cannot see; this says what is there. */
+
+.pg-reel-strip {
+  position: absolute;
+  bottom: calc(84px + var(--pg-bottom-inset, 0px));
+  left: 50%;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: min(560px, calc(100% - 40px));
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 90ms ease;
+}
+
+.pg-detail.is-open .pg-reel-strip {
+  opacity: 1;
+  /* Settles over the last third of the flight, matching the rest of the
+     chrome, rather than arriving while the card is still travelling. */
+  transition: opacity 320ms ease 250ms;
+}
+
+/* Above the strip, and only while it is open: shut, the dots already say
+   which of how many, and a count over a pill of dots said it twice. Out of
+   flow, so the strip's hover area is the pill alone. */
+.pg-reel-count {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--background-secondary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  user-select: none;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity 140ms ease;
+  pointer-events: none;
+}
+
+.pg-reel-strip.is-expanded .pg-reel-count {
+  opacity: 1;
+  transition: opacity 160ms ease 80ms;
+}
+
+/* The strip's one surface. At rest it holds a row of dots and is a pill; while
+   pointed at (or tapped open on a phone) it grows into the rail of thumbnails.
+   Both sizes are arithmetic on the picture count, which the strip writes into
+   --pg-reel-n, so width and height animate as lengths and the pill widens and
+   rises into the rail in one motion, upward from the fixed bottom edge. */
+.pg-reel-box {
+  --pg-reel-thumb: 46px;
+  --pg-reel-dot: 5px;
+  --pg-reel-dot-gap: 4px;
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  width: calc(
+    var(--pg-reel-n) * var(--pg-reel-dot) + (var(--pg-reel-n) - 1) * var(--pg-reel-dot-gap) +
+      2 * var(--pg-surface-pad) + 10px
+  );
+  height: calc(var(--pg-reel-dot) + 4px + 2 * var(--pg-surface-pad));
+  max-width: 100%;
+  border-radius: var(--pg-surface-radius);
+  background-color: var(--pg-surface);
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  cursor: pointer;
+  transition:
+    width 260ms cubic-bezier(0.19, 1, 0.26, 1),
+    height 260ms cubic-bezier(0.19, 1, 0.26, 1);
+}
+
+.pg-reel-strip.is-expanded .pg-reel-box {
+  width: calc(
+    var(--pg-reel-n) * var(--pg-reel-thumb) + (var(--pg-reel-n) - 1) * 6px + 2 * var(--pg-surface-pad)
+  );
+  height: calc(var(--pg-reel-thumb) + 2 * var(--pg-surface-pad));
+  cursor: default;
+}
+
+/* Centred in the pill, gone once the thumbnails are up. */
+.pg-reel-dots {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  gap: var(--pg-reel-dot-gap);
+  transform: translate(-50%, -50%);
+  transition: opacity 120ms ease;
+}
+
+.pg-reel-strip.is-expanded .pg-reel-dots {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.pg-reel-dot {
+  flex: 0 0 auto;
+  width: var(--pg-reel-dot);
+  height: var(--pg-reel-dot);
+  border-radius: 50%;
+  background: var(--text-faint);
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+
+.pg-reel-dot.is-on {
+  background: var(--text-normal);
+  transform: scale(1.25);
+}
+
+/* Fills the box inside its pad, so the thumbnails' corners sit concentric
+   with the rail's — the design system's rule — and scrolls sideways when a
+   post holds more pictures than the picture is wide. */
+.pg-reel-rail {
+  position: absolute;
+  inset: var(--pg-surface-pad);
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+
+.pg-reel-strip.is-expanded .pg-reel-rail {
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 160ms ease 80ms;
+}
+
+.pg-reel-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.pg-detail button.pg-reel-thumb {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  /* surface-radius minus surface-pad: a thumbnail's corner sits exactly
+     concentric with the rail's, so the two curves finish together instead of
+     one cutting across the other. */
+  border-radius: var(--pg-inner-radius);
+  background: var(--background-modifier-border);
+  box-shadow: none;
+  /* Dim until chosen, so the frame on the stage is the one that stands out. */
+  opacity: 0.5;
+  cursor: pointer;
+  transition: opacity 140ms ease, outline-color 140ms ease;
+  /* Outline rather than border: it paints above the thumbnail filling the
+     button, so the ring is never hidden by the picture. */
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.pg-detail button.pg-reel-thumb:hover {
+  opacity: 0.85;
+}
+
+.pg-detail button.pg-reel-thumb.is-on {
+  opacity: 1;
+  outline-color: var(--interactive-accent);
+}
+
+.pg-reel-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Stacked on a narrow pane the action bar sits higher, and the strip has less
+   room, so the thumbnails shrink rather than the rail scrolling from the
+   first picture. */
+@media (max-width: 600px) {
+  .pg-reel-strip {
+    bottom: calc(74px + var(--pg-bottom-inset, 0px));
+    max-width: calc(100% - 16px);
+  }
+
+  .pg-reel-box {
+    --pg-reel-thumb: 38px;
+  }
+
+  .pg-detail button.pg-reel-thumb {
+    width: 38px;
+    height: 38px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-reel-strip,
+  .pg-detail.is-open .pg-reel-strip,
+  .pg-reel-box,
+  .pg-reel-dots,
+  .pg-reel-rail,
+  .pg-reel-dot,
+  .pg-detail button.pg-reel-thumb {
+    transition: none;
+  }
+}
+
+/* ── Reading and changing a clipping's details ───────────────────────────────
+   The panel was a description: text you could not select and values you could
+   not change without going to another pane for them. It stays a description in
+   look, and becomes one you can act on. */
+
+/* Selectable, and saying so. Without the cursor nothing suggests the address
+   or the title can be taken out of here, which is most of why the panel read
+   as inert. */
+.pg-detail-meta {
+  user-select: text;
+}
+
+.pg-detail-value {
+  cursor: text;
+}
+
+/* Values as chips, one per value, wrapping. One joined string in one button
+   was clipped at the panel's edge with the last values unreachable; a chip is
+   its own target, and the row grows down instead of off the side. */
+.pg-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.pg-detail-chip {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 2px 9px;
+  border: none;
+  border-radius: 999px;
+  background: var(--background-modifier-hover);
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: default;
+}
+
+button.pg-detail-chip {
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+button.pg-detail-chip:hover {
+  background: var(--interactive-hover);
+  color: var(--text-normal);
+}
+
+/* The way in when there is nothing yet, and the way to one more when there
+   is. Outlined rather than filled, so a prompt is not mistaken for a value. */
+.pg-detail-chip.is-add,
+.pg-detail-chip.is-empty {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border);
+  color: var(--text-faint);
+}
+
+.pg-detail-chip.is-empty {
+  font-style: italic;
+}
+
+button.pg-detail-chip.is-add:hover,
+button.pg-detail-chip.is-empty:hover {
+  background: var(--background-modifier-hover);
+  box-shadow: inset 0 0 0 1px var(--background-modifier-border-hover);
+  color: var(--text-normal);
+}
+
+/* Sits with the domain on the source row rather than under it. */
+.pg-detail-copy {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  border-radius: var(--pg-inner-radius, 6px);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  vertical-align: -5px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.pg-detail-copy:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.pg-detail-copy-glyph {
+  display: inline-grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.pg-detail-copy .svg-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* Green while the tick is up, so the confirmation reads without the icon
+   having to be looked at closely. */
+.pg-detail-copy.is-copied {
+  color: var(--text-success, var(--text-accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button.pg-detail-chip,
+  .pg-detail-copy {
+    transition: none;
+  }
+}
+
+/* ── Scrubbing a stack on the wall ──────────────────────────────────────────
+   A card holding several pictures reads them off the pointer's position: the
+   width is a row of invisible segments, one per picture, so a sweep across the
+   card sees all of them. Nothing is dragged, which is what keeps it out of the
+   way of panning and of selection. */
+
+/* Top centre. The bottom edge is the property pill's, and it stretches to
+   whatever its text needs, so dots centred down there were cut through by any
+   value long enough to reach the middle. Up here the row is free: the count
+   holds the left corner and steps aside while scrubbing, the date badge holds
+   the right, and the middle is nobody's.
+
+     top-left      how many pictures (at rest, hidden while scrubbing)
+     top-centre    which picture (while scrubbing)
+     top-right     the date badge (on hover)
+     bottom-left   the property pill (on hover)
+
+   Centred, which is where a stepper belongs and what a reader expects. */
+.pg-dots {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--pg-layer-chrome);
+  display: flex;
+  gap: 4px;
+  padding: 4px 7px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.45);
+  /* Hidden at rest. A wall of stacks would otherwise carry a row of dots on
+     every other card, which is more furniture than the wall can afford. */
+  opacity: 0;
+  transition: opacity 140ms ease;
+  pointer-events: none;
+}
+
+.pg-tile.is-scrubbing .pg-dots {
+  opacity: 1;
+}
+
+.pg-dot-step {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+
+.pg-dot-step.is-on {
+  background: #fff;
+  transform: scale(1.25);
+}
+
+/* The count stays up while the dots are: the dots moved to the top centre,
+   the count holds the top left, and the two no longer meet. Hiding it read
+   as the badge vanishing on hover, which it did. */
+
+/* The strip the reel slides on. Every picture side by side, one transform
+   from any frame, so a sweep across the card is one continuous slide rather
+   than a series of cuts. Built on arrival and taken down on leave, so a wall
+   of stacks holds one strip at a time. */
+/* The clip stays put and the strip inside it moves. Clipping and moving cannot
+   be one element: overflow clips to the element's own box, and a box that has
+   slid a frame to the left takes its clip region with it — which hid every
+   frame but the first behind the cover, and made the scrub look like it was
+   paging one picture. The clip also carries the card's corner and ground, so
+   a frame still decoding shows the card's grey rather than a hole. */
+.pg-reel-clip {
+  position: absolute;
+  inset: 0;
+  z-index: var(--pg-layer-reel);
+  overflow: hidden;
+  border-radius: inherit;
+  background: var(--background-secondary);
+  pointer-events: none;
+}
+
+.pg-reel-track {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  transform: translate3d(0, 0, 0);
+  transition: transform 300ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.pg-reel-frame {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  /* Cover, matching the card's own picture: the reel's frames rarely share an
+     aspect ratio, and a card that changed shape as the pointer crossed it
+     would reflow the wall under the reader. */
+  object-fit: cover;
+  display: block;
+  background: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-dots,
+  .pg-dot-step {
+    transition: none;
+  }
+
+  /* The strip still moves — it is the only way to the other pictures — but it
+     arrives rather than travels. */
+  .pg-reel-track {
+    transition: none;
+  }
+}
+
+/* ── Domain rules ───────────────────────────────────────────────────────────
+   A box of text, one rule per line, and the lines it could not read listed
+   under it as they are typed. Monospace, so the columns a person lines up
+   stay lined up. */
+
+/* Stacked, not side by side: a rules box beside its own description got a
+   quarter of the row, and rules are columns a person lines up by eye. */
+.pg-rules-setting {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.pg-rules-setting .setting-item-control {
+  width: 100%;
+  margin-top: 10px;
+  justify-content: stretch;
+}
+
+/* Lines do not wrap: on a phone a wrapped rule put its properties under its
+   domain, and the columns were gone. A long line scrolls sideways instead. */
+.pg-rules-input {
+  width: 100%;
+  min-height: 9em;
+  font-family: var(--font-monospace);
+  font-size: var(--font-smaller);
+  line-height: 1.5;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+  resize: vertical;
+}
+
+.pg-rules-errors {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: var(--pg-inner-radius, 6px);
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+  font-family: var(--font-monospace);
+  font-size: var(--font-smallest);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ── The reader's note ──────────────────────────────────────────────────────
+   Prose, written in place. The row reads as a value until clicked, then
+   becomes a box the size of what is in it. */
+
+/* The note row is the one property still read as a line of text and clicked
+   as a whole: a button reset to look like a value until pointed at. */
+.pg-detail-field.is-note .pg-detail-value {
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 3px 6px;
+  border: none;
+  border-radius: var(--pg-inner-radius, 6px);
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.pg-detail-field.is-note .pg-detail-value:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* An empty note is the one most worth clicking, so its prompt is visible
+   without being as loud as words that are really there. */
+.pg-detail-edit.is-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.pg-detail-note {
+  display: block;
+  /* Inside the field's own box: negative margins plus a full width ran it
+     past the panel's edge, where the panel's scroll clipping cut it off. */
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 4px 6px;
+  border: none;
+  border-radius: var(--pg-inner-radius, 6px);
+  background: var(--background-modifier-hover);
+  box-shadow: inset 0 0 0 1px var(--interactive-accent);
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+}
+
+/* ── The panel of card details ──────────────────────────────────────────────
+   What the selected card is, down the right of the wall. The mirror of the
+   rail on the other side, and built the same way: pinned to the edge rather
+   than laid out with the wall, with the wall inset by a custom property, and
+   hidden by width-zero rather than display-none so the two always agree about
+   how much room it takes.
+
+   It stands there whether or not anything is selected. Appearing on the click
+   would reflow the masonry under the very card just clicked, moving it out
+   from under the pointer. */
+
+.pg-inspector {
+  position: absolute;
+  inset: 0 0 0 auto;
+  z-index: var(--pg-layer-chrome);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--background-modifier-border);
+  /* Opaque, and lifted off the wall by a shadow rather than by a gap: it is
+     over the cards now, and glass over a busy wall is unreadable. */
+  background: var(--background-primary);
+  box-shadow: -14px 0 32px rgba(0, 0, 0, 0.22);
+  /* Parked off the edge. visibility rather than display, so the slide has
+     something to animate, and so nothing is painted while it is away. */
+  transform: translateX(100%);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 280ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    visibility 0s linear 280ms;
+}
+
+.pg-inspector.is-showing {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+  transition:
+    transform 280ms cubic-bezier(0.22, 0.9, 0.28, 1),
+    visibility 0s;
+}
+
+.pg-inspector-body {
+  flex: 1 1 auto;
+  /* The bottom padding grows by whatever Obsidian's navbar covers, so the
+     last row can be scrolled clear of it rather than ending underneath. */
+  padding: 10px 12px calc(16px + var(--pg-bottom-inset, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* Mirrors .pg-sidebar-handle, on the other edge. */
+.pg-inspector-handle {
+  position: absolute;
+  inset: 0 auto 0 -3px;
+  width: 6px;
+  cursor: col-resize;
+}
+
+.pg-inspector-handle:hover {
+  background: var(--interactive-accent);
+  opacity: 0.35;
+}
+
+/* The count, and the way out of the selection. Sticky, because the actions at
+   the foot of a long panel are a scroll away and clearing should never be. */
+.pg-inspector-head {
+  position: sticky;
+  top: -10px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -10px -12px 8px;
+  padding: 8px 12px;
+  background: var(--background-primary);
+}
+
+.pg-inspector-count {
+  color: var(--text-faint);
+  font-size: var(--font-smallest);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.goko-view button.pg-inspector-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.goko-view button.pg-inspector-icon:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.pg-inspector-icon .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* The picture, at whatever shape it is, on a plate that says where it ends. */
+.pg-inspector-frame {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 96px;
+  max-height: 260px;
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--background-secondary);
+}
+
+.pg-inspector-image {
+  max-width: 100%;
+  max-height: 244px;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+/* What it is, over the corner of what it looks like. */
+.pg-inspector-format {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--pg-accent);
+  color: var(--pg-on-accent);
+  font-family: var(--font-monospace);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* A video with no poster, or a note: a glyph rather than a hole. */
+.pg-inspector-noframe {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+.pg-inspector-noframe .svg-icon {
+  width: 28px;
+  height: 28px;
+}
+
+/* Held open under the picture for colours that are still being read. Empty
+   until then, and empty forever for a picture whose canvas is tainted, so it
+   carries no margin of its own. */
+.pg-inspector-palette:empty {
+  display: none;
+}
+
+/* One row: the full screen, then everything else that can be done. The
+   actions used to sit at the foot of the panel, a scroll away on any card
+   with a few properties, while the top held a single wide button. */
+.pg-inspector-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+
+/* The gesture a click used to be, now a button that says what it does. It
+   takes whatever the icons leave, and gives up its label before it gives up
+   the row. */
+.goko-view button.pg-inspector-open {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-sizing: border-box;
+  min-width: 0;
+  height: var(--pg-bar-btn);
+  margin: 0;
+  padding: 0 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-normal);
+  font-family: inherit;
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+  transition: background-color 100ms ease;
+}
+
+.goko-view button.pg-inspector-open:hover {
+  background: var(--background-modifier-hover);
+}
+
+.pg-inspector-open-glyph {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+.pg-inspector-open-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pg-inspector-open .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* The shared rows are drawn for a full-bleed panel, where 22px between fields
+   is the right rhythm. This column is a third of that width and the whole
+   point of it is that everything is in view at once. */
+.pg-inspector .pg-detail-field {
+  margin-bottom: 14px;
+}
+
+.pg-inspector .pg-detail-note {
+  width: 100%;
+}
+
+/* The file, folded away: true of the moment you need it, not of the card. */
+.pg-inspector-fold {
+  margin-bottom: 14px;
+}
+
+.pg-inspector-summary {
+  color: var(--text-faint);
+  font-family: var(--font-monospace);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  list-style: none;
+}
+
+.pg-inspector-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pg-inspector-summary::before {
+  content: "\203a";
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 120ms ease;
+}
+
+.pg-inspector-fold[open] .pg-inspector-summary::before {
+  transform: rotate(90deg);
+}
+
+.pg-inspector-facts {
+  margin-top: 6px;
+}
+
+.pg-inspector-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 0;
+  font-family: var(--font-monospace);
+  font-size: 11px;
+}
+
+.pg-inspector-fact-label {
+  color: var(--text-faint);
+}
+
+.pg-inspector-fact-value {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+/* Everything that can be done to what is selected, as buttons rather than as
+   a menu: the rule the whole plugin is held to. */
+.goko-view button.pg-inspector-action {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--pg-bar-btn);
+  height: var(--pg-bar-btn);
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.goko-view button.pg-inspector-action:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Last in the row and apart from it, so the one that cannot be undone is not
+   the one next to the one you meant. */
+.goko-view button.pg-inspector-action.is-destructive {
+  margin-left: auto;
+}
+
+.goko-view button.pg-inspector-action.is-destructive:hover {
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+}
+
+.pg-inspector-action .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── The same panel on a phone ──────────────────────────────────────────────
+   A column would be most of the screen, so it is a sheet along the bottom and
+   the wall keeps its whole width above it. The wall is not inset at all here:
+   the sheet sits over the foot of it, as the selection bar does. */
+
+.pg-inspector.is-sheet {
+  inset: auto 0 0 0;
+  width: auto;
+  max-height: 58%;
+  border-top: 1px solid var(--background-modifier-border);
+  border-left: none;
+  border-radius: 14px 14px 0 0;
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.22);
+}
+
+/* A grab bar, because a sheet that can be scrolled should look like one. */
+.pg-inspector.is-sheet::before {
+  content: "";
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 34px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--background-modifier-border);
+  transform: translateX(-50%);
+}
+
+.pg-inspector.is-sheet .pg-inspector-body {
+  padding-top: 16px;
+}
+
+.pg-inspector.is-sheet .pg-inspector-head {
+  top: -16px;
+  margin-top: -16px;
+}
+
+.pg-inspector.is-sheet .pg-inspector-handle {
+  display: none;
+}
+
+/* ── Where a card is filed ──────────────────────────────────────────────────
+   The answer to the question a wall raises on every card: which board is this
+   on. The library names the whole path; a board's own wall names the folder,
+   and says nothing at all for a card loose on it. Deliberately the same corner, size and material as the inbox's
+   suggestion, because the two are the same idea at two stages — the inbox
+   says where a card could go, everywhere else says where it went. On the
+   inbox both can be up on one card, the suggestion above, so reading either
+   teaches you the other.
+
+   Not a button. Clicking it to jump to that board is the obvious next move
+   and the wrong one: the click belongs to the card, and a target inside a
+   target is how you open the wrong thing. */
+
+.pg-place {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  z-index: calc(var(--pg-layer-badges) + 2);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  box-sizing: border-box;
+  max-width: calc(100% - 16px);
+  height: 24px;
+  padding: 0 9px 0 7px;
+  border-radius: 8px;
+  background: rgba(20, 20, 24, 0.72);
+  backdrop-filter: blur(10px) saturate(1.3);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+}
+
+/* Filed nowhere reads at full strength, like everywhere else. It was dimmed
+   at first, on the thought that an absent decision should say so quietly —
+   but half the wall is unfiled, so half the chips were quiet, and a row of
+   labels at two strengths reads as a rendering fault rather than as a
+   distinction. The label already says Inbox; that is the distinction. */
+
+.pg-place-icon {
+  display: flex;
+  flex: none;
+  --icon-size: 13px;
+}
+
+/* The board, then the folder inside it. It wraps nowhere: a chip that grew to
+   two lines would cover the picture it describes, so a long path is cut and
+   the panel carries the whole of it. */
+.pg-place-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A sheet leaves downward, not sideways: the drawer's slide is along the edge
+   it is pinned to, and on a phone that edge is the bottom. */
+.pg-inspector.is-sheet {
+  transform: translateY(100%);
+}
+
+.pg-inspector.is-sheet.is-showing {
+  transform: translateY(0);
+}
+
+/* ── The reel inside the panel ──────────────────────────────────────────────
+   The card scrubs under the pointer and the full screen has a reel, and
+   between them sat the one place that showed a stack as a single picture and
+   gave no hint there were sixteen more. The dots are that hint. */
+
+.pg-inspector-frame.is-reel {
+  cursor: pointer;
+}
+
+/* Always up here, unlike on the wall. A wall of stacks carrying a row of dots
+   on every other card is more furniture than the wall can afford; one panel
+   about one card can afford it, and the whole point is that the panel says
+   the picture is one of several. */
+.pg-inspector-frame .pg-dots {
+  top: auto;
+  bottom: 8px;
+  opacity: 1;
+}
+
+/* ── The dock at the foot of the wall ───────────────────────────────────────
+   Two toolbars in one centred row: the one that is always there, and the one
+   that arrives when something is selected.
+
+   They were two clusters pinned to opposite corners of the pane, plus a
+   selection bar that materialised over the middle of the wall between them.
+   Three things appearing in three places, none of them explaining the others.
+   Here the pair is one control that grows a second half: the selection bar
+   rises from below and pushes its partner aside, and the two together stay
+   centred on the wall.
+
+   Centred on the wall rather than on the pane: the rail takes width off the
+   left, and the details panel, while it is open, off the right. */
+
+.pg-dock {
+  position: absolute;
+  bottom: calc(22px + var(--pg-bottom-inset, 0px));
+  left: calc(50% + var(--pg-sidebar-w, 0px) / 2 - var(--pg-inspector-w, 0px) / 2);
+  z-index: 28;
+  display: flex;
+  align-items: center;
+  gap: var(--pg-bar-gap);
+  transform: translateX(-50%);
+  /* The row itself is transparent to the pointer; only the bars in it take
+     clicks, or it would swallow the wall's bottom edge and break marquee
+     selection down there. */
+  pointer-events: none;
+  transition: left 280ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+/* One surface, drawn twice. Both bars are the same box; what differs is which
+   errands are in them and, for the selection bar, the ring that ties it to
+   the card it is speaking about. */
+.pg-spacebar,
+.pg-actionbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--pg-bar-gap);
+  box-sizing: border-box;
+  height: var(--pg-bar-h);
+  padding: var(--pg-bar-pad);
+  border: 1px solid var(--pg-surface-ring-line);
+  border-radius: var(--pg-bar-radius);
+  background-color: var(--pg-surface);
+  background-image: none;
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-lift);
+  pointer-events: auto;
+}
+
+/* Parked and inert until there is a selection to speak about. Out of the flow
+   rather than merely invisible, so the bar beside it holds the centre alone;
+   the arrival and the departure are animated in action-bar.ts, which is the
+   only thing that knows where its partner stood a moment ago. */
+.pg-actionbar {
+  display: none;
+  border-color: var(--pg-accent);
+}
+
+.pg-actionbar.is-visible {
+  display: flex;
+}
+
+/* Leaving: still drawn, no longer taking room, so its partner starts moving
+   back the instant the selection goes rather than after the fade. */
+.pg-actionbar.is-leaving {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+/* The phone gives the foot of the wall to one bar at a time: the two of them
+   with their gap are 402 wide, and a phone is 390. */
+.pg-spacebar.is-hidden {
+  display: none;
+}
+
+/* Every button in either bar. One size, one radius, one glyph box, so a row
+   of them is a row and not a collection. */
+.goko-view .pg-dock button.pg-bar-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--pg-bar-btn);
+  height: var(--pg-bar-btn);
+  padding: 0;
+  border: 0;
+  border-radius: var(--pg-bar-btn-radius);
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--pg-surface-text);
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease,
+    transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.goko-view .pg-dock button.pg-bar-button:hover {
+  background-color: var(--pg-inner-hover);
+  color: var(--pg-mark);
+}
+
+.goko-view .pg-dock button.pg-bar-button:active {
+  background-color: var(--pg-inner-press);
+  transform: scale(0.93);
+}
+
+/* Focus is the theme's business everywhere else, but here it would paint a
+   filled box over a transparent button. */
+.goko-view .pg-dock button.pg-bar-button:focus,
+.goko-view .pg-dock button.pg-bar-button:focus-visible {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.pg-bar-glyph {
+  display: flex;
+}
+
+.pg-bar-glyph .svg-icon {
+  width: var(--pg-bar-icon);
+  height: var(--pg-bar-icon);
+}
+
+/* Lit while filtering, because a filtered wall and an empty grid look
+   identical from the outside otherwise. */
+.pg-space-filter.is-active {
+  color: var(--pg-accent);
+}
+
+/* How many cards are selected. Padded rather than spaced, so the rules either
+   side of it sit at the same distance as they do from a button. */
+.pg-actionbar-count {
+  padding: 0 4px;
+  color: var(--pg-surface-mid);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* ── A control that stands on its own ───────────────────────────────────────
+   The way out of a folder, and the way out of the full screen. They used to
+   be pills, sized with the bar's buttons by one shared rule; now that the
+   bars are square-cornered, a pill floating beside them would be the only
+   round thing left on the wall. Square, at the bar's own height and radius,
+   so each reads as one cell of the same toolbar that happens to be alone. */
+
+.pg-detail button.pg-detail-back,
+.goko-view button.pg-folder-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: var(--pg-control-size);
+  height: var(--pg-control-size);
+  padding: 0;
+  border: 1px solid var(--pg-surface-ring-line);
+  border-radius: var(--pg-bar-radius);
+  background-color: var(--pg-surface);
+  background-image: none;
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-lift);
+  color: var(--pg-surface-text);
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.pg-detail button.pg-detail-back:hover,
+.goko-view button.pg-folder-back:hover {
+  background-color: var(--pg-surface);
+  box-shadow: var(--pg-surface-lift), inset 0 0 0 999px var(--pg-inner-hover);
+}
+
+.pg-detail button.pg-detail-back:active,
+.goko-view button.pg-folder-back:active {
+  transform: scale(0.96);
+}
+
+.pg-detail-back .svg-icon,
+.pg-folder-back .svg-icon {
+  width: var(--pg-bar-icon);
+  height: var(--pg-bar-icon);
+}
+
+/* ── The phone's folded bar ─────────────────────────────────────────────────
+   Obsidian owns the foot of a phone screen. This bar sitting just above its
+   navbar put two toolbars of the same shape and size one on top of the other,
+   and the wall looked like it had two menu bars because it did.
+
+   Folded, it is one control in the corner. Opened, it is the same four
+   buttons grown out to the left of it — leftward because the dock is anchored
+   to the right edge here, so the button that was tapped stays exactly where
+   the thumb left it while the rest arrive beside it. */
+
+body.is-mobile .pg-dock {
+  left: 10px;
+  right: 10px;
+  justify-content: flex-end;
+  transform: none;
+}
+
+/* Clipped while it grows, so the buttons are revealed rather than squashed.
+   Only here: on a desktop the bar never folds, and the tips that hang above
+   its buttons would be cut off. */
+body.is-mobile .pg-spacebar {
+  overflow: hidden;
+}
+
+/* Specific enough to outrank the shared button rule, which sets display on
+   every button in the dock. */
+.goko-view .pg-dock .pg-spacebar.is-collapsed > button.pg-bar-button:not(.pg-space-more),
+.goko-view .pg-dock .pg-spacebar.is-collapsed > .pg-bar-divider {
+  display: none;
+}
+
+/* ── Obsidian's touch scale, on a phone ─────────────────────────────────────
+   Obsidian's own navbar sits directly below ours: 52 tall, with 52px buttons
+   and 26px glyphs. Ours were 40 / 30 / 16, which beside it read as a toy
+   rather than as a toolbar.
+
+   These are Obsidian's own tokens, not copies of today's numbers, so the
+   match survives whatever they do to them next. The arithmetic still closes:
+   3 + 1 + 44 + 1 + 3 is exactly the 52 of --touch-size-l.
+
+   The radii scale with the box rather than staying put — 12 on a 40px bar and
+   16 on a 52px one are the same corner, and the design encoded the look, not
+   the number. */
+
+body.is-mobile .goko-view {
+  --pg-bar-h: var(--touch-size-l, 52px);
+  --pg-bar-pad: 3px;
+  --pg-bar-btn: var(--touch-size-m, 44px);
+  --pg-bar-btn-radius: 12px;
+  --pg-bar-radius: 16px;
+  --pg-bar-icon: 26px;
+  --pg-control-size: var(--touch-size-l, 52px);
+}
+
+/* At that size seven actions and a count do not fit across a phone. The count
+   is the one that goes: the bar being up is itself the news that something is
+   selected, and the panel says how many. */
+body.is-mobile .pg-actionbar-head {
+  display: none;
+}
+
+.pg-actionbar-head {
+  display: flex;
+  align-items: center;
+  gap: var(--pg-bar-gap);
+}
+
+/* Seven actions at 44 plus their gaps come to 359, and a 390px phone leaves
+   358 between the dock's margins — the kind of miss that only shows up on
+   somebody's screen. So on a phone the selection bar's buttons may give
+   ground rather than overflow, down to a size still worth aiming a thumb at.
+   Where there is room they stay at Obsidian's. */
+body.is-mobile .pg-actionbar {
+  max-width: 100%;
+}
+
+body.is-mobile .pg-actionbar button.pg-bar-button {
+  flex: 0 1 auto;
+  min-width: 34px;
+}
+
+/* ── A video in the panel ───────────────────────────────────────────────────
+   Playing, with the browser's own controls under it. Not on hover, as the
+   wall is: picking one card is already the deliberate act that hovering
+   stands in for out there, and a panel you have to keep the pointer inside
+   to watch is a panel you cannot scrub. */
+
+.pg-inspector-video {
+  width: 100%;
+  background: var(--pg-black, #000);
+}
+
+/* Grabs the frame showing right now as the card's cover. Top right, opposite
+   the format chip, and out of the way of the controls along the bottom. */
+.goko-view button.pg-inspector-grab {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background-color: rgba(20, 20, 24, 0.72);
+  background-image: none;
+  backdrop-filter: blur(10px) saturate(1.3);
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.18);
+  color: #fff;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease, background-color 120ms ease;
+}
+
+/* Shown once the pointer is in the frame, where there is a pointer. It is a
+   deliberate act on a picture you are already looking at, not a control the
+   panel needs to advertise. */
+.pg-inspector-frame:hover .pg-inspector-grab,
+.pg-inspector-grab:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .goko-view button.pg-inspector-grab {
+    opacity: 1;
+  }
+}
+
+.goko-view button.pg-inspector-grab:hover {
+  background-color: rgba(20, 20, 24, 0.9);
+}
+
+.pg-inspector-grab .svg-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── The card's markers stand down on hover ─────────────────────────────────
+   Default, the corners say what the card is, how many pictures it holds and
+   where it is filed — the three questions a wall raises about a card you are
+   not looking at yet. Hovering is looking at it, and the answers are then the
+   name, the tags and the reel. Both sets in one place at once is more marks
+   than a picture can carry. */
+
+.pg-tile:hover .pg-marks,
+.pg-tile:hover .pg-count,
+.pg-tile:hover .pg-place {
+  opacity: 0;
+}
+
+.pg-marks,
+.pg-count,
+.pg-place {
+  transition: opacity 120ms ease;
+}
+
+/* The file picker is put in the document because a detached input does not
+   open reliably in a webview, and taken out again as soon as it has answered.
+   It is never meant to be seen while it is there. */
+.pg-file-input {
+  display: none;
+}
+
+/* ── The empty wall ─────────────────────────────────────────────────────────
+   The eyes, two lines and two ways out, centred on what the rail and the
+   panel leave of the wall. Transparent to the pointer but for the buttons, so
+   a drop, a pan or a right-click on an empty wall still lands on the wall.
+   Faded in after a beat: a wall restored at launch is empty for the moment
+   before its clippings are read, and a line that flashed up and vanished on
+   every launch would be noise. */
+.pg-wall-empty {
+  position: absolute;
+  inset: 0 var(--pg-inspector-w, 0px) 0 var(--pg-sidebar-w, 0px);
+  z-index: 1;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 24px 64px;
+  font-family: var(--font-interface);
+  pointer-events: none;
+}
+
+.pg-wall-empty.is-showing {
+  display: flex;
+  animation: pg-wall-empty-in 200ms ease 500ms both;
+}
+
+/* Quieter than the words under it: it is there to be looked past. */
+.pg-wall-empty-eyes {
+  width: 60px;
+  height: 60px;
+  flex: none;
+  color: var(--text-faint);
+}
+
+.pg-wall-empty-words {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 40ch;
+  font-size: 13.5px;
+  line-height: 16px;
+  text-align: center;
+  text-wrap: balance;
+}
+
+/* The first line a step brighter than the second, so the pair reads as what
+   happened and then what to do about it. */
+.pg-wall-empty-title {
+  color: var(--text-normal);
+}
+
+.pg-wall-empty-hint {
+  color: var(--text-muted);
+}
+
+.pg-wall-empty-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+/* Obsidian's own buttons, as its dialogs use them: the accent for the one the
+   wall is asking for and a plain one beside it, both left to the theme. All
+   they take from here is room between the glyph and the word. */
+.pg-wall-empty-actions button.pg-wall-empty-add,
+.pg-wall-empty-actions button.pg-wall-empty-guide {
+  pointer-events: auto;
+}
+
+.pg-wall-empty-actions button.pg-wall-empty-add {
+  gap: var(--size-2-3);
+}
+
+.pg-wall-empty-glyph {
+  display: flex;
+  --icon-size: 12px;
+}
+
+/* Out of the way of the frame that says where a drop will land. */
+.goko-view.is-drop-target .pg-wall-empty {
+  visibility: hidden;
+}
+
+@keyframes pg-wall-empty-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── Notifications ──────────────────────────────────────────────────────────
+   The bell at the end of the toolbar and the panel it opens. The dot sits on
+   the glyph's own corner, measured from the glyph rather than the button, so
+   it lands in the same place on the phone's larger buttons. */
+
+.pg-notif-dot {
+  position: absolute;
+  top: calc(50% - var(--pg-bar-icon) / 2 - 2px);
+  left: calc(50% + var(--pg-bar-icon) / 2 - 5px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-red);
+  /* A ring of the bar's own colour, so the dot reads as sitting on the
+     glyph rather than touching it. */
+  box-shadow: 0 0 0 1.5px var(--pg-surface);
+  pointer-events: none;
+  display: none;
+}
+
+.pg-space-notifications.has-unread .pg-notif-dot {
+  display: block;
+}
+
+/* The phone's folded bar hides the bell; its button carries the dot while
+   folded, and hands it back to the bell when the bar opens. */
+.goko-view .pg-dock .pg-spacebar.is-collapsed > .pg-space-more.has-unread .pg-notif-dot {
+  display: block;
+}
+
+.pg-notif-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: var(--pg-scrim);
+  opacity: 0;
+  transition: opacity 100ms ease;
+}
+
+.pg-notif-backdrop:not(.is-open) {
+  pointer-events: none;
+}
+
+.pg-notif-backdrop.is-open {
+  opacity: 1;
+  transition: opacity 140ms ease;
+}
+
+.pg-notif-panel {
+  position: absolute;
+  z-index: 41;
+  box-sizing: border-box;
+  width: 320px;
+  max-width: calc(100% - 16px);
+  max-height: 60vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--pg-surface-pad);
+  border-radius: var(--pg-surface-radius);
+  background-color: var(--pg-surface);
+  backdrop-filter: var(--pg-surface-blur);
+  -webkit-backdrop-filter: var(--pg-surface-blur);
+  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  color: var(--pg-surface-text);
+  opacity: 0;
+  transform: scale(0.94);
+  transition:
+    opacity 100ms ease,
+    transform 100ms ease;
+}
+
+.pg-notif-panel:not(.is-open) {
+  pointer-events: none;
+}
+
+.pg-notif-panel.is-open {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 130ms ease,
+    transform 160ms cubic-bezier(0.22, 0.9, 0.28, 1);
+}
+
+.pg-notif-heading {
+  padding: 6px 13px 4px;
+  color: var(--pg-surface-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pg-notif-empty {
+  padding: 10px 13px 12px;
+  color: var(--pg-surface-dim);
+  font-size: var(--font-ui-small);
+}
+
+.pg-notif-item {
+  padding: 10px 13px 12px;
+  border-radius: var(--pg-inner-radius);
+}
+
+.pg-notif-item + .pg-notif-item {
+  border-top: 1px solid var(--pg-rule);
+}
+
+.pg-notif-title {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+}
+
+.pg-notif-body {
+  margin-top: 4px;
+  color: var(--pg-surface-mid);
+  font-size: var(--font-ui-small);
+  line-height: 1.4;
+}
+
+.pg-notif-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}

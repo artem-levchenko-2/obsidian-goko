@@ -1,0 +1,703 @@
+import { describe, expect, it } from "vitest";
+import { MediaCache } from "../src/core/cache";
+import { scanClipping } from "../src/core/scan";
+import {
+  COMPACT_COLUMN,
+  buildTiles,
+  mediaCount,
+  noteText,
+  noteTileHeight,
+  tilesForRecord,
+} from "../src/core/tile";
+import { COMBOLANDS_BODY, COMBOLANDS_FM, NOOK_BODY, NOOK_FM } from "./fixtures/clippings";
+
+const COMBO_7 =
+  "https://static0.polygonimages.com/wordpress/wp-content/uploads/2026/07/combolands-7.jpg";
+const COMBO_6 =
+  "https://static0.polygonimages.com/wordpress/wp-content/uploads/2026/07/combolands-6.jpg";
+const NOOK_MP4 =
+  "https://cdn.spottedinprod.com/community-clips/19305/797/1786251277681-transcoded.mp4";
+
+function cacheWith(
+  entries: Array<[string, Partial<Omit<import("../src/core/cache").CacheEntry, "key">>]>
+): MediaCache {
+  const cache = new MediaCache();
+  for (const [key, e] of entries) {
+    cache.set({
+      key,
+      file: e.file ?? "f.jpg",
+      thumb: e.thumb ?? "t.webp",
+      kind: e.kind ?? "image",
+      width: e.width ?? 100,
+      height: e.height ?? 100,
+      bytes: e.bytes ?? 1,
+      ...(e.failed ? { failed: e.failed } : {}),
+    });
+  }
+  return cache;
+}
+
+const combolands = scanClipping("Clippings/C.md", COMBOLANDS_FM, COMBOLANDS_BODY);
+const nook = scanClipping("Clippings/N.md", NOOK_FM, NOOK_BODY);
+
+describe("buildTiles", () => {
+  it("uses the first archived image as the cover", () => {
+    const cache = cacheWith([[COMBO_7, { thumb: "T7.webp", file: "F7.jpg", width: 1920, height: 1080 }]]);
+    const tiles = buildTiles([combolands], cache);
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0].filePath).toBe("F7.jpg");
+    expect(tiles[0].posterPath).toBe("");
+    expect(tiles[0].kind).toBe("image");
+    expect(tiles[0].width).toBe(1920);
+  });
+
+  it("skips to the next media ref when the first failed to archive", () => {
+    const cache = new MediaCache();
+    cache.mergeOutcome({ key: COMBO_7, kind: "image", failed: "HTTP 404" });
+    cache.set({
+      key: COMBO_6,
+      file: "F6.jpg",
+      thumb: "T6.webp",
+      kind: "image",
+      width: 800,
+      height: 600,
+      bytes: 1,
+    });
+    const tiles = buildTiles([combolands], cache);
+    expect(tiles[0].filePath).toBe("F6.jpg");
+  });
+
+  it("uses the local original when the thumbnail is not derived yet", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.jpg", thumb: "", width: 1920, height: 1080 }],
+    ]);
+    const tiles = buildTiles([combolands], cache);
+    expect(tiles[0].filePath).toBe("F7.jpg");
+    expect(tiles[0].remote).toBe(false);
+  });
+
+  it("uses the video for a video-only clipping", () => {
+    const cache = cacheWith([
+      [NOOK_MP4, { kind: "video", file: "clip.mp4", thumb: "clip.poster.webp", width: 886, height: 1920 }],
+    ]);
+    const tiles = buildTiles([nook], cache);
+    expect(tiles[0].kind).toBe("video");
+    expect(tiles[0].filePath).toBe("clip.mp4");
+    expect(tiles[0].posterPath).toBe("clip.poster.webp");
+  });
+
+  // The clipper writes YouTube pages with a <video src="…/embed/id"> ahead
+  // of the archived thumbnail. The embed URL is a document, not a stream:
+  // handed to a <video> it errors and the wall drops the tile. Desktop only
+  // survived because its cache had recorded the archive failure; a device
+  // with a fresh cache (mobile) must not depend on that.
+  it("never offers a video host's page URL as a playable cover", () => {
+    const clip = scanClipping(
+      "Clippings/O.md",
+      { title: "Onimusha", source: "https://www.youtube.com/watch?v=VK4FwpKMBho" },
+      '<video src="https://www.youtube.com/embed/VK4FwpKMBho" controls=""></video>\n\n![[Attachments/Clippings/32814825d7a3-maxresdefault.jpg]]\n'
+    );
+    const tiles = buildTiles([clip], new MediaCache());
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0].kind).toBe("image");
+    expect(tiles[0].filePath).toBe("Attachments/Clippings/32814825d7a3-maxresdefault.jpg");
+    expect(tiles[0].remote).toBe(false);
+  });
+
+  it("ignores a cache entry claiming an archived video for a host page URL", () => {
+    const clip = scanClipping(
+      "Clippings/O.md",
+      { title: "Onimusha", source: "https://www.youtube.com/watch?v=VK4FwpKMBho", grid: "Gaming" },
+      '<video src="https://www.youtube.com/embed/VK4FwpKMBho"></video>\n\n![[Attachments/Clippings/32814825d7a3-maxresdefault.jpg]]\n'
+    );
+    // The poisoned shape an older archiver left behind: the embed page's
+    // HTML saved as an .mp4 and recorded as a success.
+    const cache = cacheWith([
+      [
+        "https://www.youtube.com/embed/VK4FwpKMBho",
+        { kind: "video", file: "Attachments/Clippings/3793f0a09069-VK4FwpKMBho.mp4", thumb: "" },
+      ],
+    ]);
+    const tiles = buildTiles([clip], cache);
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0].kind).toBe("image");
+    expect(tiles[0].filePath).toBe("Attachments/Clippings/32814825d7a3-maxresdefault.jpg");
+  });
+
+  it("falls back to the host thumbnail when the embed page is the only media", () => {
+    const clip = scanClipping(
+      "Clippings/O.md",
+      { title: "Onimusha" },
+      '<video src="https://www.youtube.com/embed/VK4FwpKMBho"></video>\n'
+    );
+    const tiles = buildTiles([clip], new MediaCache());
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0].kind).toBe("image");
+    expect(tiles[0].filePath).toBe("https://img.youtube.com/vi/VK4FwpKMBho/maxresdefault.jpg");
+    expect(tiles[0].remote).toBe(true);
+  });
+
+  it("shows a clipping with no media and no source page as its own words", () => {
+    const empty = scanClipping("Clippings/E.md", { title: "E" }, "just prose");
+    const [tile] = buildTiles([empty], new MediaCache());
+    expect(tile.kind).toBe("note");
+    expect(tile.filePath).toBe("");
+  });
+
+  it("omits a record whose current cover is known to fail", () => {
+    const signature = buildTiles([combolands], new MediaCache())[0].signature;
+    const failed = new Map([["Clippings/C.md", signature]]);
+    expect(buildTiles([combolands], new MediaCache(), failed)).toEqual([]);
+  });
+
+  it("brings a clipping back once its cover changes", () => {
+    const staleSignature = buildTiles([combolands], new MediaCache())[0].signature;
+    const failed = new Map([["Clippings/C.md", staleSignature]]);
+    // Archiving replaces the dead remote cover with a local file, so the
+    // signature changes and the old failure no longer applies.
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.jpg", thumb: "", width: 1920, height: 1080 }],
+    ]);
+    const tiles = buildTiles([combolands], cache, failed);
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0].filePath).toBe("F7.jpg");
+  });
+
+  it("honors an explicit cover in frontmatter", () => {
+    const record = scanClipping(
+      "Clippings/C.md",
+      { ...COMBOLANDS_FM, cover: "Attachments/Clippings/manual.png" },
+      COMBOLANDS_BODY
+    );
+    const tiles = buildTiles([record], new MediaCache());
+    expect(tiles[0].filePath).toBe("Attachments/Clippings/manual.png");
+    expect(tiles[0].kind).toBe("image");
+  });
+
+  it("makes a hand-set still the video's poster rather than replacing the video", () => {
+    // Setting a cover on a reel used to return the still and stop there, so
+    // the card became an image and would not play under the pointer. The
+    // choice is which frame to show, not that the clipping stopped being one.
+    const source = "https://www.instagram.com/reel/AAA/";
+    const record = scanClipping(
+      "Clippings/Reel.md",
+      { title: "Reel", source, cover: "Attachments/Library/frame.jpg" },
+      "body"
+    );
+    const cache = cacheWith([
+      [`ytdlp:${source}`, { file: "Attachments/Library/clip.mp4", kind: "video", thumb: "auto.webp" }],
+    ]);
+    const tile = buildTiles([record], cache)[0];
+    expect(tile.kind).toBe("video");
+    expect(tile.filePath).toBe("Attachments/Library/clip.mp4");
+    // The chosen frame, not the one the archiver derived.
+    expect(tile.posterPath).toBe("Attachments/Library/frame.jpg");
+  });
+
+  it("leaves a hand-set cover alone on a clipping with no video to poster", () => {
+    const record = scanClipping(
+      "Clippings/C.md",
+      { ...COMBOLANDS_FM, cover: "Attachments/Clippings/manual.png" },
+      COMBOLANDS_BODY
+    );
+    const tile = buildTiles([record], new MediaCache())[0];
+    expect(tile.kind).toBe("image");
+    expect(tile.filePath).toBe("Attachments/Clippings/manual.png");
+  });
+
+  it("reads an explicit cover's kind from the file, so a clip is not an <img>", () => {
+    const cover = (value: string): string =>
+      buildTiles(
+        [scanClipping("Clippings/C.md", { ...COMBOLANDS_FM, cover: value }, COMBOLANDS_BODY)],
+        new MediaCache()
+      )[0].kind;
+    expect(cover("Attachments/Clippings/manual.mp4")).toBe("video");
+    expect(cover("https://e.com/clip.webm")).toBe("video");
+    // Nothing recognisable reads as a picture, which is what it was before
+    // there was a choice to make.
+    expect(cover("https://e.com/render?id=7")).toBe("image");
+  });
+
+  it("uses the note path as the tile id", () => {
+    expect(buildTiles([combolands], new MediaCache())[0].id).toBe("Clippings/C.md");
+  });
+
+  it("falls back to a default ratio when the cache has no dimensions", () => {
+    const cache = cacheWith([[COMBO_7, { thumb: "T.webp", width: 0, height: 0 }]]);
+    const tiles = buildTiles([combolands], cache);
+    expect(tiles[0].width).toBe(4);
+    expect(tiles[0].height).toBe(3);
+  });
+
+  it("keeps records in the order it was given", () => {
+    const tiles = buildTiles([nook, combolands], new MediaCache());
+    expect(tiles.map((t) => t.id)).toEqual(["Clippings/N.md", "Clippings/C.md"]);
+  });
+
+  it("returns an empty list for no records", () => {
+    expect(buildTiles([], new MediaCache())).toEqual([]);
+  });
+});
+
+describe("remote covers before archiving", () => {
+  it("uses the remote url when nothing is archived yet", () => {
+    const tiles = buildTiles([combolands], new MediaCache());
+    expect(tiles[0].kind).toBe("image");
+    expect(tiles[0].remote).toBe(true);
+    expect(tiles[0].filePath).toContain("combolands-7.jpg");
+  });
+
+  it("marks remote dimensions as provisional", () => {
+    const tiles = buildTiles([combolands], new MediaCache());
+    expect(tiles[0].provisional).toBe(true);
+  });
+
+  it("takes provisional dimensions from the url size hints", () => {
+    const tiles = buildTiles([combolands], new MediaCache());
+    expect(tiles[0].width).toBe(1920);
+    expect(tiles[0].height).toBe(1080);
+  });
+
+  it("prefers an archived local file over the remote url", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.jpg", thumb: "T7.webp", width: 1920, height: 1080 }],
+    ]);
+    const tiles = buildTiles([combolands], cache);
+    expect(tiles[0].remote).toBe(false);
+    expect(tiles[0].provisional).toBe(false);
+    expect(tiles[0].filePath).toBe("F7.jpg");
+  });
+
+  it("does not show a ref remotely when its archive failed", () => {
+    const cache = new MediaCache();
+    cache.mergeOutcome({ key: COMBO_7, kind: "image", failed: "unexpected content type text/html" });
+    cache.mergeOutcome({ key: COMBO_6, kind: "image", failed: "HTTP 404" });
+    // Polygon's source page has no cached preview image either, so there is
+    // no picture left to show. The clipping still exists, so it falls back
+    // to a card of its own words rather than vanishing off the wall.
+    const [tile] = buildTiles([combolands], cache);
+    expect(tile.kind).toBe("note");
+    expect(tile.remote).toBe(false);
+  });
+
+  it("falls back to a later ref when an earlier one failed", () => {
+    const cache = new MediaCache();
+    cache.mergeOutcome({ key: COMBO_7, kind: "image", failed: "HTTP 404" });
+    const tiles = buildTiles([combolands], cache);
+    expect(tiles[0].remote).toBe(true);
+    expect(tiles[0].filePath).toContain("combolands-6.jpg");
+  });
+
+  it("shows a remote video before it is archived", () => {
+    const tiles = buildTiles([nook], new MediaCache());
+    expect(tiles[0].kind).toBe("video");
+    expect(tiles[0].remote).toBe(true);
+    expect(tiles[0].filePath).toContain(".mp4");
+  });
+
+  it("shows a clipping with no media at all as words", () => {
+    const empty = scanClipping("Clippings/E.md", { title: "E" }, "no media here");
+    expect(buildTiles([empty], new MediaCache())[0].kind).toBe("note");
+  });
+});
+
+describe("page covers", () => {
+  const youtube = scanClipping(
+    "Clippings/GITS.md",
+    { title: "Ghost in the Shell", source: "https://www.youtube.com/watch?v=BZZoL_IoBZs" },
+    "no inline media at all"
+  );
+
+  const article = scanClipping(
+    "Clippings/A.md",
+    { title: "An article", source: "https://www.polygon.com/article" },
+    "no inline media at all"
+  );
+
+  it("resolves a youtube page to its thumbnail with no fetch", () => {
+    const tiles = buildTiles([youtube], new MediaCache());
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0].remote).toBe(true);
+    expect(tiles[0].filePath).toBe(
+      "https://img.youtube.com/vi/BZZoL_IoBZs/maxresdefault.jpg"
+    );
+  });
+
+  it("prefers the archived page cover over the remote thumbnail", () => {
+    const cache = cacheWith([
+      [
+        "https://www.youtube.com/watch?v=BZZoL_IoBZs",
+        { file: "yt.jpg", thumb: "yt.thumb.webp", width: 1280, height: 720 },
+      ],
+    ]);
+    const tiles = buildTiles([youtube], cache);
+    expect(tiles[0].remote).toBe(false);
+    expect(tiles[0].filePath).toBe("yt.jpg");
+  });
+
+  it("uses an archived og:image for a page that is not a known host", () => {
+    const cache = cacheWith([
+      [
+        "https://www.polygon.com/article",
+        { file: "og.jpg", thumb: "og.thumb.webp", width: 1200, height: 630 },
+      ],
+    ]);
+    const tiles = buildTiles([article], cache);
+    expect(tiles).toHaveLength(1);
+    expect(tiles[0].filePath).toBe("og.jpg");
+  });
+
+  it("falls back to words for a page whose cover resolution failed", () => {
+    const cache = new MediaCache();
+    cache.mergeOutcome({
+      key: "https://www.polygon.com/article",
+      kind: "image",
+      failed: "no preview image",
+    });
+    expect(buildTiles([article], cache)[0].kind).toBe("note");
+  });
+
+  it("shows a non-known-host page with no cached cover yet as words, for now", () => {
+    // The cover may still arrive: the page has not been fetched on this
+    // device. A card of words is what stands in meanwhile, and the signature
+    // changes when the picture lands, which is what repaints it.
+    expect(buildTiles([article], new MediaCache())[0].kind).toBe("note");
+  });
+
+  it("prefers inline media over the page cover", () => {
+    const withMedia = scanClipping(
+      "Clippings/GITS.md",
+      { title: "G", source: "https://www.youtube.com/watch?v=BZZoL_IoBZs" },
+      "![a](https://x.com/inline.jpg)"
+    );
+    expect(buildTiles([withMedia], new MediaCache())[0].filePath).toContain("inline.jpg");
+  });
+});
+
+describe("signature", () => {
+  it("changes when a tile swaps from remote to local", () => {
+    const before = buildTiles([combolands], new MediaCache())[0];
+    const after = buildTiles(
+      [combolands],
+      cacheWith([[COMBO_7, { file: "F7.jpg", thumb: "T7.webp", width: 1920, height: 1080 }]])
+    )[0];
+    expect(before.signature).not.toBe(after.signature);
+  });
+
+  it("is stable for an unchanged tile", () => {
+    const cache = cacheWith([[COMBO_7, { file: "F7.jpg", thumb: "T7.webp" }]]);
+    expect(buildTiles([combolands], cache)[0].signature).toBe(
+      buildTiles([combolands], cache)[0].signature
+    );
+  });
+});
+
+describe("animated covers", () => {
+  it("marks a gif cover as animated", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.gif", thumb: "T7.webp", width: 960, height: 420, bytes: 101_000 }],
+    ]);
+    expect(buildTiles([combolands], cache)[0].animated).toBe(true);
+  });
+
+  it("does not mark a jpg as animated", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.jpg", thumb: "T7.webp", width: 1920, height: 1080 }],
+    ]);
+    expect(buildTiles([combolands], cache)[0].animated).toBe(false);
+  });
+
+  it("does not animate a gif over the size threshold", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.gif", thumb: "T7.webp", width: 960, height: 420, bytes: 50_000_000 }],
+    ]);
+    expect(buildTiles([combolands], cache)[0].animated).toBe(false);
+  });
+
+  it("does not mark video as animated, since video has its own path", () => {
+    const cache = cacheWith([
+      [NOOK_MP4, { kind: "video", file: "c.mp4", thumb: "c.poster.webp", width: 886, height: 1920 }],
+    ]);
+    expect(buildTiles([nook], cache)[0].animated).toBe(false);
+  });
+
+  it("does not manage an archived gif that has no thumbnail to swap back to", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.gif", thumb: "", width: 960, height: 420, bytes: 101_000 }],
+    ]);
+    expect(buildTiles([combolands], cache)[0].animated).toBe(false);
+  });
+
+  it("keeps a still for a gif, so playback has something to freeze on", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.gif", thumb: "T7.webp", width: 960, height: 420, bytes: 101_000 }],
+    ]);
+    const tile = buildTiles([combolands], cache)[0];
+    expect(tile.filePath).toBe("F7.gif");
+    expect(tile.posterPath).toBe("T7.webp");
+  });
+
+  it("keeps a poster for video", () => {
+    const cache = cacheWith([
+      [NOOK_MP4, { kind: "video", file: "c.mp4", thumb: "c.poster.webp", width: 886, height: 1920 }],
+    ]);
+    expect(buildTiles([nook], cache)[0].posterPath).toBe("c.poster.webp");
+  });
+
+  // A remote gif animates on its own, but there is no still to swap back to,
+  // so playback has nothing to manage until it is archived.
+  it("does not manage a remote gif that is not archived yet", () => {
+    const record = scanClipping(
+      "Clippings/G.md",
+      { title: "G" },
+      "![demo](https://x.com/demo.gif)"
+    );
+    expect(buildTiles([record], new MediaCache())[0].animated).toBe(false);
+  });
+});
+
+describe("buildTiles with local embeds", () => {
+  const record = scanClipping(
+    "Clippings/Putting Out of Your Mind.md",
+    { title: "Putting Out of Your Mind", source: "https://www.amazon.ca/dp/0743212134" },
+    "![[Attachments/Clippings/df1c6f006c20-61f8IVzjEDL.jpg]]"
+  );
+
+  it("shows a clipping's own embedded file, at the size the archive knows", () => {
+    const cache = cacheWith([
+      [
+        "https://m.media-amazon.com/images/I/61f8IVzjEDL.jpg",
+        { file: "Attachments/Clippings/df1c6f006c20-61f8IVzjEDL.jpg", thumb: "", width: 725, height: 1000 },
+      ],
+    ]);
+    const [tile] = buildTiles([record], cache);
+    expect(tile).toBeDefined();
+    expect(tile.filePath).toBe("Attachments/Clippings/df1c6f006c20-61f8IVzjEDL.jpg");
+    expect(tile.remote).toBe(false);
+    expect(tile.width).toBe(725);
+    expect(tile.height).toBe(1000);
+  });
+
+  it("shows an embedded file the archive has never seen, provisionally", () => {
+    const [tile] = buildTiles([record], new MediaCache());
+    expect(tile.filePath).toBe("Attachments/Clippings/df1c6f006c20-61f8IVzjEDL.jpg");
+    expect(tile.remote).toBe(false);
+    expect(tile.provisional).toBe(true);
+  });
+
+  it("prefers the embedded file over a page cover archived for the source", () => {
+    const cache = cacheWith([
+      ["https://www.amazon.ca/dp/0743212134", { file: "Attachments/Clippings/social.png" }],
+    ]);
+    const [tile] = buildTiles([record], cache);
+    expect(tile.filePath).toBe("Attachments/Clippings/df1c6f006c20-61f8IVzjEDL.jpg");
+  });
+
+  it("has no picture for an embedded video with no poster, so shows words", () => {
+    const video = scanClipping("Clippings/V.md", { title: "V" }, "![[Attachments/Clippings/a.mp4]]");
+    expect(buildTiles([video], new MediaCache())[0].kind).toBe("note");
+  });
+});
+
+describe("tilesForRecord", () => {
+  it("returns a tile for every media that resolves, in note order", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.jpg", width: 1920, height: 1080 }],
+      [COMBO_6, { file: "F6.jpg", width: 800, height: 600 }],
+    ]);
+    const tiles = tilesForRecord(combolands, cache);
+    expect(tiles.length).toBeGreaterThan(1);
+    expect(tiles[0].filePath).toBe("F7.jpg");
+    expect(tiles[1].filePath).toBe("F6.jpg");
+  });
+
+  it("agrees with the wall on the first tile, so the carousel opens where the card was", () => {
+    const cache = cacheWith([[COMBO_7, { file: "F7.jpg" }], [COMBO_6, { file: "F6.jpg" }]]);
+    const wall = buildTiles([combolands], cache);
+    const carousel = tilesForRecord(combolands, cache);
+    expect(carousel[0].signature).toBe(wall[0].signature);
+  });
+
+  it("gives every tile the note's own path, so the pane's actions still resolve", () => {
+    const cache = cacheWith([[COMBO_7, { file: "F7.jpg" }], [COMBO_6, { file: "F6.jpg" }]]);
+    for (const tile of tilesForRecord(combolands, cache)) {
+      expect(tile.id).toBe("Clippings/C.md");
+      expect(tile.record).toBe(combolands);
+    }
+  });
+
+  it("leaves out a ref the source itself rejected", () => {
+    const cache = cacheWith([
+      [COMBO_7, { failed: "404" }],
+      [COMBO_6, { file: "F6.jpg" }],
+    ]);
+    const tiles = tilesForRecord(combolands, cache);
+    expect(tiles.some((t) => t.filePath === "F6.jpg")).toBe(true);
+    expect(tiles.some((t) => t.filePath === "F7.jpg")).toBe(false);
+  });
+
+  it("does not fall back to the page's preview the way a cover does", () => {
+    const empty = scanClipping("Clippings/E.md", { title: "E", source: "https://www.youtube.com/watch?v=BZZoL_IoBZs" }, "");
+    expect(tilesForRecord(empty, new MediaCache())).toEqual([]);
+    expect(buildTiles([empty], new MediaCache())).toHaveLength(1);
+  });
+});
+
+describe("mediaCount", () => {
+  it("counts a post that holds several pictures", () => {
+    expect(mediaCount(combolands)).toBeGreaterThan(1);
+  });
+
+  it("says nothing for a clipping with one picture", () => {
+    const one = scanClipping("Clippings/O.md", { title: "O" }, "![a](https://x.test/a.jpg)");
+    expect(mediaCount(one)).toBe(0);
+  });
+
+  it("says nothing for a clipping with none", () => {
+    expect(mediaCount(scanClipping("Clippings/N.md", { title: "N" }, "just words"))).toBe(0);
+  });
+
+  it("does not count the same image twice when the note names it twice", () => {
+    const twice = scanClipping(
+      "Clippings/D.md",
+      { title: "D", media: ["https://x.test/a.jpg"] },
+      "![a](https://x.test/a.jpg)"
+    );
+    expect(mediaCount(twice)).toBe(0);
+  });
+
+  it("agrees with the reel, so the badge never promises more than the reel holds", () => {
+    const cache = cacheWith([[COMBO_7, { file: "F7.jpg" }], [COMBO_6, { file: "F6.jpg" }]]);
+    expect(tilesForRecord(combolands, cache).length).toBeLessThanOrEqual(mediaCount(combolands));
+  });
+});
+
+describe("cards with no picture", () => {
+  function note(front: Record<string, string>, body = "body"): ReturnType<typeof scanClipping> {
+    return scanClipping("Clippings/N.md", { title: "N", ...front }, body);
+  }
+
+  describe("noteText", () => {
+    it("says your own note first: you wrote it about this, on purpose", () => {
+      const record = note({ note: "mine", summary: "model's", description: "the page's" });
+      expect(noteText(record)).toBe("mine");
+    });
+
+    it("falls back to the summary, then to what the page said about itself", () => {
+      expect(noteText(note({ summary: "model's", description: "the page's" }))).toBe("model's");
+      expect(noteText(note({ description: "the page's" }))).toBe("the page's");
+      expect(noteText(note({}, ""))).toBe("");
+    });
+
+    it("falls back last to the note's own opening lines", () => {
+      // A note that was written rather than clipped has no description and
+      // no summary. Without this its card is a title on an empty sheet.
+      expect(noteText(note({}, "Ochre and cadmium in Bauhaus posters"))).toBe(
+        "Ochre and cadmium in Bauhaus posters"
+      );
+      // And it is the last resort, not a competitor.
+      expect(noteText(note({ description: "the page's" }, "the body"))).toBe("the page's");
+    });
+
+    it("ignores a key that is there but blank, rather than showing nothing", () => {
+      expect(noteText(note({ note: "   ", description: "the page's" }))).toBe("the page's");
+    });
+  });
+
+  describe("noteTileHeight", () => {
+    const wide = 300;
+
+    it("gives a longer note a taller card, which is what a masonry is for", () => {
+      const short = noteTileHeight(note({ description: "one line" }), wide);
+      const long = noteTileHeight(note({ description: "word ".repeat(60) }), wide);
+      expect(long).toBeGreaterThan(short);
+    });
+
+    it("stops growing, so one long note cannot take the screen", () => {
+      const long = noteTileHeight(note({ description: "word ".repeat(200) }), wide);
+      const absurd = noteTileHeight(note({ description: "word ".repeat(4000) }), wide);
+      expect(absurd).toBe(long);
+      expect(absurd).toBeLessThan(wide * 1.4);
+    });
+
+    it("needs fewer lines in a wider column, so the same note is shorter there", () => {
+      const record = note({ description: "word ".repeat(40) });
+      expect(noteTileHeight(record, 420)).toBeLessThan(noteTileHeight(record, 220));
+    });
+
+    it("drops the body below the compact width, where it could not be read", () => {
+      const bare = note({});
+      const wordy = note({ description: "word ".repeat(40) });
+      expect(noteTileHeight(wordy, COMPACT_COLUMN - 40)).toBe(
+        noteTileHeight(bare, COMPACT_COLUMN - 40)
+      );
+      expect(noteTileHeight(wordy, COMPACT_COLUMN + 40)).toBeGreaterThan(
+        noteTileHeight(bare, COMPACT_COLUMN + 40)
+      );
+    });
+
+    it("keeps a card with nothing on it big enough to be a card", () => {
+      expect(noteTileHeight(note({}), 120)).toBeGreaterThanOrEqual(96);
+    });
+  });
+
+  describe("the tile", () => {
+    it("carries no file, and is not waiting on one", () => {
+      const [tile] = buildTiles([note({})], new MediaCache());
+      expect(tile).toMatchObject({ kind: "note", filePath: "", posterPath: "", remote: false });
+      expect(tile.provisional).toBe(false);
+    });
+
+    it("repaints when the words change, and not when something else does", () => {
+      const before = buildTiles([note({ description: "the page's" })], new MediaCache())[0];
+      const after = buildTiles([note({ description: "the page's", summary: "written since" })], new MediaCache())[0];
+      const unrelated = buildTiles(
+        [note({ description: "the page's", status: "read" })],
+        new MediaCache()
+      )[0];
+      expect(after.signature).not.toBe(before.signature);
+      expect(unrelated.signature).toBe(before.signature);
+    });
+  });
+});
+
+describe("documents", () => {
+  const pdf = "Attachments/Clippings/pasted-2026-09-15.pdf";
+  const preview = "Attachments/Clippings/pasted-2026-09-15.preview.png";
+
+  function dropped(): ReturnType<typeof scanClipping> {
+    // What captureMedia writes for a file dropped from Finder: the cover
+    // names the file, and the body embeds it.
+    return scanClipping("Clippings/Book.md", { title: "Book", cover: pdf }, `![[${pdf}]]`);
+  }
+
+  it("shows the rendered page, not the file, which no <img> can paint", () => {
+    const cache = cacheWith([[pdf, { file: pdf, thumb: preview, width: 900, height: 1165 }]]);
+    const [tile] = buildTiles([dropped()], cache);
+    expect(tile.kind).toBe("image");
+    expect(tile.filePath).toBe(preview);
+    expect(tile.isDocument).toBe(true);
+  });
+
+  it("shows its own words until the page has been rendered", () => {
+    // The alternative is an <img> pointed at a PDF, which errors, and an
+    // error takes the card off the wall for the session.
+    expect(buildTiles([dropped()], new MediaCache())[0].kind).toBe("note");
+  });
+
+  it("marks only documents, not every format that needs a preview", () => {
+    const heic = "Attachments/Clippings/a.heic";
+    const record = scanClipping("Clippings/H.md", { title: "H", cover: heic }, `![[${heic}]]`);
+    const cache = cacheWith([[heic, { file: heic, thumb: "Attachments/Clippings/a.preview.png" }]]);
+    const [tile] = buildTiles([record], cache);
+    expect(tile.filePath).toBe("Attachments/Clippings/a.preview.png");
+    expect(tile.isDocument).toBeFalsy();
+  });
+
+  it("repaints when the page lands, because the tile is a different one", () => {
+    const before = buildTiles([dropped()], new MediaCache())[0];
+    const cache = cacheWith([[pdf, { file: pdf, thumb: preview }]]);
+    const after = buildTiles([dropped()], cache)[0];
+    expect(after.signature).not.toBe(before.signature);
+  });
+});

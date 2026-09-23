@@ -1,0 +1,584 @@
+import { scrollRowIntoList } from "./scroll";
+import { keyIs } from "./core/keys";
+import { setIcon } from "obsidian";
+import type { PaletteCommand, PaletteStage } from "./core/commands";
+import { NARROW_SECTION, resumeIndex, searchPalette } from "./core/palette-results";
+import type { PaletteRow, SearchOptions } from "./core/palette-results";
+import { chipLabel, parseQuery, suggestNarrow, tokenFor, withinNarrow } from "./core/palette-query";
+import type { Narrow, NarrowTarget, NarrowWorld } from "./core/palette-query";
+import type { MatchRange } from "./core/palette-search";
+import type { ClippingRecord } from "./core/scan";
+
+const ROOT_PLACEHOLDER = "Search clippings and actions…";
+
+export interface PaletteHandlers {
+  /**
+   * The two command pools, rebuilt per render so rows read the wall as it is
+   * now. They arrive together because they are built from one reading of the
+   * wall, and that reading walks a sample of it: asking for them separately
+   * would take it twice on every keystroke.
+   *
+   * `commands` is the root list. `values` is every value the wall's facets
+   * carry, which searchPalette holds back until there is a query.
+   */
+  pools: () => { commands: PaletteCommand[]; values: PaletteCommand[] };
+  clippings: () => readonly ClippingRecord[];
+  options: () => SearchOptions;
+  /**
+   * The grids, folders and tags an `@` or `#` token can name, and what a chip
+   * means when matching a clipping. Read per render, as the pools are: a grid
+   * made while the palette is open should be offered by it.
+   */
+  narrowTargets: () => NarrowTarget[];
+  narrowWorld: () => NarrowWorld;
+  /** Land on a clipping: switch grid if need be, centre it, select it. */
+  onClipping: (path: string) => void;
+  /**
+   * A thumbnail url for a clipping, or "" when it has none. A picture is
+   * what a clipping is, so a row that shows a generic file icon is a row
+   * you have to read rather than recognise.
+   */
+  preview: (path: string) => string;
+}
+
+/**
+ * The centred search: one input over the dimmed wall that finds both the
+ * clippings on it and the things you can do to them.
+ *
+ * Built on the same surface as the context menus rather than an Obsidian
+ * Modal, so it sits inside the pane with the wall visible behind it and
+ * matches the menus row for row. What it adds over a menu is a query, a
+ * moving selection, and a second stage for the commands that need an
+ * argument, which is what keeps "move these four to Reference" one gesture
+ * instead of a menu, a submenu and a hunt.
+ */
+export class Palette {
+  private backdrop: HTMLElement | null = null;
+  private panel: HTMLElement | null = null;
+  private input: HTMLInputElement | null = null;
+  private listEl: HTMLElement | null = null;
+  private chipEl: HTMLElement | null = null;
+  private onKey: ((event: KeyboardEvent) => void) | null = null;
+
+  /**
+   * The command whose argument list is open, held by id rather than by the
+   * stage object: a stage closes over the state its command was built from,
+   * so reusing one across renders would show ticks and counts from before
+   * the click that changed them.
+   */
+  private stageId: string | null = null;
+  /** The stage that id resolved to on the last render, for the chip. */
+  private stage: PaletteStage | null = null;
+  /** The chips the query carries, as the last render parsed them. */
+  private narrow: Narrow[] = [];
+  private rows: PaletteRow[] = [];
+  private rowEls: HTMLElement[] = [];
+  private active = 0;
+  /**
+   * Whether the pointer has moved since the rows were last painted. The
+   * palette opens under wherever the mouse happens to be, and the row there
+   * gets a mouseenter at once, which used to steal the cursor from the top
+   * result before a key was pressed. Hover only counts once the pointer has
+   * actually moved.
+   */
+  private hoverArmed = false;
+  /**
+   * The root list as it stood when a stage was entered, so backing out of one
+   * returns to the row it was opened from.
+   *
+   * The query is kept alongside the row, and has to be: the root is narrowed
+   * by whatever was typed, so restoring a position without restoring the text
+   * that produced it would point into a different list. The key is preferred
+   * to the index for the same reason the keepOpen path prefers it, a stage
+   * having very possibly changed a count or a tick while it was open.
+   */
+  private resume: { query: string; key: string; index: number } | null = null;
+
+  constructor(private container: HTMLElement, private handlers: PaletteHandlers) {}
+
+  get isOpen(): boolean {
+    return this.panel !== null;
+  }
+
+  toggle(): void {
+    if (this.isOpen) this.close();
+    else this.open();
+  }
+
+  open(): void {
+    if (this.isOpen) return;
+    this.stageId = null;
+    this.stage = null;
+    this.active = 0;
+
+    this.backdrop = this.container.createDiv({ cls: "pg-palette-backdrop" });
+    this.backdrop.onclick = () => this.close();
+
+    this.panel = this.container.createDiv({ cls: "pg-palette" });
+
+    const head = this.panel.createDiv({ cls: "pg-palette-head" });
+    const glass = head.createDiv({ cls: "pg-palette-search" });
+    setIcon(glass, "search");
+    this.chipEl = head.createDiv({ cls: "pg-palette-chip" });
+
+    this.input = head.createEl("input", { cls: "pg-palette-input", type: "text" });
+    this.input.placeholder = ROOT_PLACEHOLDER;
+    this.input.oninput = () => {
+      this.active = 0;
+      this.render();
+    };
+
+    this.listEl = this.panel.createDiv({ cls: "pg-palette-list" });
+    this.listEl.onmousemove = (event: MouseEvent) => {
+      if (this.hoverArmed) return;
+      this.hoverArmed = true;
+      // The row under the pointer missed its mouseenter while hover was
+      // disarmed, so the first movement lights it the way entering would.
+      const target = event.target as HTMLElement | null;
+      const row = this.rowEls.find((candidate) => target && candidate.contains(target));
+      if (row) this.hover(row);
+    };
+
+    const foot = this.panel.createDiv({ cls: "pg-palette-foot" });
+    hint(foot, "↑↓", "navigate");
+    hint(foot, "↵", "select");
+    hint(foot, "esc", "close");
+
+    this.onKey = (event: KeyboardEvent) => this.handleKey(event);
+    this.container.doc.addEventListener("keydown", this.onKey, true);
+
+    this.render();
+    this.input.focus({ preventScroll: true });
+
+    // Next frame, so the entry transition has a state to move from.
+    window.requestAnimationFrame(() => {
+      this.backdrop?.addClass("is-open");
+      this.panel?.addClass("is-open");
+    });
+  }
+
+  close(): void {
+    if (this.onKey) this.container.doc.removeEventListener("keydown", this.onKey, true);
+    this.onKey = null;
+    this.backdrop?.remove();
+    this.panel?.remove();
+    this.backdrop = null;
+    this.panel = null;
+    this.input = null;
+    this.listEl = null;
+    this.chipEl = null;
+    this.stageId = null;
+    this.stage = null;
+    this.rows = [];
+    this.rowEls = [];
+  }
+
+  private handleKey(event: KeyboardEvent): void {
+    if (!this.isOpen) return;
+    const mod = event.metaKey || event.ctrlKey;
+
+    if (mod && keyIs(event, "k")) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.close();
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      // One level at a time, the same bargain the context menu makes with
+      // its submenus: backing out of an argument should not throw away the
+      // query that found the command.
+      if (this.stageId) this.popStage();
+      else this.close();
+      return;
+    }
+
+    // ctrl, never ⌘: ⌘N is the wall's own clip-link shortcut.
+    if (event.key === "ArrowDown" || (event.ctrlKey && keyIs(event, "n"))) {
+      event.preventDefault();
+      this.move(1);
+      return;
+    }
+
+    if (event.key === "ArrowUp" || (event.ctrlKey && keyIs(event, "p"))) {
+      event.preventDefault();
+      this.move(-1);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      const row = this.rows[this.active];
+      if (row) this.choose(row);
+      return;
+    }
+
+    // Into an argument list, out of it: the two horizontal keys, plus the
+    // backspace that reads as deleting the chip you are typing behind.
+    if (event.key === "ArrowRight" && this.atEnd()) {
+      const row = this.rows[this.active];
+      if (row?.command?.stage) {
+        event.preventDefault();
+        this.pushStage(row.command);
+      }
+      return;
+    }
+
+    if ((event.key === "ArrowLeft" || event.key === "Backspace") && this.stageId) {
+      if ((this.input?.value ?? "") !== "") return;
+      event.preventDefault();
+      this.popStage();
+      return;
+    }
+
+    // Everything else is typing, and belongs to the input. The wall's own
+    // shortcuts already stand aside for a focused field, and ⌘1..9 is held
+    // off by the view while the palette is up.
+  }
+
+  private atEnd(): boolean {
+    const input = this.input;
+    if (!input) return false;
+    return input.selectionStart === input.value.length;
+  }
+
+  private move(delta: number): void {
+    if (this.rows.length === 0) return;
+    // Wraps, so holding one arrow cycles rather than parking at an end.
+    this.active = (this.active + delta + this.rows.length) % this.rows.length;
+    this.paintActive();
+  }
+
+  private pushStage(command: PaletteCommand): void {
+    if (!command.stage) return;
+    this.resume = {
+      query: this.input?.value ?? "",
+      key: this.rows[this.active]?.key ?? "",
+      index: this.active,
+    };
+    this.stageId = command.id;
+    this.stage = command.stage;
+    this.active = 0;
+    if (this.input) {
+      this.input.value = "";
+      this.input.placeholder = command.stage.placeholder;
+      this.input.focus({ preventScroll: true });
+    }
+    this.render();
+  }
+
+  private popStage(): void {
+    const resume = this.resume;
+    this.resume = null;
+
+    this.stageId = null;
+    this.stage = null;
+    this.active = 0;
+    if (this.input) {
+      this.input.value = resume?.query ?? "";
+      this.input.placeholder = ROOT_PLACEHOLDER;
+      this.input.focus({ preventScroll: true });
+    }
+    this.render();
+
+    // After the render, because the rows it restores a place in do not exist
+    // until then.
+    if (resume) {
+      this.active = resumeIndex(
+        this.rows.map((row) => row.key),
+        resume.key,
+        resume.index
+      );
+      this.paintActive();
+    }
+  }
+
+  private choose(row: PaletteRow): void {
+    const command = row.command;
+
+    if (row.narrowTo) {
+      this.completeNarrow(row.narrowTo);
+      return;
+    }
+
+    if (command?.stage) {
+      this.pushStage(command);
+      return;
+    }
+
+    if (command?.keepOpen) {
+      command.run?.();
+      // Rebuilt rather than patched: a toggled facet changes a tick and a
+      // count, and the row it changed should stay under the cursor.
+      const key = row.key;
+      this.render();
+      const index = this.rows.findIndex((candidate) => candidate.key === key);
+      if (index !== -1) {
+        this.active = index;
+        this.paintActive();
+      }
+      // A click lands focus on the row, and the next keystroke would go to
+      // the wall rather than the query.
+      this.input?.focus({ preventScroll: true });
+      return;
+    }
+
+    // Closed first: several of these open a modal, which wants the focus the
+    // input is currently holding.
+    this.close();
+    if (command) command.run?.();
+    else if (row.clipping) this.handlers.onClipping(row.clipping);
+  }
+
+  private hover(el: HTMLElement): void {
+    const index = this.rowEls.indexOf(el);
+    if (index === -1 || index === this.active) return;
+    this.active = index;
+    this.paintActive(false);
+  }
+
+  private render(): void {
+    this.hoverArmed = false;
+    const list = this.listEl;
+    if (!list) return;
+    list.empty();
+    this.rows = [];
+    this.rowEls = [];
+
+    const raw = this.input?.value ?? "";
+    // `@grid` and `#tag` are scope rather than search: they come out of the
+    // text, become chips, and narrow what the rest of the query is matched
+    // against. Inside a stage they mean nothing — its rows are a closed set.
+    const parsed = this.stageId ? { terms: raw, narrow: [], typing: null } : parseQuery(raw);
+    this.narrow = parsed.narrow;
+    const query = parsed.terms;
+    const options = this.handlers.options();
+    const { commands, values } = this.handlers.pools();
+    this.stage = this.stageId
+      ? (commands.find((command) => command.id === this.stageId)?.stage ?? null)
+      : null;
+    // The command that opened the stage is gone: its selection was consumed,
+    // or its facet emptied. Falling back to the root beats a dead list.
+    if (this.stageId && !this.stage) this.stageId = null;
+
+    let groups;
+    if (this.stage) {
+      // An argument list is a closed set: the wall's clippings are not
+      // answers to "which grid", and offering them would be noise.
+      groups = searchPalette(query, this.stage.items(), [], [], { ...options, limit: 0 });
+    } else {
+      const world = this.handlers.narrowWorld();
+      const clippings =
+        parsed.narrow.length > 0
+          ? this.handlers.clippings().filter((record) => withinNarrow(record, parsed.narrow, world))
+          : this.handlers.clippings();
+      groups = searchPalette(query, commands, values, clippings, options);
+
+      // A token still being written asks a question of its own, and it leads:
+      // whatever is typed after `@` is about the scope, not about a title.
+      if (parsed.typing) {
+        const kind = parsed.typing.sigil === "#" ? "tag" : null;
+        const offered = suggestNarrow(
+          parsed.typing.prefix,
+          this.handlers
+            .narrowTargets()
+            .filter((target) => (kind ? target.kind === kind : target.kind !== "tag"))
+        );
+        if (offered.length > 0) {
+          groups = [
+            {
+              section: NARROW_SECTION,
+              score: Number.POSITIVE_INFINITY,
+              rows: offered.map((target): PaletteRow => ({
+                key: `narrow:${target.kind}:${target.grid ?? ""}:${target.value}`,
+                label: target.label,
+                // The grid's or folder's own icon, so the row is recognised
+                // the way its row in the rail is; a tag has none of its own.
+                icon: target.icon ?? (target.kind === "tag" ? "tag" : "layout-grid"),
+                tint: target.color,
+                ranges: [],
+                narrowTo: target,
+              })),
+            },
+            ...groups,
+          ];
+        }
+      }
+    }
+
+    this.paintChip();
+
+    if (groups.length === 0) {
+      list.createDiv({ cls: "pg-palette-empty", text: "No matches" });
+      return;
+    }
+
+    // A stage of values carries no left icon on any row, so the gutter would
+    // sit there empty down the whole list. Decided for the list rather than
+    // per row: it is a property of what is being shown.
+    const iconic = groups.some((group) =>
+      group.rows.some((row) => row.icon || row.clipping)
+    );
+    list.toggleClass("is-iconless", !iconic);
+
+    for (const group of groups) {
+      // Inside a stage every row is the same kind of thing, so a heading
+      // over them says nothing.
+      if (!this.stage) list.createDiv({ cls: "pg-palette-section", text: group.section });
+
+      for (const row of group.rows) {
+        this.rows.push(row);
+        this.rowEls.push(this.paintRow(list, row));
+      }
+    }
+
+    if (this.active >= this.rows.length) this.active = Math.max(0, this.rows.length - 1);
+    this.paintActive();
+  }
+
+  private paintChip(): void {
+    const chip = this.chipEl;
+    if (!chip) return;
+    chip.empty();
+    chip.toggleClass("is-visible", this.stage !== null || this.narrow.length > 0);
+    if (this.stage) {
+      chip.createSpan({ text: this.stage.title });
+      return;
+    }
+    for (const held of this.narrow) {
+      const pill = chip.createSpan({ cls: "pg-palette-narrow" });
+      pill.createSpan({ text: chipLabel(held) });
+      const drop = pill.createEl("button", { cls: "pg-palette-narrow-x", text: "\u00d7" });
+      drop.setAttribute("aria-label", `Remove ${chipLabel(held)}`);
+      drop.onclick = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.dropNarrow(held);
+      };
+    }
+  }
+
+  /** Takes a chip's token back out of the field, which is where it lives. */
+  private dropNarrow(chip: Narrow): void {
+    const input = this.input;
+    if (!input) return;
+    const token = tokenFor(chip);
+    const at = input.value.indexOf(token);
+    if (at === -1) return;
+    input.value = (
+      input.value.slice(0, at) + input.value.slice(at + token.length)
+    ).replace(/\s+/g, " ").trim();
+    input.focus({ preventScroll: true });
+    this.active = 0;
+    this.render();
+  }
+
+  /** Finishes a half-typed token, so what was being written becomes a chip. */
+  private completeNarrow(target: NarrowTarget): void {
+    const input = this.input;
+    if (!input) return;
+    const chip: Narrow =
+      target.kind === "folder"
+        ? { kind: "folder", grid: target.grid, value: target.value }
+        : { kind: target.kind, value: target.value };
+    // The half-typed token is the last one in the field by definition, so the
+    // last sigil is where it starts.
+    const cut = Math.max(input.value.lastIndexOf("@"), input.value.lastIndexOf("#"));
+    const head = cut === -1 ? input.value : input.value.slice(0, cut);
+    input.value = `${head}${tokenFor(chip)} `;
+    input.focus({ preventScroll: true });
+    this.active = 0;
+    this.render();
+  }
+
+  private paintRow(list: HTMLElement, row: PaletteRow): HTMLElement {
+    if (row.divider && list.childElementCount > 0) list.createDiv({ cls: "pg-menu-divider" });
+    const el = list.createDiv({ cls: "pg-palette-item" });
+    if (row.destructive) el.addClass("is-destructive");
+
+    const icon = el.createDiv({ cls: "pg-palette-icon" });
+    const thumb = row.clipping ? this.handlers.preview(row.clipping) : "";
+    if (thumb) {
+      icon.addClass("is-thumb");
+      const image = icon.createEl("img");
+      image.loading = "lazy";
+      image.decoding = "async";
+      image.src = thumb;
+    } else if (row.icon) {
+      if (row.tint) icon.style.color = row.tint;
+      // Blank is meaningful in a list that has icons: an unticked row still
+      // needs its gutter, or the labels jump sideways as values are toggled.
+      // A list where no row has one drops it instead, see render().
+      setIcon(icon, row.icon);
+    }
+
+    paintLabel(el.createDiv({ cls: "pg-palette-label" }), row.label, row.ranges);
+
+    // The trailing slot holds a count, a shortcut, or a mark. Never both.
+    const detail = el.createDiv({ cls: "pg-palette-detail" });
+    if (row.detailIcon) {
+      detail.addClass("is-marked");
+      setIcon(detail, row.detailIcon);
+    } else {
+      detail.setText(row.detail ?? "");
+    }
+
+    if (row.command?.stage) {
+      const arrow = el.createDiv({ cls: "pg-palette-arrow" });
+      setIcon(arrow, "arrow-right");
+    }
+
+    el.onmouseenter = () => {
+      if (!this.hoverArmed) return;
+      this.hover(el);
+    };
+    el.onclick = (event: MouseEvent) => {
+      event.stopPropagation();
+      this.choose(row);
+    };
+
+    return el;
+  }
+
+  private paintActive(scroll = true): void {
+    this.rowEls.forEach((el, index) => el.toggleClass("is-active", index === this.active));
+    if (scroll) this.scrollRowIntoView(this.rowEls[this.active]);
+  }
+
+  /**
+   * Scrolls the list, and only the list.
+   *
+   * scrollIntoView walks up and scrolls every scrollable ancestor on the
+   * way, and the view container is one of them even at overflow: hidden,
+   * which is programmatically scrollable all the same. Arrowing to the last
+   * row therefore dragged the whole pane down, taking the wall and the
+   * panel handle with it, and it stayed there after the palette closed.
+   */
+  private scrollRowIntoView(row: HTMLElement | undefined): void {
+    scrollRowIntoList(this.listEl, row);
+  }
+}
+
+/** Writes a label with its matched runs marked, for the search highlight. */
+export function paintLabel(el: HTMLElement, label: string, ranges: MatchRange[]): void {
+  if (ranges.length === 0) {
+    el.setText(label);
+    return;
+  }
+
+  let cursor = 0;
+  for (const range of ranges) {
+    if (range.start > cursor) el.createSpan({ text: label.slice(cursor, range.start) });
+    el.createSpan({ cls: "pg-palette-mark", text: label.slice(range.start, range.end) });
+    cursor = range.end;
+  }
+  if (cursor < label.length) el.createSpan({ text: label.slice(cursor) });
+}
+
+export function hint(foot: HTMLElement, key: string, text: string): void {
+  const item = foot.createDiv({ cls: "pg-palette-hint" });
+  item.createSpan({ cls: "pg-palette-key", text: key });
+  item.createSpan({ text });
+}

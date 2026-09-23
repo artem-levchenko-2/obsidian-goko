@@ -1,0 +1,628 @@
+import { isEmptyValue, valueLabel } from "./filter";
+import type { FacetDef, FacetValue, FilterState } from "./filter";
+import type { FolderSpace } from "./folders";
+import type { WallOrder } from "./order";
+import { hotkeyPosition } from "./spaces";
+import type { GridSpace } from "./spaces";
+
+/**
+ * Everything the palette can do, built fresh from the wall's current state.
+ *
+ * Deliberately its own list rather than a rendering of the context menus.
+ * The two surfaces want different things: a menu wants submenus, inert rows
+ * that keep the set legible, and an anchor point, while the palette wants
+ * stable ids, words to search on that it never shows, and no dead rows at
+ * all, because a row you cannot pick is a row that should not have survived
+ * your query. What they share is the work itself: every run() below calls
+ * the same view method its menu row calls.
+ */
+
+export type PaletteSection = "Actions" | "Grids" | "Filters" | "Capture";
+
+export interface PaletteStage {
+  /** Shown as a chip in the input while the stage is open. */
+  title: string;
+  placeholder: string;
+  /**
+   * Rebuilt on each render rather than captured, so a keepOpen row shows the
+   * state its own last click produced instead of the state it opened in.
+   */
+  items: () => PaletteCommand[];
+}
+
+export interface PaletteCommand {
+  id: string;
+  label: string;
+  icon: string;
+  section: PaletteSection;
+  /** Right-hand text: a shortcut hint, a count, or a tally. */
+  detail?: string;
+  /**
+   * Right-hand icon, shown in place of `detail`. A row whose state is worth
+   * marking says so where its count was, rather than in a left-hand gutter
+   * every other row then reserves while saying nothing.
+   */
+  detailIcon?: string;
+  /** Draws a rule above this row, for grouping without a heading. Mirrors MenuItem.divider. */
+  divider?: boolean;
+  /** Extra words to match on that the row never displays. */
+  keywords?: string;
+  /**
+   * The part of the label the search should rank on, when the whole label is
+   * the wrong thing to rank on. A facet value row reads "Categories: ios" but
+   * matches only "ios", so that typing "categories" gives you the one row that
+   * opens the whole facet rather than every value inside it. Highlight ranges
+   * come back indexed into this, and the caller shifts them by the prefix; the
+   * label is therefore built as prefix + matchOn, and nothing else.
+   */
+  matchOn?: string;
+  destructive?: boolean;
+  /** Leaves the palette open after running, for rows used several at a time. */
+  keepOpen?: boolean;
+  /** Opens a second stage instead of running. */
+  stage?: PaletteStage;
+  run?: () => void;
+}
+
+/** The work behind the rows, all of it already implemented by the view. */
+export interface PaletteActions {
+  openNote(id: string): void;
+  exportSelection(ids: string[]): void;
+  reveal(id: string): void;
+  move(ids: string[], grid: string): void;
+  remove(ids: string[]): void;
+  switchGrid(name: string): void;
+  newGrid(): void;
+  moveToFolder(ids: string[], folder: string): void;
+  /** Opens the folder editor; on save the seeded paths are moved in. */
+  newFolder(seed: string[]): void;
+  openFolder(name: string): void;
+  undo(): void;
+  redo(): void;
+  editGrid(): void;
+  deleteGrid(): void;
+  manageGrids(): void;
+  toggleFacet(id: string, value: string): void;
+  clearFilters(): void;
+  clip(): void;
+  archiveAll(): void;
+  selectAll(): void;
+  /** Back to the start of the wall. */
+  scrollToTop(): void;
+  shuffle(): void;
+  newestFirst(): void;
+  /** Lays the inbox out by suggested destination, or flat again. */
+  groupInbox(): void;
+  /** Files each of these where its suggestion says. */
+  fileSuggested(ids: string[]): void;
+  recentlyUpdated(): void;
+  applyRules(): void;
+  /** Sends the selected clippings to the vision model, even ones already described. */
+  describe(ids: string[]): void;
+  /** Sends every clipping that has no summary yet. */
+  describeAll(): void;
+  /** Reads the words out of every PDF clipping that has not been read. */
+  readPdfs(): void;
+}
+
+export interface PaletteContext {
+  /** Note paths currently selected on the wall. */
+  selection: string[];
+  /** Every grid, home first, in switcher order. */
+  grids: GridSpace[];
+  activeGrid: string;
+  homeGrid: string;
+  /** The folders on the active grid, in stored order. */
+  folders: FolderSpace[];
+  /** False on a smart grid, where nothing is filed and so nothing is foldered. */
+  canFile: boolean;
+  /** What ⌘Z and ⌘⇧Z would take back or do again, or null for nothing. */
+  undoLabel: string | null;
+  redoLabel: string | null;
+  /** The facets on offer, in menu order. */
+  facetDefs: FacetDef[];
+  facets: Record<string, FacetValue[]>;
+  filter: FilterState;
+  /** False off desktop, where there is no Finder and no Downloads folder. */
+  hasSystem: boolean;
+  /** Whether the wall on screen is the inbox, which is the one wall that groups. */
+  canGroup?: boolean;
+  /** Whether the inbox is currently grouped by suggestion. */
+  grouped?: boolean;
+  /** How many of the selected cards carry a suggestion. */
+  suggested?: number;
+  /** How the wall is ordered, so the shuffle row can say whether it is on. */
+  order: WallOrder;
+  actions: PaletteActions;
+}
+
+/** Grid hotkeys are ⌘1..⌘9 by position, so only the first nine have one. */
+function gridHotkey(position: number): string | undefined {
+  return hotkeyPosition(String(position + 1)) === position ? `⌘${position + 1}` : undefined;
+}
+
+function historyCommands(context: PaletteContext): PaletteCommand[] {
+  const { actions } = context;
+  const items: PaletteCommand[] = [];
+  // Only offered when there is something to do: a palette row that would do
+  // nothing is a row that should not have survived the query.
+  if (context.undoLabel) {
+    items.push({
+      id: "history:undo",
+      label: `Undo ${context.undoLabel}`,
+      icon: "undo-2",
+      section: "Actions",
+      detail: "\u2318Z",
+      keywords: "revert back take back",
+      run: () => actions.undo(),
+    });
+  }
+  if (context.redoLabel) {
+    items.push({
+      id: "history:redo",
+      label: `Redo ${context.redoLabel}`,
+      icon: "redo-2",
+      section: "Actions",
+      detail: "\u2318\u21e7Z",
+      keywords: "again repeat",
+      run: () => actions.redo(),
+    });
+  }
+  return items;
+}
+
+function selectionCommands(context: PaletteContext): PaletteCommand[] {
+  const { selection, actions } = context;
+  if (selection.length === 0) return [];
+
+  const count = `${selection.length} selected`;
+  const one = selection.length === 1;
+  const items: PaletteCommand[] = [];
+
+  if (one) {
+    items.push({
+      id: "selection:open-note",
+      label: "Open note",
+      icon: "file-text",
+      section: "Actions",
+      keywords: "markdown edit source text",
+      run: () => actions.openNote(selection[0]),
+    });
+  }
+
+  if (context.hasSystem) {
+    items.push({
+      id: "selection:export",
+      label: "Export to Downloads",
+      icon: "download",
+      section: "Actions",
+      detail: one ? "⌘E" : count,
+      keywords: "save copy download file",
+      run: () => actions.exportSelection(selection),
+    });
+
+    // Each card to its own suggested place. Ahead of the model, since it is
+    // the thing a selection on the inbox is most likely there to do.
+    if (context.suggested) {
+      items.push({
+        id: "selection:file-suggested",
+        label:
+          context.suggested === 1 ? "File as suggested" : `File ${context.suggested} as suggested`,
+        icon: "list-checks",
+        section: "Actions",
+        keywords: "file suggested accept suggestion move sort inbox",
+        run: () => actions.fileSuggested(selection),
+      });
+    }
+
+    // Even ones already described: a person pointing at a card means it,
+    // where the bulk row below leaves a finished card alone.
+    items.push({
+      id: "selection:describe",
+      label: selection.length === 1 ? "Describe with AI" : `Describe ${selection.length} with AI`,
+      icon: "sparkles",
+      section: "Actions",
+      keywords: "ai vision summary tags describe annotate model",
+      run: () => actions.describe(selection),
+    });
+
+    // Revealing picks one file, so a selection of many has no single answer.
+    if (one) {
+      items.push({
+        id: "selection:reveal",
+        label: "Show in system explorer",
+        icon: "folder",
+        section: "Actions",
+        keywords: "finder show file folder disk",
+        run: () => actions.reveal(selection[0]),
+      });
+    }
+  }
+
+  // Moving to the grid you are already in does nothing, and every selected
+  // tile is in it by definition, so a single-grid vault has no target.
+  const targets = context.grids.filter((grid) => grid.name !== context.activeGrid);
+  if (targets.length > 0) {
+    items.push({
+      id: "selection:move",
+      label: "Move to grid",
+      icon: "corner-up-right",
+      section: "Actions",
+      detail: one ? undefined : count,
+      keywords: "file assign wall board send",
+      stage: {
+        title: "Move to grid",
+        placeholder: "Move to…",
+        items: () =>
+          targets.map((grid) => ({
+            id: `selection:move:${grid.name}`,
+            label: grid.name,
+            icon: grid.icon,
+            section: "Actions" as const,
+            run: () => actions.move(selection, grid.name),
+          })),
+      },
+    });
+  }
+
+  if (context.canFile) {
+    const folderRows = (): PaletteCommand[] => [
+      ...context.folders.map((folder) => ({
+        id: `selection:folder:${folder.name}`,
+        label: folder.name,
+        icon: folder.icon,
+        section: "Actions" as const,
+        run: () => actions.moveToFolder(selection, folder.name),
+      })),
+      {
+        id: "selection:folder:new",
+        label: "New folder…",
+        icon: "folder-plus",
+        section: "Actions" as const,
+        divider: context.folders.length > 0,
+        run: () => actions.newFolder(selection),
+      },
+    ];
+    items.push({
+      id: "selection:folder",
+      label: "Move to folder",
+      icon: "folder",
+      section: "Actions",
+      detail: one ? undefined : count,
+      keywords: "file put pile collect group",
+      stage: {
+        title: "Move to folder",
+        placeholder: "Move to…",
+        items: folderRows,
+      },
+    });
+  }
+
+  items.push({
+    id: "selection:delete",
+    label: "Delete",
+    icon: "trash-2",
+    section: "Actions",
+    detail: count,
+    destructive: true,
+    keywords: "remove trash bin",
+    run: () => actions.remove(selection),
+  });
+
+  return items;
+}
+
+function gridCommands(context: PaletteContext): PaletteCommand[] {
+  const { actions } = context;
+  const items: PaletteCommand[] = [];
+
+  context.grids.forEach((grid, position) => {
+    // Switching to where you already are is not an action.
+    if (grid.name === context.activeGrid) return;
+    items.push({
+      id: `grid:switch:${grid.name}`,
+      label: grid.name,
+      icon: grid.icon,
+      section: "Grids",
+      detail: gridHotkey(position),
+      keywords: "switch go to grid wall open",
+      run: () => actions.switchGrid(grid.name),
+    });
+  });
+
+  items.push({
+    id: "grid:new",
+    label: "New grid",
+    icon: "layers",
+    section: "Grids",
+    keywords: "create add wall board",
+    run: () => actions.newGrid(),
+  });
+
+  if (context.canFile) {
+    for (const folder of context.folders) {
+      items.push({
+        id: `folder:open:${folder.name}`,
+        label: folder.name,
+        icon: folder.icon,
+        section: "Grids",
+        detail: "Folder",
+        keywords: "open folder pile go to",
+        run: () => actions.openFolder(folder.name),
+      });
+    }
+    items.push({
+      id: "folder:new",
+      label: "New folder",
+      icon: "folder-plus",
+      section: "Grids",
+      keywords: "create add pile collect group",
+      run: () => actions.newFolder([]),
+    });
+  }
+
+  items.push({
+    id: "grid:edit",
+    label: "Edit this grid",
+    icon: "pencil",
+    section: "Grids",
+    detail: context.activeGrid,
+    keywords: "rename icon name",
+    run: () => actions.editGrid(),
+  });
+
+  // Home is where an unknown grid falls back to, so it always has to exist.
+  if (context.activeGrid !== context.homeGrid) {
+    items.push({
+      id: "grid:delete",
+      label: "Delete this grid",
+      icon: "trash-2",
+      section: "Grids",
+      detail: context.activeGrid,
+      destructive: true,
+      keywords: "remove wall board",
+      run: () => actions.deleteGrid(),
+    });
+  }
+
+  items.push({
+    id: "grid:manage",
+    label: "Manage grids",
+    icon: "layers",
+    section: "Grids",
+    detail: `${context.grids.length} grids`,
+    keywords: "reorder rename all",
+    run: () => actions.manageGrids(),
+  });
+
+  return items;
+}
+
+function filterCommands(context: PaletteContext): PaletteCommand[] {
+  const { actions } = context;
+  const items: PaletteCommand[] = [];
+
+  for (const def of context.facetDefs) {
+    const values = context.facets[def.id] ?? [];
+    // A facet nothing on the wall carries has nothing to offer. The menu
+    // shows it disabled so its set reads whole; a search result cannot.
+    if (values.length === 0) continue;
+
+    const chosen = context.filter[def.id] ?? [];
+    // Built from the label rather than stored alongside it, so a property the
+    // user adds reads the same as one the plugin ships knowing about.
+    const label = `Filter by ${def.label.toLowerCase()}`;
+    items.push({
+      id: `filter:${def.id}`,
+      label,
+      icon: def.icon,
+      section: "Filters",
+      detail: chosen.length > 0 ? `${chosen.length}` : undefined,
+      keywords: def.keywords,
+      stage: {
+        title: label,
+        placeholder: `${label}…`,
+        items: () =>
+          (context.facets[def.id] ?? []).map((entry) => ({
+            id: `filter:${def.id}:${entry.value}`,
+            // Read as words where the value is a marker: the empty row's
+            // value is the blank string, which drew a row with no text.
+            label: valueLabel(def, entry.value),
+            // Absence is set apart from the values it is the absence of.
+            divider: isEmptyValue(def, entry.value),
+            // No left icon at all, so the list drops the gutter. A chosen
+            // value marks itself where its count was: the count of a value
+            // you have already picked is not what you read that row for.
+            icon: "",
+            section: "Filters" as const,
+            detail: String(entry.count),
+            detailIcon: (context.filter[def.id] ?? []).includes(entry.value)
+              ? "check"
+              : undefined,
+            keepOpen: true,
+            run: () => actions.toggleFacet(def.id, entry.value),
+          })),
+      },
+    });
+  }
+
+  const active = Object.values(context.filter).reduce((total, values) => total + values.length, 0);
+  if (active > 0) {
+    items.push({
+      id: "filter:clear",
+      label: "Clear filters",
+      icon: "circle-slash",
+      section: "Filters",
+      detail: `${active} active`,
+      keywords: "reset show all remove narrow",
+      run: () => actions.clearFilters(),
+    });
+  }
+
+  return items;
+}
+
+/**
+ * Every value on the wall as a row of its own, so a filter you can name is a
+ * filter you can reach by naming it.
+ *
+ * The same work as the stage rows above, and deliberately the same ids: this
+ * is the same toggle, offered a step earlier. What it is not is part of the
+ * root list, because there are as many of these as the wall has distinct
+ * values, and a few hundred rows is not an opening screen. searchPalette
+ * holds them back until there is a query worth answering.
+ */
+export function facetValueCommands(context: PaletteContext): PaletteCommand[] {
+  const { actions } = context;
+  const items: PaletteCommand[] = [];
+
+  for (const def of context.facetDefs) {
+    for (const entry of context.facets[def.id] ?? []) {
+      // A date facet's values are groups and comparisons rather than words a
+      // clipping carries, so they are read back as words here, and matched as
+      // the words they are read as: "empty" is shown as "Is empty", and that
+      // is what the highlight ranges have to index into.
+      const shown = valueLabel(def, entry.value);
+      items.push({
+        id: `filter:${def.id}:${entry.value}`,
+        label: `${def.label}: ${shown}`,
+        matchOn: shown,
+        icon: def.icon,
+        section: "Filters",
+        detail: String(entry.count),
+        detailIcon: (context.filter[def.id] ?? []).includes(entry.value) ? "check" : undefined,
+        keepOpen: true,
+        run: () => actions.toggleFacet(def.id, entry.value),
+      });
+    }
+  }
+
+  return items;
+}
+
+function captureCommands(context: PaletteContext): PaletteCommand[] {
+  const { actions } = context;
+
+  return [
+    {
+      id: "capture:clip",
+      label: "Clip from clipboard",
+      icon: "clipboard-paste",
+      section: "Capture",
+      keywords: "paste url link picture image video add new save web screenshot",
+      run: () => actions.clip(),
+    },
+    {
+      id: "capture:describe-all",
+      label: "Describe every clipping without a summary (AI)",
+      icon: "sparkles",
+      section: "Capture",
+      keywords: "ai vision summary tags describe annotate model everything",
+      run: () => actions.describeAll(),
+    },
+    {
+      id: "capture:apply-rules",
+      label: "Apply domain rules to all clippings",
+      icon: "wand-sparkles",
+      section: "Capture",
+      keywords: "auto tag property domain host rule annotate",
+      run: () => actions.applyRules(),
+    },
+    {
+      id: "capture:archive-all",
+      label: "Download all clipping media",
+      icon: "hard-drive-download",
+      section: "Capture",
+      keywords: "download local backup repair missing",
+      run: () => actions.archiveAll(),
+    },
+    {
+      id: "capture:read-pdfs",
+      label: "Read the text out of every PDF",
+      icon: "file-search",
+      section: "Capture",
+      keywords: "pdf text search words index document extract ocr read",
+      run: () => actions.readPdfs(),
+    },
+    {
+      id: "view:select-all",
+      label: "Select all",
+      icon: "box-select",
+      section: "Capture",
+      detail: "⌘A",
+      keywords: "everything whole wall",
+      run: () => actions.selectAll(),
+    },
+    {
+      id: "view:scroll-to-top",
+      label: "Scroll to top",
+      icon: "arrow-up-to-line",
+      section: "Capture",
+      keywords: "top start beginning reset home view camera",
+      run: () => actions.scrollToTop(),
+    },
+    {
+      id: "view:shuffle",
+      label: context.order === "shuffled" ? "Shuffle again" : "Shuffle",
+      icon: "shuffle",
+      section: "Capture",
+      keywords: "random order rediscover surprise mix",
+      // Kept open: shuffling is something you do a few times in a row until
+      // the wall lands on something worth stopping for.
+      keepOpen: true,
+      run: () => actions.shuffle(),
+    },
+    // Whatever the wall is not already in. A row that would change nothing
+    // is a row that should not have survived the query.
+    // The same row the grid settings menu carries, reachable by typing. A
+    // view you can only get to through a menu is a view that is missing on
+    // any wall narrow enough to fold that menu away.
+    ...(context.canGroup
+      ? [
+          {
+            id: "view:group",
+            label: context.grouped ? "Ungroup inbox" : "Group inbox by suggestion",
+            icon: "list-checks",
+            section: "Capture" as const,
+            keywords: "group sort triage inbox suggest islands file accept flat",
+            run: () => actions.groupInbox(),
+          },
+        ]
+      : []),
+    ...(context.order === "updated"
+      ? []
+      : [
+          {
+            id: "view:updated",
+            label: "Recently updated",
+            icon: "history",
+            section: "Capture" as const,
+            keywords: "sort order touched edited described worked recent",
+            run: () => actions.recentlyUpdated(),
+          },
+        ]),
+    ...(context.order === "newest"
+      ? []
+      : [
+          {
+            id: "view:newest",
+            label: "Newest first",
+            icon: "arrow-down-wide-narrow",
+            section: "Capture" as const,
+            keywords: "sort date order restore unshuffle clipped",
+            run: () => actions.newestFirst(),
+          },
+        ]),
+  ];
+}
+
+/** In section order, which is the order the palette shows them in. */
+export function buildCommands(context: PaletteContext): PaletteCommand[] {
+  return [
+    ...historyCommands(context),
+    ...selectionCommands(context),
+    ...gridCommands(context),
+    ...filterCommands(context),
+    ...captureCommands(context),
+  ];
+}

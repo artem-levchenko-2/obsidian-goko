@@ -1,0 +1,272 @@
+import type { TileModel } from "./tile";
+
+/**
+ * Folders: a named pile inside one grid, shown on that grid's wall as a
+ * single collage tile that spans one, two or every column.
+ *
+ * Membership is a `folder` frontmatter key beside `grid`, and the same two
+ * rules grids run on do the work here: no key means loose, and a key naming
+ * no folder registered on this grid also means loose. Deleting a folder
+ * therefore needs no cleanup pass and a hand-typed value is a harmless
+ * mistake.
+ */
+
+/**
+ * Columns the tile spans. Three at most: a card the whole width of a wide
+ * wall stretched its covers into letterbox crops, and three columns is as
+ * wide as the collage stays readable. A narrower wall clamps the span.
+ */
+export type FolderWidth = 1 | 2 | 3;
+
+export const FOLDER_WIDTHS: readonly FolderWidth[] = [1, 2, 3];
+
+export interface FolderSpace {
+  /** Identity and display both. This is the value written to `folder:`. */
+  name: string;
+  /** A lucide icon id. */
+  icon: string;
+  /** The grid this folder sits on. "" is home, as it is in `grid:`. */
+  grid: string;
+  width: FolderWidth;
+}
+
+export interface FolderTileModel {
+  kind: "folder";
+  id: string;
+  folder: FolderSpace;
+  /** In wall order, so the collage shows what the wall would show first. */
+  members: TileModel[];
+}
+
+/**
+ * How many member covers the collage shows at each width, and how tall the
+ * tile is as a fraction of its width. Kept together because a change to one
+ * is a change to the other: more covers need more room.
+ */
+export const COVER_COUNT: Record<FolderWidth, number> = { 1: 3, 2: 6, 3: 10 };
+
+/** The collage's cell grid at each width, two rows deep throughout. */
+export const COLLAGE_GRID: Record<FolderWidth, { columns: number; rows: number }> = {
+  1: { columns: 2, rows: 2 },
+  2: { columns: 4, rows: 2 },
+  3: { columns: 6, rows: 2 },
+};
+
+export interface CoverSpan {
+  columns: number;
+  rows: number;
+}
+
+/**
+ * How the covers tile the collage, one span per cover, filling every cell.
+ *
+ * A fixed grid with covers dropped in left the card mostly bare whenever a
+ * folder held fewer than its full count, and the same shape whatever was in
+ * it. Each count gets its own arrangement instead: a lone cover takes the
+ * card, two split it, and larger counts mix a big cover with small ones,
+ * the way the wall itself mixes sizes. Every plan's cells add up to the grid,
+ * so dense auto-placement packs it without a hole.
+ */
+const PLANS: Record<FolderWidth, string[][]> = {
+  1: [[], ["2x2"], ["2x1", "2x1"], ["2x1", "1x1", "1x1"]],
+  2: [
+    [],
+    ["4x2"],
+    ["2x2", "2x2"],
+    ["2x2", "2x1", "2x1"],
+    ["2x2", "1x1", "1x1", "2x1"],
+    ["2x2", "1x1", "1x1", "1x1", "1x1"],
+    ["2x1", "1x1", "1x1", "1x1", "1x1", "2x1"],
+  ],
+  3: [
+    [],
+    ["6x2"],
+    ["3x2", "3x2"],
+    ["2x2", "2x2", "2x2"],
+    ["2x2", "2x2", "2x1", "2x1"],
+    ["2x2", "2x2", "2x1", "1x1", "1x1"],
+    ["2x2", "2x2", "1x1", "1x1", "1x1", "1x1"],
+    ["2x2", "2x1", "2x1", "1x1", "1x1", "1x1", "1x1"],
+    ["2x2", "1x1", "1x1", "1x1", "1x1", "1x1", "1x1", "2x1"],
+    ["2x2", "1x1", "1x1", "1x1", "1x1", "1x1", "1x1", "1x1", "1x1"],
+    ["2x1", "2x1", "1x1", "1x1", "1x1", "1x1", "1x1", "1x1", "1x1", "1x1"],
+  ],
+};
+
+export function collagePlan(count: number, width: FolderWidth): CoverSpan[] {
+  const n = Math.max(0, Math.min(count, COVER_COUNT[width]));
+  const plan = PLANS[width][n] ?? [];
+  return plan.map((cell) => {
+    const [columns, rows] = cell.split("x").map(Number);
+    return { columns, rows };
+  });
+}
+
+/** Height over width at each span, chosen so the collage's two rows have room. */
+const HEIGHT_RATIO: Record<FolderWidth, number> = { 1: 1.3, 2: 0.66, 3: 0.43 };
+
+export function heightRatioFor(width: FolderWidth): number {
+  return HEIGHT_RATIO[width];
+}
+
+export function folderTileId(folder: FolderSpace): string {
+  return `folder:${folder.grid}/${folder.name}`;
+}
+
+export function isFolderWidth(value: unknown): value is FolderWidth {
+  return value === 1 || value === 2 || value === 3;
+}
+
+/** A stored width, including the retired "full", which reads as three. */
+export function readFolderWidth(value: unknown): FolderWidth | null {
+  if (isFolderWidth(value)) return value;
+  return value === "full" ? 3 : null;
+}
+
+/** The column span a width resolves to on a wall this many columns wide. */
+export function spanFor(width: FolderWidth, columns: number): number {
+  return Math.max(1, Math.min(width, columns));
+}
+
+/**
+ * Splits a grid's tiles into its folder tiles and the loose remainder.
+ *
+ * Folders are pinned first in stored order: a folder is a place you go back
+ * to, and a place should not move. An empty folder is still a tile, because
+ * it was just made and has to be on the wall to be filled. A tile naming a
+ * folder on some other grid is loose here; from this grid's point of view
+ * that folder is not registered.
+ */
+export function partitionWall(
+  tiles: TileModel[],
+  folders: readonly FolderSpace[],
+  grid: string
+): { folders: FolderTileModel[]; loose: TileModel[] } {
+  // Stored order, which is creation order. Widest first was tried, so a
+  // wide folder never bridged uneven columns, but it moved a folder every
+  // time its width changed; a place should not move. The masonry backfills
+  // whatever a wide folder leaves above a shorter column instead.
+  const here = folders.filter((folder) => folder.grid === grid);
+  const byName = new Map(here.map((folder) => [folder.name, folder]));
+  const members = new Map<string, TileModel[]>(here.map((folder) => [folder.name, []]));
+  const loose: TileModel[] = [];
+
+  for (const tile of tiles) {
+    const named = tile.record.folder.trim();
+    const owner = named ? byName.get(named) : undefined;
+    if (owner) members.get(owner.name)?.push(tile);
+    else loose.push(tile);
+  }
+
+  return {
+    folders: here.map((folder) => ({
+      kind: "folder",
+      id: folderTileId(folder),
+      folder,
+      members: members.get(folder.name) ?? [],
+    })),
+    loose,
+  };
+}
+
+/**
+ * The folder a new clipping should carry when filed while `open` is on
+ * screen, or "" when none applies. Mirrors fileableGrid: a name that is not
+ * registered on this grid would put the clipping in a pile no wall reads.
+ */
+export function fileableFolder(
+  open: string | null,
+  grid: string,
+  folders: readonly FolderSpace[]
+): string {
+  if (!open) return "";
+  const found = folders.find((folder) => folder.grid === grid && folder.name === open);
+  return found ? found.name : "";
+}
+
+/**
+ * Why a name cannot be used on this grid, or null if it can. `self` exempts
+ * a folder from colliding with itself, so its icon can change without a
+ * rename. Uniqueness is per grid: two grids may each have a References.
+ */
+export function validateFolderName(
+  name: string,
+  existingOnGrid: readonly string[],
+  self?: string
+): string | null {
+  const trimmed = name.trim();
+  if (!trimmed) return "A folder needs a name";
+
+  const taken = existingOnGrid
+    .filter((other) => !self || other.toLowerCase() !== self.toLowerCase())
+    .map((other) => other.toLowerCase());
+
+  if (taken.includes(trimmed.toLowerCase())) {
+    return `A folder called ${trimmed} already exists here`;
+  }
+  return null;
+}
+
+/**
+ * The width a corner drag lands on. Only the horizontal travel counts, since
+ * height follows width, and each column's worth of travel is one step along
+ * the three widths, snapping at the midpoint. A wall narrower than the width
+ * clamps it, so a drag cannot store a width the wall cannot show.
+ */
+export function widthForDrag(
+  start: FolderWidth,
+  deltaX: number,
+  columnWidth: number,
+  gap: number,
+  columns: number
+): FolderWidth {
+  if (columns <= 1) return 1;
+  const steps = Math.round(deltaX / (columnWidth + gap));
+  const from = FOLDER_WIDTHS.indexOf(start);
+  const index = Math.max(0, Math.min(FOLDER_WIDTHS.length - 1, from + steps));
+  const width = FOLDER_WIDTHS[index] ?? 1;
+  return spanFor(width, columns) as FolderWidth;
+}
+
+/** What a move to another grid can and cannot do, decided before anything is written. */
+export interface FolderMovePlan {
+  /** The folders that will move, in the order they were given. */
+  moved: FolderSpace[];
+  /** Names the target grid already uses, which stay where they are. */
+  blocked: string[];
+}
+
+/**
+ * Sorts folders bound for another grid into the ones that can go and the
+ * ones whose name is taken there.
+ *
+ * Names are unique per grid, not per vault, so the only thing that can stop
+ * a move is a folder of the same name already on the target; the comparison
+ * is validateFolderName's, case-insensitive, so the two cannot disagree
+ * about what counts as taken. A blocked folder stops alone and the rest go,
+ * because refusing the whole move over one name would leave the user to
+ * work out which one it was.
+ *
+ * A folder already on the target is not a move and not a failure: it is
+ * dropped, the way moving a clipping to the grid it is already on is.
+ */
+export function planFolderMove(
+  folders: readonly FolderSpace[],
+  target: string,
+  all: readonly FolderSpace[]
+): FolderMovePlan {
+  const taken = all
+    .filter((folder) => folder.grid === target)
+    .map((folder) => folder.name.trim().toLowerCase());
+
+  const moved: FolderSpace[] = [];
+  const blocked: string[] = [];
+
+  for (const folder of folders) {
+    if (folder.grid === target) continue;
+    if (taken.includes(folder.name.trim().toLowerCase())) blocked.push(folder.name);
+    else moved.push(folder);
+  }
+
+  return { moved, blocked };
+}

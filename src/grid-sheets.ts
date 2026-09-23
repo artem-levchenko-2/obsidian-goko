@@ -1,0 +1,1083 @@
+import { Notice } from "obsidian";
+import { isEmptyValue, isFilterEmpty, toggleFacet, valueLabel } from "./core/filter";
+import type { FacetDef, FacetValue, FilterState } from "./core/filter";
+import type { Sheet, SheetRow, SheetScreen } from "./sheet";
+import {
+  GRID_COLORS,
+  MAX_GRID_DESCRIPTION,
+  gridColorVar,
+  isSmartGrid,
+  reorderTarget,
+  validateGridName,
+} from "./core/spaces";
+import type { GridColor } from "./core/spaces";
+import { validateFolderName } from "./core/folders";
+import { validatePathName } from "./core/placement";
+import type { FolderSpace } from "./core/folders";
+import type { GridSpace } from "./core/spaces";
+
+/**
+ * Icons offered when naming a grid. A fixed palette rather than a free-text
+ * lucide id: a mistyped id renders nothing at all, and the user would have no
+ * way to tell that from an icon that simply looks blank. Sheet's swatch
+ * painter now refuses to draw an empty one, so a bad name here shows up as a
+ * missing swatch during review rather than shipping as a hole in the grid.
+ *
+ * Six a row, grouped by what they suggest: marks, containers, media, making,
+ * ideas. Order is presentation only, since a grid stores the icon's name.
+ * Nothing may be removed, though: a grid already carrying an icon that left
+ * the list would find no match, and be silently resaved as the first one.
+ */
+/**
+ * The icons on offer, in captioned groups of twelve: two rows of six each,
+ * so the keyboard's row arithmetic stays true across a caption. Order is
+ * presentation only, since a grid stores the icon's name, but nothing may
+ * be removed: a grid carrying an icon that left the list would find no
+ * match and be silently resaved as the first one.
+ */
+export const ICON_GROUPS: ReadonlyArray<{ title: string; icons: readonly string[] }> = [
+  {
+    title: "Marks",
+    icons: ["layout-grid", "star", "heart", "bookmark", "pin", "tag",
+      "flag", "check-circle", "circle", "square", "triangle", "hexagon"],
+  },
+  {
+    title: "Containers",
+    icons: ["folder", "archive", "package-open", "layers", "library", "sticky-note",
+      "box", "briefcase", "inbox", "clipboard", "database", "hard-drive"],
+  },
+  {
+    title: "Media",
+    icons: ["image", "camera", "film", "music", "palette", "paintbrush",
+      "video", "mic", "headphones", "tv", "radio", "disc"],
+  },
+  {
+    title: "Making",
+    icons: ["code", "terminal", "monitor", "flask-conical", "wrench", "scissors",
+      "hammer", "pen-tool", "ruler", "cpu", "git-branch", "bug"],
+  },
+  {
+    title: "Ideas",
+    icons: ["lightbulb", "sparkles", "zap", "flame", "compass", "book-open",
+      "brain", "rocket", "target", "trophy", "award", "key"],
+  },
+  {
+    title: "Places",
+    icons: ["home", "map", "map-pin", "globe", "building", "landmark",
+      "mountain", "tent", "plane", "car", "train", "ship"],
+  },
+  {
+    title: "Life",
+    icons: ["user", "users", "coffee", "utensils", "shirt", "watch",
+      "gift", "cake", "dumbbell", "bike", "bed", "baby"],
+  },
+  {
+    title: "Nature",
+    icons: ["sun", "moon", "cloud", "umbrella", "leaf", "flower",
+      "tree-pine", "bird", "cat", "dog", "fish", "snowflake"],
+  },
+  {
+    title: "Work",
+    icons: ["shopping-cart", "shopping-bag", "credit-card", "wallet", "banknote", "receipt",
+      "calendar", "clock", "mail", "phone", "calculator", "percent"],
+  },
+  {
+    title: "Play",
+    icons: ["gamepad-2", "dice-5", "puzzle", "ghost", "smile", "party-popper",
+      "medal", "swords", "drum", "guitar", "piano", "joystick"],
+  },
+];
+
+export const GRID_ICONS: readonly string[] = ICON_GROUPS.flatMap((group) => [...group.icons]);
+
+/** The swatch rows for the icon picker, each group captioned on its first. */
+function iconRows(): SheetRow[] {
+  return ICON_GROUPS.flatMap((group) =>
+    group.icons.map((name, index) => ({
+      label: name.replace(/-/g, " "),
+      value: name,
+      icon: name,
+      heading: index === 0 ? group.title : undefined,
+    }))
+  );
+}
+
+/** Everything the grid UI needs from the view that owns the settings. */
+/**
+ * The wall as a rule editor sees it: every tile, typed and tallied together.
+ *
+ * Deliberately not the active grid's facets. A rule is written against the
+ * whole vault, so offering it whichever wall happened to be open would let a
+ * grid be defined from values that wall has and show a count it will not
+ * honour once it is switched to.
+ *
+ * Gathered once per screen rather than per render: the vault does not change
+ * while values are being ticked, so only `matches` needs recomputing, and it
+ * is a pure pass over tiles already in hand.
+ */
+export interface RuleWorld {
+  defs: FacetDef[];
+  facets: Record<string, FacetValue[]>;
+  matches(rules: FilterState): number;
+}
+
+export interface GridsController {
+  home(): GridSpace;
+  /** Whether a grid is a folder in the vault, so its name is a directory name. */
+  byFolders?(): boolean;
+  grids(): GridSpace[];
+  /** Clippings carrying this name outright, which is what a rename rewrites. */
+  memberCount(name: string): number;
+  ruleWorld(): RuleWorld;
+  create(space: GridSpace): Promise<void>;
+  rename(from: string, next: GridSpace): Promise<void>;
+  reorder(index: number, delta: number): Promise<void>;
+  remove(index: number): Promise<void>;
+}
+
+/**
+ * Naming, ordering and deleting grids, on the plugin's own surface.
+ *
+ * These were Obsidian modals, which are forms: a heading, some fields, a pair
+ * of buttons. Everything else the plugin draws is a floating panel over the
+ * wall, so the modals were the one place that looked borrowed from elsewhere.
+ */
+
+/** Must match the grid-template-columns in styles.css: the keyboard steps a
+    whole row vertically, so it has to know how wide a row is. */
+const SWATCH_COLUMNS = 6;
+
+const PICK_HINTS: Array<[string, string]> = [
+  ["↑↓", "navigate"],
+  ["↵", "select"],
+  ["esc", "back"],
+];
+
+/** The manager list, where a row can also be carried up and down the order. */
+const MANAGE_HINTS: Array<[string, string]> = [
+  ["↑↓", "navigate"],
+  ["⌥↑↓ / drag", "move"],
+  ["⌫", "delete"],
+  ["↵", "select"],
+  ["esc", "close"],
+];
+
+const EDIT_HINTS: Array<[string, string]> = [
+  ["↑↓←→", "icon"],
+  ["↵", "save"],
+  ["esc", "back"],
+];
+
+/** A yes/no that has to say what it will do first. Two rows rather than a
+    sentence and two buttons, so it is driven by the same keys as everything
+    else on this surface. */
+function confirm(
+  sheet: Sheet,
+  opts: { title: string; note: string; cta: string; destructive?: boolean; onConfirm: () => void }
+): void {
+  const screen: SheetScreen = {
+    title: opts.title,
+    note: opts.note,
+    filters: false,
+    // Cancel starts active. The confirmation exists because the other row is
+    // worth a second thought, so it should not be one Enter away.
+    active: 0,
+    hints: PICK_HINTS,
+    rows: () => [
+      { label: "Cancel", icon: "x", onChoose: () => sheet.close() },
+      {
+        label: opts.cta,
+        icon: opts.destructive ? "trash-2" : "check",
+        destructive: opts.destructive,
+        onChoose: () => {
+          sheet.close();
+          opts.onConfirm();
+        },
+      },
+    ],
+  };
+
+  // Pushed onto a sheet that is already up so Escape returns to whatever asked
+  // the question, and opened outright when there is none. push refuses on a
+  // closed sheet and refuses silently, which is how a confirmation reached
+  // straight from a menu came to do nothing at all.
+  if (sheet.isOpen) sheet.push(screen);
+  else sheet.open(screen);
+}
+
+function plural(n: number, one: string, many: string): string {
+  return n === 1 ? one : many;
+}
+
+/** How many facets a smart grid's rules name, for a row with no room to list
+    them. Counted rather than spelled out: the rules can run to several facets
+    of several values each, and a row that wraps is worse than one that says
+    how much there is to go and read. */
+function ruleCount(grid: GridSpace): string {
+  const n = Object.keys(grid.rules ?? {}).length;
+  return `${n} ${plural(n, "rule", "rules")}`;
+}
+
+/**
+ * Names a grid and picks its icon at once: the field is the name, the rows are
+ * the icons. The rows are a choice beside the field rather than a list to
+ * search, so typing goes to the name and Enter saves both.
+ */
+/** How a facet's chosen values read on the rules screen's row for it. */
+function chosenLabel(def: FacetDef, values: readonly string[]): string {
+  if (values.length === 0) return "Any";
+  const shown = values.map((value) => valueLabel(def, value));
+  return shown.join(", ");
+}
+
+const RULE_HINTS: Array<[string, string]> = [
+  ["\u2191\u2193", "navigate"],
+  ["\u21b5", "choose"],
+  ["esc", "back"],
+];
+
+const VALUE_HINTS: Array<[string, string]> = [
+  ["\u2191\u2193", "navigate"],
+  ["\u21b5", "toggle"],
+  ["esc", "back"],
+];
+
+/**
+ * Ticking the values of one facet, which is the whole of what a rule is.
+ *
+ * The same list the filter menu's submenu and the palette's stage draw, for
+ * the same reason: a rule is a set of chosen values, so the thing that chooses
+ * them should look like the thing that chooses them everywhere else.
+ */
+function ruleValuesScreen(
+  sheet: Sheet,
+  world: RuleWorld,
+  def: FacetDef,
+  read: () => FilterState,
+  write: (next: FilterState) => void
+): SheetScreen {
+  return {
+    title: def.label,
+    placeholder: `${def.label}\u2026`,
+    filters: true,
+    hints: VALUE_HINTS,
+    rows: () => {
+      const chosen = read()[def.id] ?? [];
+      return (world.facets[def.id] ?? []).map((entry) => ({
+        // No left icon at all, so the list drops the gutter. A chosen value
+        // marks itself where its count was: the count of a value you have
+        // already picked is not what you read that row for.
+        icon: "",
+        label: valueLabel(def, entry.value),
+        value: entry.value,
+        // Absence is set apart from the values it is the absence of.
+        divider: isEmptyValue(def, entry.value),
+        detail: String(entry.count),
+        detailIcon: chosen.includes(entry.value) ? "check" : undefined,
+        onChoose: () => {
+          write(toggleFacet(read(), def.id, entry.value));
+          // In place, so the tick and the count above it both move without
+          // the screen being replaced under the cursor.
+          sheet.refresh();
+        },
+      }));
+    },
+  };
+}
+
+/**
+ * What picks the grid up: a row per facet, and a running count of what the
+ * rules as they stand would hold.
+ *
+ * The count is the affordance that makes this a rule editor rather than a form
+ * filled in blind, which is why the sheet's note had to learn to recompute.
+ */
+/**
+ * @param grid the grid as the screen before this one left it, which on the
+ * edit path already carries any new name and icon.
+ * @param from the name it had before that screen, and so the one the registry
+ * still knows it by. Kept apart from `grid.name` because renaming and
+ * redefining happen on two screens of one flow, and `rename` needs both ends.
+ */
+function rulesScreen(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  index: number | undefined,
+  after: (saved: GridSpace) => void,
+  from?: string
+): SheetScreen {
+  const world = grids.ruleWorld();
+  const creating = index === undefined;
+  let current: FilterState = { ...(grid.rules ?? {}) };
+
+  return {
+    title: "Rules",
+    filters: true,
+    hints: RULE_HINTS,
+    cta: creating ? "Create grid" : "Save",
+    note: () => {
+      const n = world.matches(current);
+      return `Matches ${n} ${plural(n, "clipping", "clippings")}`;
+    },
+    rows: () =>
+      world.defs.map((def) => ({
+        icon: def.icon,
+        label: def.label,
+        detail: chosenLabel(def, current[def.id] ?? []),
+        onChoose: () =>
+          sheet.push(
+            ruleValuesScreen(
+              sheet,
+              world,
+              def,
+              () => current,
+              (next) => {
+                current = next;
+              }
+            )
+          ),
+      })),
+    // onCommit, not onSubmit: Enter belongs to the facet rows, which are
+    // stepped into rather than answered, and the button is what finishes.
+    onCommit: () => {
+      if (isFilterEmpty(current)) {
+        // Without a rule it would hold the whole wall, which is home under a
+        // second name. Refused here rather than hidden, so the reason is said.
+        new Notice("Goko: a smart view needs at least one rule");
+        return;
+      }
+
+      const next: GridSpace = { ...grid, rules: current };
+      sheet.close();
+      // No rename confirmation to make: a smart grid has no members, because
+      // nothing carries its name in frontmatter, so renaming one rewrites no
+      // note and has nothing to warn about.
+      if (creating) void grids.create(next).then(() => after(next));
+      else void grids.rename(from ?? grid.name, next).then(() => after(next));
+    },
+  };
+}
+
+function gridEditorScreen(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  index: number | undefined,
+  after: (saved: GridSpace) => void
+): SheetScreen {
+  const others = grids
+    .grids()
+    .filter((_, i) => i !== index)
+    .map((g) => g.name);
+  // Home is not in the registry and cannot collide with itself.
+  const home = index === undefined ? "" : grids.home().name;
+
+  const creating = index === undefined && grid.name === "";
+  /**
+   * Whether this editor is making or editing a smart grid.
+   *
+   * Deliberately not isSmartGrid, which asks whether a grid computes its
+   * membership and is therefore false for the empty rules a new smart grid
+   * starts life with. The question here is which editor this is, and a
+   * present-but-empty rules object is exactly how that is carried in.
+   */
+  const smart = grid.rules !== undefined;
+
+  return {
+    title: creating ? (smart ? "New smart view" : "New grid") : `Edit ${grid.name}`,
+    placeholder: smart ? "View name" : "Grid name",
+    value: grid.name,
+    filters: false,
+    active: Math.max(0, GRID_ICONS.indexOf(grid.icon)),
+    hints: EDIT_HINTS,
+    // A grid of swatches, not a list: the icons are one value being chosen,
+    // and as rows the chosen one had nowhere to show itself.
+    layout: "swatches",
+    columns: SWATCH_COLUMNS,
+    cta: smart ? "Next: rules" : creating ? "Create grid" : "Save",
+    rows: iconRows,
+    onSubmit: (name, active) => {
+      const reason =
+        validateGridName(name, others, home, creating ? undefined : grid.name) ??
+        // In folder mode the name becomes a directory, so it has the file
+        // system's rules to answer to as well. Smart views are rules rather
+        // than folders and keep only the first check.
+        (grids.byFolders?.() && !smart ? validatePathName(name, [], "grid name") : null);
+      if (reason) {
+        // A Notice rather than an inline line: this surface has no room for
+        // one that does not push the rows about as it appears and goes.
+        new Notice(`Goko: ${reason}`);
+        return;
+      }
+
+      const next: GridSpace = {
+        ...grid,
+        name: name.trim(),
+        icon: active?.value ?? grid.icon,
+      };
+
+      // A smart grid is not finished until it says what picks it up, so the
+      // name screen hands on rather than committing, whether it is being made
+      // or edited. Editing carries the old name along, since the registry
+      // still knows it by that and this screen may just have changed it.
+      if (smart) {
+        sheet.push(rulesScreen(sheet, grids, next, index, after, grid.name));
+        return;
+      }
+
+      if (creating) {
+        sheet.close();
+        void grids.create(next).then(() => after(next));
+        return;
+      }
+
+      const renamed = next.name !== grid.name;
+      const members = renamed ? grids.memberCount(grid.name) : 0;
+      const apply = (): void => void grids.rename(grid.name, next).then(() => after(next));
+
+      // Only a rename touches notes. Changing an icon is settings alone, so it
+      // should not stop to ask.
+      if (renamed && members > 0) {
+        confirm(sheet, {
+          title: `Rename to ${next.name}?`,
+          note: `${members} ${plural(members, "clipping carries", "clippings carry")} this grid and will be updated.`,
+          cta: "Rename",
+          onConfirm: apply,
+        });
+        return;
+      }
+
+      sheet.close();
+      apply();
+    },
+  };
+}
+
+/**
+ * The colour picker: eight named colours and none, as a row of swatches.
+ *
+ * A screen of its own rather than another group in the icon grid, because the
+ * sheet's rows are one choice and the icon is already using it. Chosen on the
+ * spot and saved immediately, the way a colour is picked everywhere else:
+ * there is nothing to confirm about a colour you can see.
+ */
+function colorScreen(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  after: () => void
+): SheetScreen {
+  const rows = (): SheetRow[] => {
+    const pick = (color: GridColor | undefined): void => {
+      const next: GridSpace = { ...grid, color };
+      if (!color) delete next.color;
+      grid = next;
+      void grids.rename(grid.name, next).then(after);
+      sheet.refresh();
+    };
+    // A ring for the one that is on, a filled dot for the rest: the swatch
+    // has to say what it is by its colour, so it cannot also say it is chosen
+    // by changing into a tick.
+    return [
+      {
+        label: "None",
+        value: "",
+        icon: grid.color ? "circle-slash" : "circle-check",
+        heading: "Colour",
+        onChoose: () => pick(undefined),
+      },
+      ...GRID_COLORS.map((color) => ({
+        label: color,
+        value: color,
+        icon: grid.color === color ? "circle-check" : "circle",
+        tint: gridColorVar(color),
+        onChoose: () => pick(color),
+      })),
+    ];
+  };
+
+  return {
+    title: `${grid.name} colour`,
+    filters: false,
+    hints: PICK_HINTS,
+    layout: "swatches",
+    columns: SWATCH_COLUMNS,
+    rows,
+  };
+}
+
+/** One line saying what a grid is for, shown by its row in the rail. */
+function descriptionScreen(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  after: () => void
+): SheetScreen {
+  return {
+    title: `${grid.name} description`,
+    placeholder: "What this grid is for",
+    value: grid.description ?? "",
+    filters: false,
+    hints: EDIT_HINTS,
+    cta: "Save",
+    rows: () => [],
+    onSubmit: (value) => {
+      const text = value.trim().slice(0, MAX_GRID_DESCRIPTION);
+      const next: GridSpace = { ...grid, description: text };
+      if (!text) delete next.description;
+      sheet.close();
+      void grids.rename(grid.name, next).then(after);
+    },
+  };
+}
+
+/** Pushed onto whatever is already showing, for editing from the manager. */
+export function openGridEditor(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  index: number | undefined,
+  after: (saved: GridSpace) => void = () => undefined
+): void {
+  const screen = gridEditorScreen(sheet, grids, grid, index, after);
+  // Pushed onto a sheet that is already up, so Escape backs out to whatever
+  // opened this rather than throwing the whole stack away; opened outright
+  // when there is none, which is how the wall's settings menu arrives. Pushing
+  // unconditionally is what made that route do nothing at all: push refuses on
+  // a closed sheet, and refuses silently.
+  if (sheet.isOpen) sheet.push(screen);
+  else sheet.open(screen);
+}
+
+function confirmDelete(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  index: number,
+  after: () => void
+): void {
+  const smart = isSmartGrid(grid);
+  const members = smart ? 0 : grids.memberCount(grid.name);
+  const home = grids.home().name;
+
+  confirm(sheet, {
+    title: `Delete ${grid.name}?`,
+    note: smart
+      ? // Not "the grid is empty, so nothing moves", which memberCount would
+        // have produced and which reads as a fact about its contents. An
+        // smart grid holds plenty; what it does not hold is membership, so
+        // there is nothing to move whatever is on screen.
+        "Its rules are removed. No clipping is changed."
+      : members === 0
+        ? "The grid is empty, so nothing moves."
+        : `${members} ${plural(members, "clipping", "clippings")} will return to ${home}. No notes are deleted and nothing is rewritten.`,
+    cta: smart ? "Delete view" : "Delete grid",
+    destructive: true,
+    onConfirm: () => void grids.remove(index).then(after),
+  });
+}
+
+/** Deleting one directly, for a caller that already knows which. */
+export function openDeleteGrid(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  index: number,
+  after: () => void = () => undefined
+): void {
+  confirmDelete(sheet, grids, grid, index, after);
+}
+
+/** The whole set: pick a grid, then pick what to do with it. */
+/**
+ * Everything you can do to one grid, as a list of rows.
+ *
+ * Shared by the manager, which pushes it after choosing a grid, and by the
+ * rail, where a right click on a row opens it directly — which is where a
+ * person looks for it, and the whole of ART-226. Home is the fallback rather
+ * than an entry in the registry, so it has nothing to colour, reorder or
+ * delete, and gets the name-and-icon row alone.
+ */
+function gridActionsScreen(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  after: () => void,
+  reopen: () => void,
+  isHome = false
+): SheetScreen {
+  // Read on every repaint rather than captured once. Moving the grid changes
+  // where it sits, and a captured index would have the next press move
+  // whatever had slid into the place this one just left.
+  const positionOf = (): number => grids.grids().findIndex((entry) => entry.name === grid.name);
+
+  const move = (delta: number): void => {
+    const target = reorderTarget(positionOf() + 1, delta, grids.grids().length);
+    if (!target) return;
+    void grids.reorder(target.from, delta);
+    // Repainted where it stands. Returning to the list after every move is
+    // what made rearranging cost a round trip per position, and cost you
+    // your place in the list on each one.
+    sheet.refresh();
+  };
+
+  const build = (): SheetRow[] => {
+    const at = positionOf();
+    const count = grids.grids().length;
+    const rows: SheetRow[] = [
+      {
+        label: "Name and icon",
+        icon: "pencil",
+        onChoose: () => openGridEditor(sheet, grids, grid, isHome ? undefined : at, reopen),
+      },
+    ];
+
+    if (isHome || at < 0) return rows;
+
+    rows.push({
+      label: "Colour",
+      icon: "palette",
+      detail: grid.color ?? "none",
+      tint: gridColorVar(grid.color),
+      onChoose: () => sheet.push(colorScreen(sheet, grids, grid, after)),
+    });
+    rows.push({
+      label: "Description",
+      icon: "text",
+      detail: grid.description ? undefined : "none",
+      onChoose: () => sheet.push(descriptionScreen(sheet, grids, grid, reopen)),
+    });
+    rows.push({
+      label: "Move up",
+      icon: "arrow-up",
+      detail: at === 0 ? "first" : undefined,
+      onChoose: () => move(-1),
+    });
+    rows.push({
+      label: "Move down",
+      icon: "arrow-down",
+      detail: at === count - 1 ? "last" : undefined,
+      onChoose: () => move(1),
+    });
+    rows.push({
+      label: "Delete",
+      icon: "trash-2",
+      destructive: true,
+      // reopen, not after: the question closes the sheet, and coming back to
+      // the list is where a deletion belongs.
+      onChoose: () => confirmDelete(sheet, grids, grid, at, reopen),
+    });
+    return rows;
+  };
+
+  return {
+    title: grid.name,
+    placeholder: "Search actions…",
+    filters: true,
+    hints: PICK_HINTS,
+    rows: build,
+  };
+}
+
+/**
+ * One grid's own menu — the rows the manager shows when a grid is chosen.
+ *
+ * Exported so the rail can open it from a right click on the row itself,
+ * which is where a person looks for it: the manager was a separate screen
+ * reached from a different corner of the wall, and that was the whole of
+ * ART-226. `after` is called when something changes; `reopen` is what a
+ * screen that closes the sheet should do to come back here, and for the rail
+ * that is simply the same menu again.
+ */
+export function openGridActions(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  after: () => void = () => undefined
+): void {
+  const screen = gridActionsScreen(sheet, grids, grid, after, () =>
+    openGridActions(sheet, grids, grid, after)
+  );
+  if (sheet.isOpen) sheet.push(screen);
+  else sheet.open(screen);
+}
+
+export function openGridsManager(
+  sheet: Sheet,
+  grids: GridsController,
+  after: () => void = () => undefined
+): void {
+  /**
+   * The grid whose row is asking to be deleted, by name.
+   *
+   * Held here rather than by the sheet because it is this screen's idea: the
+   * row it belongs to is rebuilt on every render, so anything kept on the
+   * element itself would not survive the repaint that shows the question.
+   */
+  let armed: string | null = null;
+
+  const disarm = (): boolean => {
+    if (armed === null) return false;
+    armed = null;
+    sheet.refresh();
+    return true;
+  };
+
+  /** The label an armed row wears, which is also how the cursor is recognised
+      as still being on it. */
+  const armedLabel = (name: string): string => `Delete ${name}?`;
+
+  const list = (_query: string, activeLabel: string): SheetRow[] => {
+    const home = grids.home();
+    const registry = grids.grids();
+
+    // A cursor that has moved on has left the question behind, so the row
+    // stops asking. Otherwise an armed row sits there in red while Enter does
+    // something else entirely, several rows away. Matched by label, since a
+    // narrowed list renumbers everything.
+    if (armed !== null && activeLabel !== armedLabel(armed)) armed = null;
+
+    // Captions only once there is a second group to tell the first apart
+    // from, the same bargain the switcher makes: a vault with no smart grids
+    // has one list, and naming it says nothing.
+    const captioned = registry.some(isSmartGrid);
+
+    const rows: SheetRow[] = [
+      {
+        label: home.name,
+        icon: home.icon,
+        heading: captioned ? "Grids" : undefined,
+        detail: String(grids.memberCount(home.name)),
+        // Home has no position in the registry, so it can be renamed and
+        // re-iconed but never moved or removed.
+        onChoose: () => actions(home, undefined),
+      },
+    ];
+
+    // Shown in two runs but stored in one, so the registry index each row
+    // carries is looked up by name below rather than counted off the screen.
+    const ordered = [
+      ...registry.map((grid, index) => ({ grid, index })).filter((e) => !isSmartGrid(e.grid)),
+      ...registry.map((grid, index) => ({ grid, index })).filter((e) => isSmartGrid(e.grid)),
+    ];
+    let firstSmart = true;
+
+    ordered.forEach(({ grid, index }) => {
+      if (grid.name === armed) {
+        const members = grids.memberCount(grid.name);
+        rows.push({
+          label: armedLabel(grid.name),
+          icon: "trash-2",
+          destructive: true,
+          // Says where the clippings go, because that is the part worth
+          // knowing before answering and there is no room for a sentence.
+          detail: members === 0 ? "empty" : `${members} → ${home.name}`,
+          onChoose: () => {
+            armed = null;
+            void grids.remove(index).then(() => {
+              after();
+              sheet.refresh();
+            });
+          },
+        });
+        return;
+      }
+
+      const smart = isSmartGrid(grid);
+      const heading = smart && firstSmart ? "Smart views" : undefined;
+      if (smart) firstSmart = false;
+
+      rows.push({
+        label: grid.name,
+        icon: grid.icon,
+        heading,
+        // memberCount asks how many notes carry the name, which is nought for
+        // a smart grid however much it is showing, so it would report every
+        // one of them as empty. What it holds is a question for the wall; what
+        // defines it belongs here, and is the half this row can answer without
+        // going and reading the vault on every keystroke.
+        detail: smart ? ruleCount(grid) : String(grids.memberCount(grid.name)),
+        onChoose: () => actions(grid, index),
+      });
+    });
+
+    return rows;
+  };
+
+  const reopen = (): void => {
+    after();
+    openGridsManager(sheet, grids, after);
+  };
+
+  const actions = (grid: GridSpace, index: number | undefined): void => {
+    sheet.push(gridActionsScreen(sheet, grids, grid, after, reopen, index === undefined));
+  };
+
+  sheet.open({
+    title: "Manage grids",
+    placeholder: "Search grids…",
+    filters: true,
+    hints: MANAGE_HINTS,
+    rows: list,
+    // Backspace asks, Enter answers, both on the row itself. A grid is cheap
+    // to remake and nothing it held is deleted, so a question in place beats
+    // a screen of its own for something reached this often.
+    onDelete: (row) => {
+      // Found by the name on the row rather than by where it sits, because a
+      // narrowed list renumbers. Home is excluded by not being in the
+      // registry at all: it is where every clipping whose grid no longer
+      // resolves is shown, so it always has to exist.
+      const grid = grids.grids().find((entry) => entry.name === row.label);
+      if (!grid) return;
+      armed = grid.name;
+      sheet.refresh();
+    },
+    // Takes the question back before it takes the screen.
+    onEscape: disarm,
+    // Rearranged where the whole order is visible, rather than one grid at a
+    // time through a screen that threw you back to the top after every move.
+    onReorder: (row, delta, shown) => {
+      // By name, not by position. The list narrows as you type and is now
+      // shown in two runs besides, so a place on screen says nothing about a
+      // place in the registry. onDelete has always resolved this way; reorder
+      // was counting rows and quietly moving the wrong grid whenever either
+      // was true.
+      const registry = grids.grids();
+      const at = (index: number): number =>
+        registry.findIndex((entry) => entry.name === shown[index]?.label);
+
+      const from = at(row);
+      const to = at(row + delta);
+      // -1 is home, an armed row wearing its question, or the end of the list.
+      if (from === -1 || to === -1) return false;
+      // Within one run only. The two kinds are shown apart, so a drag across
+      // the caption is a gesture with nothing to mean.
+      if (isSmartGrid(registry[from]) !== isSmartGrid(registry[to])) return false;
+
+      // reorder splices synchronously and only the save it does afterwards is
+      // async, so the list can repaint at once and the write can catch up. A
+      // run of presses stays in order because the mutation is not the slow
+      // part.
+      // Deliberately no refresh. Nothing painted depends on the order:
+      // allGrids and hotkeyPosition both read the settings live, and the
+      // space bar shows only the active grid's icon. Repainting here rebuilt
+      // every tile on the wall on each row crossed, which is the whole of why
+      // dragging stuttered.
+      void grids.reorder(from, to - from);
+      return true;
+    },
+  });
+}
+
+/** Creating one, from the wall's plus button. The first screen rather than a
+    pushed one, so Escape closes instead of backing into nothing. */
+export function openNewGrid(
+  sheet: Sheet,
+  grids: GridsController,
+  after: (saved: GridSpace) => void = () => undefined
+): void {
+  sheet.open(
+    gridEditorScreen(sheet, grids, { name: "", icon: GRID_ICONS[0] }, undefined, after)
+  );
+}
+
+/**
+ * The same editor, making the other kind of grid.
+ *
+ * `rules` seeds it: empty from the create menu, and already filled in when the
+ * filter menu's Save as grid hands over what is currently narrowing the wall.
+ * An empty rules object is what tells the editor which kind it is making, so
+ * it is passed even when there is nothing in it.
+ */
+export function openNewSmartGrid(
+  sheet: Sheet,
+  grids: GridsController,
+  rules: FilterState,
+  after: (saved: GridSpace) => void = () => undefined
+): void {
+  sheet.open(
+    gridEditorScreen(sheet, grids, { name: "", icon: GRID_ICONS[0], rules }, undefined, after)
+  );
+}
+
+// ---- Folders --------------------------------------------------------------
+
+/** The folders of one grid, and what the wall does about them. */
+export interface FoldersController {
+  /** The folders on the grid being shown, in stored order. */
+  folders(): FolderSpace[];
+  /** Whether a folder is a directory in the vault, so its name is one too. */
+  byFolders?(): boolean;
+  /** Clippings carrying this folder's name on this grid. */
+  memberCount(name: string): number;
+  create(folder: FolderSpace): Promise<void>;
+  rename(from: string, next: FolderSpace): Promise<void>;
+  remove(name: string): Promise<void>;
+}
+
+/**
+ * The folder editor: a name and an icon, on the grid editor's screen with
+ * nothing else. A folder has no rules and no position, so there is nothing
+ * more to ask.
+ */
+function folderEditorScreen(
+  sheet: Sheet,
+  folders: FoldersController,
+  folder: FolderSpace,
+  creating: boolean,
+  after: (saved: FolderSpace) => void
+): SheetScreen {
+  const others = folders
+    .folders()
+    .map((f) => f.name)
+    .filter((name) => creating || name !== folder.name);
+
+  return {
+    title: creating ? "New folder" : `Edit ${folder.name}`,
+    placeholder: "Folder name",
+    value: folder.name,
+    filters: false,
+    active: Math.max(0, GRID_ICONS.indexOf(folder.icon)),
+    hints: EDIT_HINTS,
+    layout: "swatches",
+    columns: SWATCH_COLUMNS,
+    cta: creating ? "Create folder" : "Save",
+    rows: iconRows,
+    onSubmit: (name, active) => {
+      const reason =
+        validateFolderName(name, others, creating ? undefined : folder.name) ??
+        (folders.byFolders?.() ? validatePathName(name, [], "folder name") : null);
+      if (reason) {
+        new Notice(`Goko: ${reason}`);
+        return;
+      }
+
+      const next: FolderSpace = {
+        ...folder,
+        name: name.trim(),
+        icon: active?.value ?? folder.icon,
+      };
+
+      if (creating) {
+        sheet.close();
+        void folders.create(next).then(() => after(next));
+        return;
+      }
+
+      const renamed = next.name !== folder.name;
+      const members = renamed ? folders.memberCount(folder.name) : 0;
+      const apply = (): void => void folders.rename(folder.name, next).then(() => after(next));
+
+      if (renamed && members > 0) {
+        confirm(sheet, {
+          title: `Rename to ${next.name}?`,
+          note: `${members} ${plural(members, "clipping carries", "clippings carry")} this folder and will be updated.`,
+          cta: "Rename",
+          onConfirm: apply,
+        });
+        return;
+      }
+
+      sheet.close();
+      apply();
+    },
+  };
+}
+
+/** Opens the editor for a new folder on `grid`, or for an existing one. */
+export function openFolderEditor(
+  sheet: Sheet,
+  folders: FoldersController,
+  folder: FolderSpace,
+  creating: boolean,
+  after: (saved: FolderSpace) => void = () => undefined
+): void {
+  const screen = folderEditorScreen(sheet, folders, folder, creating, after);
+  if (sheet.isOpen) sheet.push(screen);
+  else sheet.open(screen);
+}
+
+/**
+ * Removing a folder deletes its definition and nothing else: the members
+ * keep a key that no longer resolves, which folders.ts reads as loose, so
+ * they reappear on the wall. Said here, because it is what makes this safe
+ * to confirm.
+ */
+export function openRemoveFolder(
+  sheet: Sheet,
+  folders: FoldersController,
+  folder: FolderSpace,
+  after: () => void = () => undefined
+): void {
+  const members = folders.memberCount(folder.name);
+  confirm(sheet, {
+    title: `Remove ${folder.name}?`,
+    note:
+      members === 0
+        ? "The folder is empty. Nothing else changes."
+        : `${members} ${plural(members, "clipping returns", "clippings return")} to the wall. No notes are deleted.`,
+    cta: "Remove",
+    destructive: true,
+    onConfirm: () => void folders.remove(folder.name).then(after),
+  });
+}
+
+/**
+ * Removing folders, which asks what should happen to what is inside them.
+ *
+ * Three rows rather than the usual two, because "remove" means two different
+ * things here and the plugin should not pick one on the user's behalf: the
+ * definition can go while the clippings return to the wall, or the notes can
+ * go with it. An empty batch has nothing to ask, so the second row is not
+ * offered and this reads as the plain confirmation it used to be.
+ */
+export function openRemoveFolders(
+  sheet: Sheet,
+  folders: readonly FolderSpace[],
+  members: number,
+  handlers: { onRemove: () => void; onDelete: () => void }
+): void {
+  const n = folders.length;
+  const title = n === 1 ? `Remove ${folders[0].name}?` : `Remove ${n} folders?`;
+  const them = n === 1 ? "it" : "them";
+
+  const screen: SheetScreen = {
+    title,
+    note:
+      members === 0
+        ? `${n === 1 ? "The folder is" : "They are"} empty. Nothing else changes.`
+        : `${members} ${plural(members, "clipping is", "clippings are")} inside. They can come back onto the wall, or go to trash with ${them}.`,
+    filters: false,
+    active: 0,
+    hints: PICK_HINTS,
+    rows: () => {
+      const rows: SheetRow[] = [
+        { label: "Cancel", icon: "x", onChoose: () => sheet.close() },
+        {
+          label: n === 1 ? "Remove the folder" : `Remove ${n} folders`,
+          icon: "folder-minus",
+          onChoose: () => {
+            sheet.close();
+            handlers.onRemove();
+          },
+        },
+      ];
+      if (members > 0) {
+        rows.push({
+          label: `Remove and delete ${members} ${plural(members, "clipping", "clippings")}`,
+          icon: "trash-2",
+          destructive: true,
+          onChoose: () => {
+            sheet.close();
+            handlers.onDelete();
+          },
+        });
+      }
+      return rows;
+    },
+  };
+
+  if (sheet.isOpen) sheet.push(screen);
+  else sheet.open(screen);
+}

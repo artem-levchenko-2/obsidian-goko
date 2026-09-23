@@ -1,0 +1,535 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+  archiveAll,
+  archiveFilename,
+  archiveOne,
+  isTransient,
+  looksLikeMedia,
+  sourceVideoCandidates,
+  isDeviceLimit,
+  NEEDS_DESKTOP,
+  NO_YTDLP,
+} from "../src/core/archive";
+import { MediaCache } from "../src/core/cache";
+import { hashUrl } from "../src/core/hash";
+import type { ArchiveDeps, Fetcher } from "../src/core/archive";
+import type { CanonicalMedia } from "../src/core/normalize";
+
+function pngBuffer(width: number, height: number): ArrayBuffer {
+  const b = new Uint8Array(33);
+  b.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  const view = new DataView(b.buffer);
+  view.setUint32(16, width);
+  view.setUint32(20, height);
+  return b.buffer;
+}
+
+function asciiBuffer(text: string): ArrayBuffer {
+  const b = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) b[i] = text.charCodeAt(i);
+  return b.buffer;
+}
+
+const media: CanonicalMedia = {
+  key: "https://x.com/a.jpg",
+  url: "https://x.com/a.jpg?w=1920",
+  kind: "image",
+  alt: "a",
+};
+
+function deps(overrides: Partial<ArchiveDeps> = {}): ArchiveDeps {
+  return {
+    fetch: vi.fn(async () => ({ status: 200, arrayBuffer: pngBuffer(1920, 1080) })),
+    exists: vi.fn(async () => false),
+    write: vi.fn(async () => {}),
+    folder: "Attachments/Clippings",
+    maxBytes: 26214400,
+    ...overrides,
+  };
+}
+
+describe("archiveFilename", () => {
+  it("combines a url hash with the original basename", () => {
+    expect(archiveFilename(media)).toMatch(/^[0-9a-f]{12}-a\.jpg$/);
+  });
+
+  it("is stable across size variants of the same asset", () => {
+    const small = archiveFilename({ ...media, url: "https://x.com/a.jpg?w=750" });
+    const large = archiveFilename({ ...media, url: "https://x.com/a.jpg?w=1920" });
+    expect(small).toBe(large);
+  });
+
+  it("sanitizes characters that are illegal in filenames", () => {
+    const name = archiveFilename({ ...media, url: "https://x.com/a b:c*.jpg" });
+    expect(name).not.toMatch(/[:*\s]/);
+  });
+
+  it("supplies an extension when the url has none", () => {
+    expect(archiveFilename({ ...media, url: "https://x.com/image" })).toMatch(/\.jpg$/);
+  });
+
+  it("uses mp4 for video with no extension", () => {
+    const name = archiveFilename({ ...media, kind: "video", url: "https://x.com/clip" });
+    expect(name).toMatch(/\.mp4$/);
+  });
+
+  it("handles the real twimg shape, whose path has no extension", () => {
+    const name = archiveFilename({
+      key: "https://pbs.twimg.com/media/HP7q-WqXoAAqzO0?format=jpg&name=large",
+      url: "https://pbs.twimg.com/media/HP7q-WqXoAAqzO0?format=jpg&name=large",
+      kind: "image",
+      alt: "",
+    });
+    expect(name).toMatch(/^[0-9a-f]{12}-HP7q-WqXoAAqzO0\.jpg$/);
+  });
+
+  it("truncates a very long basename", () => {
+    const name = archiveFilename({ ...media, url: `https://x.com/${"y".repeat(200)}.jpg` });
+    expect(name.length).toBeLessThanOrEqual(93);
+    expect(name).toMatch(/\.jpg$/);
+  });
+});
+
+describe("archiveOne", () => {
+  it("writes the file and reports dimensions read from the header", async () => {
+    const d = deps();
+    const out = await archiveOne(media, "https://ref", d);
+    expect(out.failed).toBeUndefined();
+    expect(out.width).toBe(1920);
+    expect(out.height).toBe(1080);
+    expect(out.file).toBe(`Attachments/Clippings/${archiveFilename(media)}`);
+    expect(d.write).toHaveBeenCalledOnce();
+  });
+
+  it("keys the outcome by the normalized url", async () => {
+    const out = await archiveOne(media, "https://ref", deps());
+    expect(out.key).toBe("https://x.com/a.jpg");
+  });
+
+  it("skips the download when the file already exists", async () => {
+    const d = deps({ exists: vi.fn(async () => true) });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(d.fetch).not.toHaveBeenCalled();
+    expect(d.write).not.toHaveBeenCalled();
+    expect(out.file).toBeDefined();
+  });
+
+  it("retries once with a Referer header after a 403", async () => {
+    const fetch = vi
+      .fn<Fetcher>()
+      .mockResolvedValueOnce({ status: 403, arrayBuffer: new ArrayBuffer(0) })
+      .mockResolvedValueOnce({ status: 200, arrayBuffer: pngBuffer(10, 10) });
+    const d = deps({ fetch });
+    const out = await archiveOne(media, "https://polygon.com/article", d);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[0][1]).not.toHaveProperty("Referer");
+    expect(fetch.mock.calls[1][1].Referer).toBe("https://polygon.com/article");
+    expect(out.failed).toBeUndefined();
+  });
+
+  it("keeps the server's refusal when the retry is cut short on this side", async () => {
+    const fetch = vi
+      .fn<Fetcher>()
+      .mockResolvedValueOnce({ status: 403, arrayBuffer: new ArrayBuffer(0) })
+      .mockRejectedValueOnce(new Error("net::ERR_BLOCKED_BY_CLIENT"));
+    const out = await archiveOne(media, "https://ref", deps({ fetch }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(out.failed).toBe("HTTP 403");
+    expect(out.transient).toBeUndefined();
+  });
+
+  it("gives up after the retry also fails", async () => {
+    const fetch = vi.fn(async () => ({ status: 403, arrayBuffer: new ArrayBuffer(0) }));
+    const out = await archiveOne(media, "https://ref", deps({ fetch }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(out.failed).toContain("403");
+    expect(out.file).toBeUndefined();
+  });
+
+  it("does not retry a 404", async () => {
+    const fetch = vi.fn(async () => ({ status: 404, arrayBuffer: new ArrayBuffer(0) }));
+    const out = await archiveOne(media, "https://ref", deps({ fetch }));
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(out.failed).toContain("404");
+  });
+
+  it("does not retry when there is no referer to send", async () => {
+    const fetch = vi.fn(async () => ({ status: 403, arrayBuffer: new ArrayBuffer(0) }));
+    const out = await archiveOne(media, "", deps({ fetch }));
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(out.failed).toContain("403");
+  });
+
+  it("refuses a response that is not image or video content", async () => {
+    const d = deps({
+      fetch: vi.fn(async () => ({
+        status: 200,
+        arrayBuffer: asciiBuffer("<!doctype html><html>"),
+        contentType: "text/html; charset=utf-8",
+      })),
+    });
+    const out = await archiveOne(
+      { ...media, url: "https://www.youtube.com/watch?v=BZZoL_IoBZs" },
+      "https://ref",
+      d
+    );
+    expect(out.failed).toContain("text/html");
+    expect(d.write).not.toHaveBeenCalled();
+  });
+
+  it("accepts image and video content types", async () => {
+    for (const contentType of ["image/jpeg", "video/mp4", "image/gif"]) {
+      const d = deps({
+        fetch: vi.fn(async () => ({ status: 200, arrayBuffer: pngBuffer(4, 3), contentType })),
+      });
+      const out = await archiveOne(media, "https://ref", d);
+      expect(out.failed).toBeUndefined();
+    }
+  });
+
+  it("reads the bytes when the server only says octet-stream", async () => {
+    // Stripe's docs CDN labels every object binary/octet-stream; the PNG
+    // signature is what says it is a picture.
+    const d = deps({
+      fetch: vi.fn(async () => ({
+        status: 200,
+        arrayBuffer: pngBuffer(1200, 630),
+        contentType: "binary/octet-stream",
+      })),
+    });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(out.failed).toBeUndefined();
+    expect(d.write).toHaveBeenCalledOnce();
+  });
+
+  it("still refuses octet-stream bytes that are not a picture or a video", async () => {
+    const d = deps({
+      fetch: vi.fn(async () => ({
+        status: 200,
+        arrayBuffer: asciiBuffer("<!doctype html><html><body>not an image</body></html>"),
+        contentType: "application/octet-stream",
+      })),
+    });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(out.failed).toContain("octet-stream");
+    expect(d.write).not.toHaveBeenCalled();
+  });
+
+  it("accepts a response with no content-type rather than guessing", async () => {
+    const d = deps({
+      fetch: vi.fn(async () => ({ status: 200, arrayBuffer: pngBuffer(10, 10) })),
+    });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(out.failed).toBeUndefined();
+    expect(d.write).toHaveBeenCalledOnce();
+  });
+
+  it("refuses files over the size cap without writing them", async () => {
+    const d = deps({
+      maxBytes: 100,
+      fetch: vi.fn(async () => ({ status: 200, arrayBuffer: new ArrayBuffer(500) })),
+    });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(out.failed).toContain("too large");
+    expect(d.write).not.toHaveBeenCalled();
+  });
+
+  it("treats an empty body as a failure", async () => {
+    const d = deps({
+      fetch: vi.fn(async () => ({ status: 200, arrayBuffer: new ArrayBuffer(0) })),
+    });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(out.failed).toContain("empty");
+    expect(d.write).not.toHaveBeenCalled();
+  });
+
+  it("records a network error as a failure rather than throwing", async () => {
+    const d = deps({
+      fetch: vi.fn(async () => {
+        throw new Error("offline");
+      }),
+    });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(out.failed).toContain("offline");
+  });
+
+  it("records a write error as a failure rather than throwing", async () => {
+    const d = deps({
+      write: vi.fn(async () => {
+        throw new Error("disk full");
+      }),
+    });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(out.failed).toContain("disk full");
+    expect(out.file).toBeUndefined();
+  });
+
+  it("still writes the file when the header will not parse", async () => {
+    const d = deps({
+      fetch: vi.fn(async () => ({
+        status: 200,
+        arrayBuffer: new ArrayBuffer(64),
+        contentType: "image/jpeg",
+      })),
+    });
+    const out = await archiveOne(media, "https://ref", d);
+    expect(d.write).toHaveBeenCalledOnce();
+    expect(out.width).toBeUndefined();
+    expect(out.failed).toBeUndefined();
+  });
+
+  it("does not try to read dimensions from video", async () => {
+    const d = deps({
+      fetch: vi.fn(async () => ({ status: 200, arrayBuffer: pngBuffer(1920, 1080) })),
+    });
+    const out = await archiveOne({ ...media, kind: "video" }, "https://ref", d);
+    expect(out.width).toBeUndefined();
+    expect(out.file).toBeDefined();
+  });
+});
+
+describe("fallback urls", () => {
+  const withFallbacks: CanonicalMedia = {
+    key: "https://www.youtube.com/watch?v=BZZoL_IoBZs",
+    url: "https://img.youtube.com/vi/BZZoL_IoBZs/maxresdefault.jpg",
+    kind: "image",
+    alt: "",
+    fallbacks: [
+      "https://img.youtube.com/vi/BZZoL_IoBZs/hq720.jpg",
+      "https://img.youtube.com/vi/BZZoL_IoBZs/hqdefault.jpg",
+    ],
+  };
+
+  it("uses the primary when it succeeds", async () => {
+    const d = deps();
+    const out = await archiveOne(withFallbacks, "", d);
+    expect(out.file).toContain("maxresdefault");
+    expect(d.fetch).toHaveBeenCalledOnce();
+  });
+
+  it("walks down to the next candidate on a 404", async () => {
+    const fetch = vi
+      .fn<Fetcher>()
+      .mockResolvedValueOnce({ status: 404, arrayBuffer: new ArrayBuffer(0) })
+      .mockResolvedValueOnce({ status: 200, arrayBuffer: pngBuffer(1280, 720) });
+    const out = await archiveOne(withFallbacks, "", deps({ fetch }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(out.file).toContain("hq720");
+    expect(out.width).toBe(1280);
+  });
+
+  it("reaches the last candidate when the earlier ones fail", async () => {
+    const fetch = vi
+      .fn<Fetcher>()
+      .mockResolvedValueOnce({ status: 404, arrayBuffer: new ArrayBuffer(0) })
+      .mockResolvedValueOnce({ status: 404, arrayBuffer: new ArrayBuffer(0) })
+      .mockResolvedValueOnce({ status: 200, arrayBuffer: pngBuffer(480, 360) });
+    const out = await archiveOne(withFallbacks, "", deps({ fetch }));
+    expect(out.file).toContain("hqdefault");
+  });
+
+  it("reports the last failure when every candidate fails", async () => {
+    const fetch = vi.fn(async () => ({ status: 404, arrayBuffer: new ArrayBuffer(0) }));
+    const out = await archiveOne(withFallbacks, "", deps({ fetch }));
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(out.failed).toContain("404");
+    expect(out.file).toBeUndefined();
+  });
+
+  it("skips the download when a fallback was already archived", async () => {
+    const d = deps({
+      exists: vi.fn(async (path: string) => path.includes("hqdefault")),
+    });
+    const out = await archiveOne(withFallbacks, "", d);
+    expect(d.fetch).not.toHaveBeenCalled();
+    expect(out.file).toContain("hqdefault");
+  });
+
+  it("keys every candidate under the same cache key", async () => {
+    const fetch = vi
+      .fn<Fetcher>()
+      .mockResolvedValueOnce({ status: 404, arrayBuffer: new ArrayBuffer(0) })
+      .mockResolvedValueOnce({ status: 200, arrayBuffer: pngBuffer(10, 10) });
+    const out = await archiveOne(withFallbacks, "", deps({ fetch }));
+    expect(out.key).toBe("https://www.youtube.com/watch?v=BZZoL_IoBZs");
+  });
+});
+
+describe("archiveAll", () => {
+  const list: CanonicalMedia[] = Array.from({ length: 9 }, (_, i) => ({
+    key: `https://x.com/${i}.jpg`,
+    url: `https://x.com/${i}.jpg`,
+    kind: "image",
+    alt: "",
+  }));
+
+  it("processes every item", async () => {
+    const out = await archiveAll(list, "https://ref", deps(), 4);
+    expect(out).toHaveLength(9);
+    expect(out.every((o) => o.file)).toBe(true);
+  });
+
+  it("returns outcomes in input order", async () => {
+    const out = await archiveAll(list, "https://ref", deps(), 4);
+    expect(out.map((o) => o.key)).toEqual(list.map((m) => m.key));
+  });
+
+  it("returns an empty list for no input", async () => {
+    expect(await archiveAll([], "https://ref", deps(), 4)).toEqual([]);
+  });
+
+  it("never exceeds the concurrency cap", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    const d = deps({
+      fetch: vi.fn(async () => {
+        inFlight++;
+        peak = Math.max(peak, inFlight);
+        await new Promise((r) => setTimeout(r, 5));
+        inFlight--;
+        return { status: 200, arrayBuffer: pngBuffer(10, 10) };
+      }),
+    });
+    const many: CanonicalMedia[] = Array.from({ length: 12 }, (_, i) => ({
+      key: `https://x.com/${i}.jpg`,
+      url: `https://x.com/${i}.jpg`,
+      kind: "image",
+      alt: "",
+    }));
+    await archiveAll(many, "https://ref", d, 4);
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(peak).toBeGreaterThan(1);
+  });
+
+  it("one failure does not abort the rest", async () => {
+    let call = 0;
+    const d = deps({
+      fetch: vi.fn(async () => {
+        call++;
+        if (call === 2) throw new Error("boom");
+        return { status: 200, arrayBuffer: pngBuffer(10, 10) };
+      }),
+    });
+    const out = await archiveAll(list, "https://ref", d, 1);
+    expect(out.filter((o) => o.failed)).toHaveLength(1);
+    expect(out.filter((o) => o.file)).toHaveLength(8);
+  });
+});
+
+describe("sourceVideoCandidates", () => {
+  it("lists one path per playable extension, under the folder, keyed by hash", () => {
+    const paths = sourceVideoCandidates("source-video:https://a/reel/1", "Attachments/Clippings");
+    const hash = hashUrl("source-video:https://a/reel/1");
+    expect(paths).toContain(`Attachments/Clippings/${hash}-video.mp4`);
+    expect(paths.every((p) => p.startsWith(`Attachments/Clippings/${hash}-video.`))).toBe(true);
+    expect(new Set(paths).size).toBe(paths.length);
+  });
+
+  it("matches the filename downloadSourceVideoFor writes", () => {
+    const hash = hashUrl("source-video:https://a/reel/1");
+    expect(sourceVideoCandidates("source-video:https://a/reel/1", "F")[0]).toBe(
+      `F/${hash}-video.mp4`
+    );
+  });
+});
+
+describe("looksLikeMedia", () => {
+  const bytes = (...head: number[]): ArrayBuffer => {
+    const b = new Uint8Array(Math.max(16, head.length));
+    b.set(head, 0);
+    return b.buffer;
+  };
+  const text = (s: string): ArrayBuffer => asciiBuffer(s.padEnd(16, " "));
+
+  it("knows the signatures of the formats the wall shows", () => {
+    expect(looksLikeMedia(pngBuffer(2, 2))).toBe(true);
+    expect(looksLikeMedia(bytes(0xff, 0xd8, 0xff, 0xe0))).toBe(true);
+    expect(looksLikeMedia(text("GIF89a"))).toBe(true);
+    expect(looksLikeMedia(text("RIFF....WEBPVP8 "))).toBe(true);
+    expect(looksLikeMedia(text("....ftypavif"))).toBe(true);
+    expect(looksLikeMedia(text("....ftypisom"))).toBe(true);
+    expect(looksLikeMedia(bytes(0x1a, 0x45, 0xdf, 0xa3))).toBe(true);
+  });
+
+  it("says no to markup, text and anything too short to tell", () => {
+    expect(looksLikeMedia(text("<!doctype html>"))).toBe(false);
+    expect(looksLikeMedia(text("{\"error\":1}"))).toBe(false);
+    expect(looksLikeMedia(bytes(0x89, 0x50))).toBe(false);
+  });
+});
+
+describe("isTransient", () => {
+  it("is true for a request cut on this machine", () => {
+    // The one this was written for: a VPN's own ad blocker.
+    expect(isTransient("net::ERR_BLOCKED_BY_CLIENT")).toBe(true);
+    expect(isTransient("net::ERR_INTERNET_DISCONNECTED")).toBe(true);
+    expect(isTransient("net::ERR_NAME_NOT_RESOLVED")).toBe(true);
+  });
+
+  it("is true for what a server blames on itself, and on being busy", () => {
+    for (const code of ["HTTP 408", "HTTP 429", "HTTP 500", "HTTP 503"]) {
+      expect(isTransient(code)).toBe(true);
+    }
+  });
+
+  it("is false for an answer the server will give again tomorrow", () => {
+    // 403 is Cloudflare's challenge page, which no number of passes solves.
+    for (const code of ["HTTP 403", "HTTP 404", "HTTP 401", "HTTP 410"]) {
+      expect(isTransient(code)).toBe(false);
+    }
+    expect(isTransient("unexpected content type text/html")).toBe(false);
+    expect(isTransient("too large (99999999 bytes)")).toBe(false);
+    expect(isTransient("empty response")).toBe(false);
+  });
+});
+
+describe("a failure that was about the moment", () => {
+  it("is not written down as the file's own", async () => {
+    const outcome = await archiveOne(media, "", deps({
+      fetch: vi.fn(async () => {
+        throw new Error("net::ERR_BLOCKED_BY_CLIENT");
+      }),
+    }));
+    expect(outcome.failed).toBeUndefined();
+    expect(outcome.transient).toBe(true);
+  });
+
+  it("leaves the cache untouched, so the next pass asks again", async () => {
+    const cache = new MediaCache();
+    cache.mergeOutcome({ key: media.key, kind: "image", transient: true });
+    expect(cache.get(media.key)).toBeUndefined();
+  });
+
+  it("still writes down what the server actually answered", async () => {
+    const outcome = await archiveOne(media, "", deps({
+      fetch: vi.fn(async () => ({ status: 404, arrayBuffer: new ArrayBuffer(0) })),
+    }));
+    expect(outcome.failed).toBe("HTTP 404");
+    expect(outcome.transient).toBeUndefined();
+  });
+});
+
+describe("isDeviceLimit", () => {
+  it("knows the two failures a device records about itself", () => {
+    expect(isDeviceLimit(NO_YTDLP)).toBe(true);
+    expect(isDeviceLimit(NEEDS_DESKTOP)).toBe(true);
+  });
+
+  it("leaves failures that are about the post alone", () => {
+    // These are settled facts: another device would get the same answer, and
+    // re-trying them on every pass is the cost the cache exists to avoid.
+    expect(isDeviceLimit("yt-dlp found no video")).toBe(false);
+    expect(isDeviceLimit("no video found on the page")).toBe(false);
+    expect(isDeviceLimit("HTTP 404")).toBe(false);
+    expect(isDeviceLimit("too large (900000000 bytes)")).toBe(false);
+    expect(isDeviceLimit("")).toBe(false);
+  });
+
+  it("is a different question from whether a failure was momentary", () => {
+    // A missing tool is not transient — it will still be missing in a second
+    // — and a dropped connection is not a device limit. Neither test stands
+    // in for the other.
+    expect(isTransient(NO_YTDLP)).toBe(false);
+    expect(isDeviceLimit("net::ERR_BLOCKED_BY_CLIENT")).toBe(false);
+  });
+});

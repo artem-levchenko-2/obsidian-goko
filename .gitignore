@@ -1,0 +1,21 @@
+node_modules/
+dist/
+*.log
+
+# The plugin's own runtime data, which holds whatever API key the user typed
+# in. It lives in a vault rather than here, but a stray copy must never be
+# committable by accident.
+data.json
+
+# Local tooling, not part of the plugin.
+.superpowers/
+.impeccable/
+docs/
+
+# Personal, per-machine: a session handoff and local agent settings.
+HANDOFF.md
+.claude/settings.local.json
+
+# Left behind by tools, never part of the plugin.
+__pycache__/
+.DS_Store
