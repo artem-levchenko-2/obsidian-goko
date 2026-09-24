@@ -62,10 +62,11 @@ Threads' embeds, Pinterest's pin resource and Obsidian's bundled `/lib/` files
 are not APIs. Each use falls back to the page's `og:image`, so a change on
 their side returns a clip to a lesser picture instead of losing it.
 
-**Attribution lives in `LICENSE` only.** It carries the copyright notices and
-the statement of what this program is a modified version of. Do not add names,
-links or credits for other projects anywhere else in the repository, commit
-messages included.
+**Attribution lives in `NOTICE` only.** It carries the copyright notices and
+the statement of what this program is a modified version of. `LICENSE` is the
+GPL's own text, unaltered, so that GitHub and the plugin directory recognise
+it. Do not add names, links or credits for other projects anywhere else in
+the repository, commit messages included.
 
 **Test data is synthetic.** No real handles, post codes, CDN ids, email
 addresses or anyone's personal data in fixtures. Keep the shape — same length,

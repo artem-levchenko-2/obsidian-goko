@@ -366,8 +366,8 @@ The full policy is in [PRIVACY.md](PRIVACY.md).
 ## License
 
 Goko is free software under the GNU General Public License v3.0. See
-[LICENSE](LICENSE) for the full terms, the copyright notices and the statement
-of what this program is a modified version of.
+[LICENSE](LICENSE) for the full terms, and [NOTICE](NOTICE) for the copyright
+notices and the statement of what this program is a modified version of.
 
 <div align="center">
 <br>
