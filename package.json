@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "lint": "eslint ."
   },
-  "license": "GPL-3.0",
+  "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@types/node": "^22.10.2",
     "esbuild": "^0.28.2",
