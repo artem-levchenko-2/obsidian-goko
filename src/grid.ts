@@ -1,20 +1,15 @@
 import { App, Platform, setIcon } from "obsidian";
 import { resourceUrl } from "./convert";
 import {
-  MAX_ZOOM,
-  MIN_ZOOM,
   clampCamera,
   clampZoom,
   initialCamera,
-  pinchCamera,
-  pinchMidpoint,
-  pinchSpan,
   preserveAnchor,
   revealCamera,
   staleTouches,
   visibleContentBand,
 } from "./core/camera";
-import type { Camera, PinchStart, Point } from "./core/camera";
+import type { Camera, Point } from "./core/camera";
 import { tileBadges, tilePills } from "./core/badges";
 import { computeIslands, islandAt } from "./core/islands";
 import type { IslandHeader, IslandHit } from "./core/islands";
@@ -308,16 +303,10 @@ export class GridRenderer {
    */
   private touches = new Map<number, Point>();
   private touchPan: { x: number; y: number; camX: number; camY: number } | null = null;
-  private pinch: PinchStart | null = null;
   private readonly nativeScroll: boolean;
   /** Sized to the scaled wall, so the browser has something to scroll over. */
   private scroller: HTMLElement | null = null;
   private onScroll: (() => void) | null = null;
-  /**
-   * True while a pinch has the wall off the scroller and on the camera.
-   * See takeFromScroller.
-   */
-  private pinching = false;
   private longPress = 0;
   /**
    * Touch has no modifier keys, so multi-select is a mode rather than a
@@ -360,7 +349,6 @@ export class GridRenderer {
    * one that failed to load. See PendingSources.
    */
   onSourcePending: (id: string, signature: string) => void = () => {};
-  onZoomChanged: (zoom: number) => void = () => {};
   onSelectionChanged: (ids: string[]) => void = () => {};
   onDeleteRequested: (ids: string[]) => void = () => {};
   onPropertiesRequested: (ids: string[]) => void = () => {};
@@ -760,7 +748,7 @@ export class GridRenderer {
   }
 
   private applyCamera(smooth = false): void {
-    if (this.nativeScroll && !this.pinching) {
+    if (this.nativeScroll) {
       // Only the zoom is ours to clamp. How far the wall may travel is the
       // scroller's business, and it is already the authority on that.
       this.camera = { ...this.camera, zoom: clampZoom(this.camera.zoom) };
@@ -809,7 +797,6 @@ export class GridRenderer {
    * would fight the momentum that is producing it.
    */
   private readScroll(): void {
-    if (this.pinching) return;
     this.camera = {
       ...this.camera,
       x: this.scrollerOffset(this.camera.zoom) - this.viewport.scrollLeft,
@@ -1775,30 +1762,16 @@ export class GridRenderer {
    * canvas that owns its gestures and fatal for one that does not.
    *
    * Touches are tracked by pointer id because that is the only thing that
-   * tells two fingers apart. One finger pans, two pinch, and the count
-   * changing mid-gesture restarts whichever is now in effect from where
-   * the surviving fingers actually are: rebasing rather than continuing is
-   * what stops the wall jumping when a finger lifts out of a pinch.
+   * tells two fingers apart. One finger pans. A second does nothing, since
+   * the wall does not zoom on a phone any more than on a desktop, except
+   * keep the lifts from counting as a tap; when it lifts, the one left
+   * pans again from where it actually is, so the wall does not jump.
    */
   private installTouch(): void {
     const at = (event: PointerEvent): Point => ({ x: event.clientX, y: event.clientY });
 
     const beginPan = (from: Point): void => {
-      this.pinch = null;
       this.touchPan = { x: from.x, y: from.y, camX: this.camera.x, camY: this.camera.y };
-    };
-
-    const beginPinch = (a: Point, b: Point): void => {
-      this.touchPan = null;
-      // Taken off the scroller first: the gesture is measured against the
-      // camera, so the camera has to be the one saying where the wall is
-      // before the start is recorded.
-      if (this.nativeScroll) this.takeFromScroller();
-      this.pinch = {
-        camera: this.camera,
-        span: pinchSpan(a, b),
-        midpoint: pinchMidpoint(a, b),
-      };
     };
 
     this.viewport.addEventListener("pointerdown", (event: PointerEvent) => {
@@ -1807,10 +1780,9 @@ export class GridRenderer {
       // A primary touch means no other finger is down, whatever the map
       // says: a lift iOS never delivered (the long-press menu taking the
       // touch, typically) leaves an orphan here, and pairing the new finger
-      // with it would turn this one-finger drag into a pinch.
+      // with it would turn this one-finger drag into a two-finger touch.
       if (staleTouches(event.isPrimary, this.touches.size)) {
         this.touches.clear();
-        this.pinch = null;
         this.touchPan = null;
       }
       this.touches.set(event.pointerId, at(event));
@@ -1823,11 +1795,11 @@ export class GridRenderer {
         if (!this.nativeScroll) beginPan(live[0]);
         return;
       }
-      // A second finger means the gesture is a zoom, never a tap, so the
-      // click that eventually follows must not open anything.
+      // A second finger makes the gesture something other than a tap, so
+      // the click that eventually follows must not open anything.
       this.clearLongPress();
       this.panMoved = true;
-      beginPinch(live[0], live[1]);
+      this.touchPan = null;
     });
 
     this.viewport.addEventListener("pointermove", (event: PointerEvent) => {
@@ -1836,13 +1808,6 @@ export class GridRenderer {
       this.touches.set(event.pointerId, at(event));
 
       const live = [...this.touches.values()];
-      if (live.length >= 2 && this.pinch) {
-        // Identical on both platforms while the pinch is on: the wall is a
-        // camera, and applyCamera clamps it as it goes.
-        this.setCamera(pinchCamera(this.pinch, live[0], live[1], MIN_ZOOM, MAX_ZOOM));
-        return;
-      }
-
       if (this.nativeScroll || live.length !== 1 || !this.touchPan) return;
       const dx = live[0].x - this.touchPan.x;
       const dy = live[0].y - this.touchPan.y;
@@ -1868,17 +1833,13 @@ export class GridRenderer {
       this.clearLongPress();
 
       const live = [...this.touches.values()];
-      if (live.length >= 2) return beginPinch(live[0], live[1]);
-      // Down to one finger or none: the zoom is over, so the wall goes back
-      // to the scroller and gets its momentum and its edges back.
-      if (this.nativeScroll) this.giveToScroller();
+      if (live.length >= 2) return;
       if (live.length === 1) {
         if (!this.nativeScroll) beginPan(live[0]);
         return;
       }
 
       this.touchPan = null;
-      this.pinch = null;
       // Cleared after the click that follows the last lift, exactly as the
       // mouse pan does: a drag ending over a card must not also open it.
       window.setTimeout(() => {
@@ -1937,7 +1898,7 @@ export class GridRenderer {
      */
     this.viewport.addEventListener("click", (event: MouseEvent) => {
       if (!this.nativeScroll || this.selection.size === 0) return;
-      // A pan or a pinch that happens to end over empty space is not a tap,
+      // A pan or a two-finger touch that ends over empty space is not a tap,
       // and the cards answer their own.
       if (this.panMoved) return;
       if ((event.target as HTMLElement | null)?.closest(".pg-tile")) return;
@@ -1960,59 +1921,6 @@ export class GridRenderer {
   private scrollerOffset(zoom: number): number {
     const scaled = this.contentSize().width * zoom;
     return Math.max(0, (this.viewportSize().width - scaled) / 2);
-  }
-
-  /*
-   * A pinch takes the wall off the scroller and puts it on the camera.
-   *
-   * Zoom and a scroll container do not get on: the travel available depends
-   * on the zoom, so changing one has to resize the other, and doing that per
-   * frame both costs a layout and argues with the scroller about where the
-   * content should be. Showing the gesture as a transform and turning it
-   * into a scroll position at the end was worse, because the two are not the
-   * same thing: a transform can show a position the scroller cannot
-   * represent, and the release then clamps it. That is what snapped.
-   *
-   * So for the length of the gesture the wall is exactly what it is on
-   * desktop, and what the detail view is always: a camera written as one
-   * transform, clamped as it goes. Both hand-offs are conversions between
-   * two ways of saying the same position, and because the camera is held to
-   * what the scroller can represent throughout, handing back is an identity
-   * rather than a correction. Nothing is left to snap to.
-   */
-  private takeFromScroller(): void {
-    if (!this.scroller || this.pinching) return;
-    const zoom = this.camera.zoom;
-
-    // Where the scroller is showing, said as a camera.
-    this.camera = {
-      zoom,
-      x: this.scrollerOffset(zoom) - this.viewport.scrollLeft,
-      y: -this.viewport.scrollTop,
-    };
-    this.pinching = true;
-    this.viewport.addClass("is-pinching");
-
-    // The canvas has to start at the viewport's own origin for the camera to
-    // mean anything, so the spacer stops taking up room and stops being
-    // centred. Scrolled to zero for the same reason, and it can be: the
-    // viewport is not scrollable while this class is on it.
-    this.scroller.setCssStyles({ margin: "0", width: "0px", height: "0px" });
-    this.viewport.scrollTo({ left: 0, top: 0, behavior: "auto" });
-
-    this.applyCamera();
-  }
-
-  /** Hands the wall back, at the position the camera is already showing. */
-  private giveToScroller(): void {
-    if (!this.scroller || !this.pinching) return;
-    this.pinching = false;
-    this.viewport.removeClass("is-pinching");
-    this.scroller.setCssStyles({ margin: "" });
-    // Sizes the spacer and scrolls to the camera's position, which the
-    // scroller can reach because clampCamera never let it be anywhere else.
-    this.applyCamera();
-    this.onZoomChanged(this.camera.zoom);
   }
 
   /**

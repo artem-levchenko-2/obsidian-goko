@@ -3437,8 +3437,8 @@ body.pg-resizing {
 .pg-viewport.is-native-scroll {
   overflow: auto;
   /* Names the pans the browser may take for itself. Pinch is deliberately
-     absent, so a two-finger gesture reaches the pointer handlers as a zoom
-     instead of being swallowed as a page zoom. */
+     absent: the wall does not zoom, and leaving it out keeps a two-finger
+     gesture from zooming the whole page instead. */
   touch-action: pan-x pan-y;
 }
 
@@ -3459,15 +3459,6 @@ body.pg-resizing {
    wants none of the browser's panning either. */
 .pg-detail-stage {
   touch-action: none;
-}
-
-/* For the length of a pinch the wall comes off the scroller and onto the
-   camera, so it is exactly what it is on desktop and what the detail view is
-   always: one transform, clamped as it goes. The scroller cannot represent
-   every position a transform can show, and handing between the two at the
-   end is what used to snap. */
-.pg-viewport.is-pinching {
-  overflow: hidden;
 }
 
 /* One bar at a time across a phone.
