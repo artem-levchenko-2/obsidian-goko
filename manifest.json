@@ -3,7 +3,7 @@
   "name": "Goko",
   "version": "1.0.1",
   "minAppVersion": "1.13.0",
-  "description": "A pannable, scalable wall of your web clippings. Sort them into grids, filter by any property, and clip from your phone. Media is downloaded into your vault, so clippings keep their images and videos even if the source page is deleted.",
+  "description": "Collect links, images, videos and PDFs on one visual wall. Sort them into grids and folders, search all of it, and keep every picture and video in your vault.",
   "author": "Artem Levchenko",
   "authorUrl": "https://github.com/artem-levchenko-2",
   "isDesktopOnly": false
