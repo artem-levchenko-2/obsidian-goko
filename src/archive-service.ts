@@ -108,7 +108,28 @@ export class ArchiveService {
   }
 
   async saveCache(): Promise<void> {
+    // Another device may have written since this one read, a phone clipping
+    // while the desktop is open. What it wrote is folded in before this
+    // device's copy replaces the file, or it would be lost with it.
+    await this.absorbFromDisk();
     await this.app.vault.adapter.write(this.cachePath(), JSON.stringify(this.cache.toJSON()));
+  }
+
+  /**
+   * Reads cache.json as it is on disk now and keeps what this device does
+   * not already know. Also run before a background pass, so a clip synced in
+   * from a phone arrives with its posters and sizes instead of this device
+   * working them out again. A file that will not parse, half-written by a
+   * sync still in flight, is left for the next time.
+   */
+  private async absorbFromDisk(): Promise<void> {
+    const path = this.cachePath();
+    try {
+      if (!(await this.app.vault.adapter.exists(path))) return;
+      this.cache.absorb(MediaCache.fromJSON(JSON.parse(await this.app.vault.adapter.read(path))));
+    } catch {
+      // Unreadable just now: this device's copy is what gets written.
+    }
   }
 
   private async ensureFolder(): Promise<void> {
@@ -1028,6 +1049,7 @@ export class ArchiveService {
     if (this.running) return;
     this.running = true;
     try {
+      await this.absorbFromDisk();
       for (const record of this.index.records()) {
         if (download) await this.archiveRecord(record, false, false);
         else this.adoptLocalMedia(record);

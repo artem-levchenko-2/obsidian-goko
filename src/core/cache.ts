@@ -23,6 +23,12 @@ export class MediaCache {
   /** The same entries by the file they were archived to, for a note that
       names the file rather than the URL it came from. */
   private entriesByFile = new Map<string, CacheEntry>();
+  /**
+   * Keys this session removed on purpose, a file swept or a clipping gone,
+   * so that another device's copy of cache.json cannot bring them back when
+   * it is folded in; see absorb.
+   */
+  private dropped = new Set<string>();
 
   get(key: string): CacheEntry | undefined {
     return this.entriesByKey.get(key);
@@ -47,6 +53,7 @@ export class MediaCache {
         failed: "a video host's page, archived as media by an older version",
       };
     }
+    this.dropped.delete(entry.key);
     const previous = this.entriesByKey.get(entry.key);
     if (previous?.file && previous.file !== entry.file) this.entriesByFile.delete(previous.file);
     this.entriesByKey.set(entry.key, entry);
@@ -66,6 +73,30 @@ export class MediaCache {
     const entry = this.entriesByKey.get(key);
     if (entry?.file) this.entriesByFile.delete(entry.file);
     this.entriesByKey.delete(key);
+    this.dropped.add(key);
+  }
+
+  /**
+   * Folds in what another device wrote to cache.json since this one read it.
+   *
+   * Each device holds the cache in memory and writes it whole, so a phone
+   * that clipped while the desktop was open lost its entries the next time
+   * the desktop saved. Now every save reads the file first and keeps what
+   * it does not know about: an entry it lacks is taken as it is, and for an
+   * entry both hold, the one that knows more wins (see betterEntry). What
+   * this session deleted stays deleted. Returns how many entries changed.
+   */
+  absorb(other: MediaCache): number {
+    let changed = 0;
+    for (const theirs of other.entries()) {
+      if (this.dropped.has(theirs.key)) continue;
+      const mine = this.entriesByKey.get(theirs.key);
+      const next = mine ? betterEntry(mine, theirs) : theirs;
+      if (next === mine) continue;
+      this.index(next);
+      changed++;
+    }
+    return changed;
   }
 
   entries(): CacheEntry[] {
@@ -131,4 +162,25 @@ export class MediaCache {
     }
     return cache;
   }
+}
+
+/**
+ * Of two records of the same key, the one to keep: a downloaded file beats
+ * none, and for the same file a poster beats none, with the size the poster
+ * measured. Otherwise this device's own record stands. Neither carries a
+ * time, so knowing more is the only honest way to say which is newer.
+ */
+export function betterEntry(mine: CacheEntry, theirs: CacheEntry): CacheEntry {
+  if (!mine.file && theirs.file) return theirs;
+  if (mine.file && theirs.file === mine.file && !mine.thumb && theirs.thumb) {
+    const merged: CacheEntry = {
+      ...mine,
+      thumb: theirs.thumb,
+      width: mine.width || theirs.width,
+      height: mine.height || theirs.height,
+    };
+    delete merged.thumbFailed;
+    return merged;
+  }
+  return mine;
 }

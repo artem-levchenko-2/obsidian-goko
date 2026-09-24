@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { MediaCache } from "../src/core/cache";
+import { MediaCache, betterEntry } from "../src/core/cache";
+import type { CacheEntry } from "../src/core/cache";
 
 describe("MediaCache", () => {
   it("stores and retrieves entries by key", () => {
@@ -226,5 +227,75 @@ describe("thumbFailed", () => {
   it("shrugs at a key it never held", () => {
     const cache = new MediaCache();
     expect(() => cache.setThumbFailed("missing", "x")).not.toThrow();
+  });
+});
+
+describe("absorb", () => {
+  const entry = (key: string, over: Partial<CacheEntry> = {}): CacheEntry => ({
+    key,
+    file: "",
+    thumb: "",
+    kind: "image",
+    width: 0,
+    height: 0,
+    bytes: 0,
+    ...over,
+  });
+
+  it("keeps the entries another device wrote that this one lacks", () => {
+    const desktop = new MediaCache();
+    desktop.set(entry("a", { file: "A.jpg" }));
+    const phone = new MediaCache();
+    phone.set(entry("a", { file: "A.jpg" }));
+    phone.set(entry("b", { file: "B.jpg", width: 3, height: 4 }));
+    expect(desktop.absorb(phone)).toBe(1);
+    expect(desktop.get("b")?.file).toBe("B.jpg");
+    expect(desktop.byFile("B.jpg")?.key).toBe("b");
+  });
+
+  it("does not bring back what this session deleted", () => {
+    const desktop = new MediaCache();
+    desktop.set(entry("gone", { file: "G.jpg" }));
+    desktop.delete("gone");
+    const stale = new MediaCache();
+    stale.set(entry("gone", { file: "G.jpg" }));
+    expect(desktop.absorb(stale)).toBe(0);
+    expect(desktop.has("gone")).toBe(false);
+  });
+
+  it("forgets the deletion once the key is written again here", () => {
+    const desktop = new MediaCache();
+    desktop.set(entry("k", { file: "K.jpg" }));
+    desktop.delete("k");
+    desktop.set(entry("k", { file: "K2.jpg" }));
+    const other = new MediaCache();
+    other.set(entry("k", { file: "K2.jpg", thumb: "K2.webp" }));
+    desktop.absorb(other);
+    expect(desktop.get("k")?.thumb).toBe("K2.webp");
+  });
+});
+
+describe("betterEntry", () => {
+  const base: CacheEntry = { key: "k", file: "", thumb: "", kind: "video", width: 0, height: 0, bytes: 0 };
+
+  it("prefers the record that has the file", () => {
+    const failed = { ...base, failed: "HTTP 403" };
+    const got = { ...base, file: "V.mp4" };
+    expect(betterEntry(failed, got)).toBe(got);
+    expect(betterEntry(got, failed)).toBe(got);
+  });
+
+  it("takes the other device's poster and its size for the same file", () => {
+    const mine = { ...base, file: "V.mp4", thumbFailed: "no ffmpeg" };
+    const theirs = { ...base, file: "V.mp4", thumb: "V.poster.webp", width: 720, height: 1280 };
+    const merged = betterEntry(mine, theirs);
+    expect(merged).toMatchObject({ file: "V.mp4", thumb: "V.poster.webp", width: 720, height: 1280 });
+    expect(merged.thumbFailed).toBeUndefined();
+  });
+
+  it("keeps this device's record otherwise", () => {
+    const mine = { ...base, file: "V.mp4", thumb: "mine.webp" };
+    const theirs = { ...base, file: "V.mp4", thumb: "theirs.webp" };
+    expect(betterEntry(mine, theirs)).toBe(mine);
   });
 });
