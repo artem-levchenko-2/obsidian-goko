@@ -539,6 +539,9 @@ export class GridRenderer {
     if (!frame) return;
     frame.querySelector(".pg-suggest")?.remove();
     const suggestion = this.suggestions.get(id);
+    // Said on the tile for the caption's sake (see .pg-tile.has-suggestion),
+    // rather than asked of it with :has().
+    element.root.toggleClass("has-suggestion", suggestion !== undefined);
     if (!suggestion) return;
     // Two segments, one yes and one no, so agreeing and disagreeing cost the
     // same single tap. A no that took a menu was a no nobody gave.
@@ -2535,8 +2538,11 @@ export class GridRenderer {
       sheet.createDiv({ cls: "pg-sheet-text", text });
     } else {
       // Nothing to read: the mark stands in for it, the way an app icon does
-      // on a card that is only ever a link to the app.
+      // on a card that is only ever a link to the app. With no name either,
+      // the mark is the whole card; a class rather than :has(), which makes
+      // the browser recheck every card whenever anything in one changes.
       sheet.addClass("is-bare");
+      if (!model.record.title) sheet.addClass("is-mark-only");
     }
   }
 

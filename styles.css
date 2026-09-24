@@ -1035,19 +1035,19 @@ body.pg-resizing {
 }
 
 /* Nothing but a name: the mark carries the card, so give it room to. */
-.pg-sheet.is-bare:not(:has(.pg-sheet-title)) {
+.pg-sheet.is-mark-only {
   align-items: center;
   justify-content: center;
 }
 
-.pg-sheet.is-bare:not(:has(.pg-sheet-title)) .pg-sheet-head {
+.pg-sheet.is-mark-only .pg-sheet-head {
   height: auto;
   margin: 0;
   flex-direction: column;
   gap: 8px;
 }
 
-.pg-sheet.is-bare:not(:has(.pg-sheet-title)) .pg-sheet-mark {
+.pg-sheet.is-mark-only .pg-sheet-mark {
   width: 34px;
   height: 34px;
   border-radius: 8px;
@@ -1340,7 +1340,7 @@ body.pg-resizing {
 
 /* The hover pills and the caption share the bottom of the card. With a chip
    there they stand above it, or the caption would print across the chip. */
-.pg-tile:has(.pg-suggest) .pg-meta {
+.pg-tile.has-suggestion .pg-meta {
   padding-bottom: 40px;
 }
 
