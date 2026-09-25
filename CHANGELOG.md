@@ -16,6 +16,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with looks when it was written after it; otherwise the looks are kept and
   sent back out, and each device keeps a copy of the last looks it saw to
   restore them from after being closed.
+- Opening a grid or folder whose icon is not in the picker and pressing Save
+  no longer resets its icon. The picker offers it under Current.
+
+### Changed
+
+- The icon picker offers 288 icons in 24 groups, up from 120, adding style,
+  home, tools, vehicles, fantasy, devices, drawing, food, feelings, the
+  outdoors, science, reading, people and sport.
 
 ## [1.0.3] - 2026-09-25
 
