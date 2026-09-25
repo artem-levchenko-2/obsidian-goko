@@ -355,6 +355,69 @@ describe("fallback urls", () => {
   });
 });
 
+describe("an original kept for its transparency", () => {
+  const ORIGINAL = "https://cdn.example/originals/ab/cd/ef/abcdef0123456789.png";
+  const STAND_IN = "https://cdn.example/1200x/ab/cd/ef/abcdef0123456789.jpg";
+  const original: CanonicalMedia = { key: ORIGINAL, url: ORIGINAL, kind: "image", alt: "" };
+  const standIn = (url: string): string => (url === ORIGINAL ? STAND_IN : "");
+  const ok = (width: number): { status: number; arrayBuffer: ArrayBuffer } => ({
+    status: 200,
+    arrayBuffer: pngBuffer(width, width),
+  });
+
+  it("gives way to the stand-in when it has no see-through pixels", async () => {
+    const fetch = vi.fn<Fetcher>().mockResolvedValueOnce(ok(2000)).mockResolvedValueOnce(ok(1200));
+    const d = deps({ fetch, standIn, opaque: vi.fn(async () => true) });
+    const out = await archiveOne(original, "", d);
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([ORIGINAL, STAND_IN]);
+    expect(out.file).toMatch(/abcdef0123456789\.jpg$/);
+    expect(out.width).toBe(1200);
+    expect(d.write).toHaveBeenCalledOnce();
+    expect(out.key).toBe(ORIGINAL);
+  });
+
+  it("is kept when it is see-through, and the stand-in is never fetched", async () => {
+    const fetch = vi.fn<Fetcher>().mockResolvedValue(ok(2000));
+    const out = await archiveOne(original, "", deps({ fetch, standIn, opaque: vi.fn(async () => false) }));
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(out.file).toMatch(/abcdef0123456789\.png$/);
+  });
+
+  it("is kept when the stand-in is refused", async () => {
+    const fetch = vi
+      .fn<Fetcher>()
+      .mockResolvedValueOnce(ok(2000))
+      .mockResolvedValueOnce({ status: 404, arrayBuffer: new ArrayBuffer(0) });
+    const out = await archiveOne(original, "", deps({ fetch, standIn, opaque: vi.fn(async () => true) }));
+    expect(out.file).toMatch(/\.png$/);
+    expect(out.width).toBe(2000);
+  });
+
+  it("falls back to the stand-in when the original itself is refused", async () => {
+    const fetch = vi
+      .fn<Fetcher>()
+      .mockResolvedValueOnce({ status: 404, arrayBuffer: new ArrayBuffer(0) })
+      .mockResolvedValueOnce(ok(1200));
+    const opaque = vi.fn(async () => true);
+    const out = await archiveOne(original, "", deps({ fetch, standIn, opaque }));
+    expect(out.file).toMatch(/\.jpg$/);
+    expect(opaque).not.toHaveBeenCalled();
+  });
+
+  it("finds a stand-in another device already saved", async () => {
+    const d = deps({ standIn, exists: vi.fn(async (path: string) => path.endsWith(".jpg")) });
+    const out = await archiveOne(original, "", d);
+    expect(d.fetch).not.toHaveBeenCalled();
+    expect(out.file).toMatch(/\.jpg$/);
+  });
+
+  it("is only a question for pictures", async () => {
+    const standInFor = vi.fn(standIn);
+    await archiveOne({ ...original, kind: "video" }, "", deps({ standIn: standInFor }));
+    expect(standInFor).not.toHaveBeenCalled();
+  });
+});
+
 describe("archiveAll", () => {
   const list: CanonicalMedia[] = Array.from({ length: 9 }, (_, i) => ({
     key: `https://x.com/${i}.jpg`,

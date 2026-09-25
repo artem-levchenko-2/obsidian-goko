@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On a Mac or Windows, a clipping whose title differs from an existing one
   only in case is saved as "Name 2" instead of failing with "File already
   exists". Moving a note into a folder counts names the same way.
+- A Pinterest picture uploaded as a PNG or a WebP keeps its transparency.
+  Goko saves the original when it has see-through pixels, and Pinterest's
+  JPEG, a fraction of the size, when it has none. A HEIC photo is saved as
+  that JPEG instead of failing to download.
 
 ## [1.0.2] - 2026-09-24
 

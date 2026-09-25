@@ -8,7 +8,8 @@ import {
   pinIdFromPage,
   pinPermalink,
   pinResourceUrl,
-  pinimgAtSize,
+  pinimgForClipping,
+  pinimgStandIn,
   pinterestPinId,
 } from "../src/core/pinterest";
 import { buildNote } from "../src/core/resolve";
@@ -226,29 +227,51 @@ describe("Pinterest addresses", () => {
   });
 });
 
-describe("pinimgAtSize", () => {
+describe("pinimgForClipping", () => {
+  const as = (size: string, ext: string): string => pinimg(size).replace(/\.jpg$/, `.${ext}`);
+
   it("asks for 1200 wide in place of whatever size the address named", () => {
     for (const size of ["736x", "236x", "474x", "564x", "originals", "60x60", "600x315"]) {
-      expect(pinimgAtSize(pinimg(size)), size).toBe(pinimg("1200x"));
+      expect(pinimgForClipping(pinimg(size)), size).toBe(pinimg("1200x"));
     }
   });
 
-  it("names the rendition a JPEG, which every sized one is", () => {
-    const png = pinimg("originals").replace(/\.jpg$/, ".png");
-    expect(pinimgAtSize(png)).toBe(pinimg("1200x"));
-    expect(pinimgAtSize(pinimg("736x").replace(/\.jpg$/, ".webp"))).toBe(pinimg("1200x"));
+  it("keeps a PNG's or a WebP's original, the only copy that can be see-through", () => {
+    expect(pinimgForClipping(as("originals", "png"))).toBe(as("originals", "png"));
+    expect(pinimgForClipping(as("originals", "webp"))).toBe(as("originals", "webp"));
+    expect(pinimgForClipping(as("736x", "png"))).toBe(as("originals", "png"));
+  });
+
+  it("takes a HEIC as the JPEG rendition, which the wall can paint", () => {
+    expect(pinimgForClipping(as("originals", "heic"))).toBe(pinimg("1200x"));
+    expect(pinimgForClipping(as("originals", "jpeg"))).toBe(pinimg("1200x"));
   });
 
   it("keeps a GIF's original, since its sized renditions do not move", () => {
-    const gif = pinimg("originals").replace(/\.jpg$/, ".gif");
-    expect(pinimgAtSize(gif)).toBe(gif);
+    const gif = as("originals", "gif");
+    expect(pinimgForClipping(gif)).toBe(gif);
   });
 
   it("leaves a video's thumbnail, another host and a non-URL alone", () => {
     const thumb = `https://i.pinimg.com/videos/thumbnails/originals/9c/2e/71/${VIDEO_HASH}.0000000.jpg`;
-    expect(pinimgAtSize(thumb)).toBe(thumb);
-    expect(pinimgAtSize("https://example.com/736x/a/b.jpg")).toBe("https://example.com/736x/a/b.jpg");
-    expect(pinimgAtSize("not a url")).toBe("not a url");
+    expect(pinimgForClipping(thumb)).toBe(thumb);
+    expect(pinimgForClipping("https://example.com/736x/a/b.jpg")).toBe("https://example.com/736x/a/b.jpg");
+    expect(pinimgForClipping("not a url")).toBe("not a url");
+  });
+});
+
+describe("pinimgStandIn", () => {
+  it("is the 1200 wide JPEG for an original PNG or WebP", () => {
+    expect(pinimgStandIn(pinimg("originals").replace(/\.jpg$/, ".png"))).toBe(pinimg("1200x"));
+    expect(pinimgStandIn(pinimg("originals").replace(/\.jpg$/, ".webp"))).toBe(pinimg("1200x"));
+  });
+
+  it("is nothing for anything that is already the lighter copy or cannot be see-through", () => {
+    expect(pinimgStandIn(pinimg("1200x"))).toBe("");
+    expect(pinimgStandIn(pinimg("originals"))).toBe("");
+    expect(pinimgStandIn(pinimg("originals").replace(/\.jpg$/, ".gif"))).toBe("");
+    expect(pinimgStandIn("https://example.com/originals/a/b.png")).toBe("");
+    expect(pinimgStandIn("not a url")).toBe("");
   });
 });
 
@@ -273,6 +296,19 @@ describe("parsePinResource", () => {
     expect(pin?.published).toBe("Tue, 22 Sep 2026 22:55:45 +0000");
     expect(pin?.sourceVideoUrl).toBeUndefined();
     expect(pin?.origin).toBeUndefined();
+  });
+
+  it("reads the format off the original, which the sized entries do not carry", () => {
+    // An upload no wider than 736: its original ties with the 736x entry and
+    // is the only one of them that says it is a PNG.
+    const png = pinimg("originals").replace(/\.jpg$/, ".png");
+    const images = {
+      "236x": { url: pinimg("236x"), width: 236, height: 236 },
+      "736x": { url: pinimg("736x"), width: 736, height: 736 },
+      orig: { url: png, width: 736, height: 736 },
+    };
+    const pin = parsePinResource(resource({ title: "Paper ghost cutout", images }), PIN_ID);
+    expect(pin?.media).toEqual([{ url: png, kind: "image" }]);
   });
 
   it("reads a video pin as its poster, with the mp4 handed over for the archiver", () => {

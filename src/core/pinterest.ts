@@ -105,20 +105,38 @@ const PINIMG_HOST = /(^|\.)pinimg\.com$/i;
 const PINIMG_SIZE = /^\/(?:\d+x\d*|originals)\//;
 
 /**
- * The same picture at 1200 wide, or at its own size when it is smaller.
- *
- * Not /originals/: it answers 403 for a pin uploaded as anything but JPEG,
- * and a clipping has one address per picture with nothing to fall back to
- * if that one is refused. 1200x answered for every pin tried.
- *
- * Every sized rendition is a JPEG, whatever was uploaded, so the name ends
- * in .jpg: an original's .png kept on a 1200x path is a 403. A GIF is left
- * as it is, since its sized renditions are stills and the original moves.
- *
- * Only the size segment is touched, and only on the picture CDN: a video's
- * thumbnail lives under /videos/ and is left alone.
+ * Formats a picture can be see-through in. Pinterest keeps the original of
+ * each in its own format, but every sized rendition it makes is a JPEG, and
+ * a JPEG has no transparency: a logo cut out on a PNG comes back on white or
+ * on black.
  */
-export function pinimgAtSize(url: string, size = "1200x"): string {
+const SEE_THROUGH = new Set(["png", "webp"]);
+
+function extensionOf(pathname: string): string {
+  return /\.([a-z0-9]+)$/i.exec(pathname)?.[1]?.toLowerCase() ?? "";
+}
+
+/**
+ * The address of a pin's picture that a clipping keeps.
+ *
+ * Pinterest serves every picture in two kinds of place. /originals/ holds
+ * what was uploaded, in its own format, and answers only to its own
+ * extension: an original PNG asked for as .jpg is a 403. The sized paths,
+ * /1200x/ and smaller, hold JPEGs whatever was uploaded, and answer only as
+ * .jpg. So the extension an address ends in is what says which to take:
+ *
+ * - A PNG or a WebP keeps its original, which is the only copy that can be
+ *   see-through. Whether this one is, only its pixels can say; the archiver
+ *   asks them, and saves the JPEG from pinimgStandIn when the answer is no.
+ * - A GIF keeps its original too, since its sized renditions are stills.
+ * - Anything else, a JPEG or a HEIC from a phone, is the 1200 wide JPEG. It
+ *   is the picture at its own size when that is smaller, and it is something
+ *   the wall can paint, which a HEIC is not.
+ *
+ * Only the size segment and the extension are touched, and only on the
+ * picture CDN: a video's thumbnail lives under /videos/ and is left alone.
+ */
+export function pinimgForClipping(url: string): string {
   let parsed: URL;
   try {
     parsed = new URL(url);
@@ -126,10 +144,35 @@ export function pinimgAtSize(url: string, size = "1200x"): string {
     return url;
   }
   if (!PINIMG_HOST.test(parsed.hostname) || !PINIMG_SIZE.test(parsed.pathname)) return url;
-  if (/\.gif$/i.test(parsed.pathname)) return url;
-  parsed.pathname = parsed.pathname
-    .replace(PINIMG_SIZE, `/${size}/`)
-    .replace(/\.(?:png|webp|jpeg)$/i, ".jpg");
+  const ext = extensionOf(parsed.pathname);
+  if (ext === "gif") return url;
+  if (SEE_THROUGH.has(ext)) {
+    parsed.pathname = parsed.pathname.replace(PINIMG_SIZE, "/originals/");
+    return parsed.toString();
+  }
+  parsed.pathname = parsed.pathname.replace(PINIMG_SIZE, "/1200x/").replace(/\.[a-z0-9]+$/i, ".jpg");
+  return parsed.toString();
+}
+
+/**
+ * The 1200 wide JPEG that can stand in for a pin's original PNG or WebP,
+ * or "" for any other address.
+ *
+ * A tenth of the size or less for a PNG, and the same picture wherever the
+ * original has no see-through pixels, which is most of them: a PNG saved
+ * with an alpha channel it never uses is common. It is also the address to
+ * fall back on when the original is refused.
+ */
+export function pinimgStandIn(url: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return "";
+  }
+  if (!PINIMG_HOST.test(parsed.hostname) || !parsed.pathname.startsWith("/originals/")) return "";
+  if (!SEE_THROUGH.has(extensionOf(parsed.pathname))) return "";
+  parsed.pathname = parsed.pathname.replace(PINIMG_SIZE, "/1200x/").replace(/\.[a-z0-9]+$/i, ".jpg");
   return parsed.toString();
 }
 
@@ -149,13 +192,14 @@ function httpsUrl(value: unknown): string {
 }
 
 /**
- * The biggest rendition in one of Pinterest's `images` maps, at 1200 wide.
+ * The picture in one of Pinterest's `images` maps, as a clipping keeps it.
  *
  * The maps are keyed by size and name different sizes in different places —
  * a pin has `orig`, an idea pin's page has `originals`, a carousel's slot has
- * neither — so the widest entry is taken rather than any key by name. Which
- * one hardly matters, since its size segment is rewritten anyway; the widest
- * is simply the one least likely to be a crop.
+ * neither. The original is taken when there is one, whatever its key,
+ * because only its extension says what was uploaded: the sized entries are
+ * all .jpg, and a PNG read off one of them would lose its transparency.
+ * Otherwise the widest entry, the one least likely to be a crop.
  */
 function bestImage(images: unknown): string {
   const map = asObject(images);
@@ -166,13 +210,14 @@ function bestImage(images: unknown): string {
     const item = asObject(entry);
     const url = httpsUrl(item?.url);
     if (!url) continue;
+    if (/\/originals\//.test(url)) return pinimgForClipping(url);
     const w = typeof item?.width === "number" ? item.width : 0;
     if (w > width) {
       best = url;
       width = w;
     }
   }
-  return best ? pinimgAtSize(best) : "";
+  return best ? pinimgForClipping(best) : "";
 }
 
 /**
@@ -279,12 +324,12 @@ function personName(value: unknown): string {
  * A pin, out of its resource's answer.
  *
  * - An idea pin with more than one page, or a carousel with more than one
- *   slot, becomes every page in order, each at 1200 wide; a video page is
- *   its mp4.
+ *   slot, becomes every page in order, each picture as pinimgForClipping
+ *   keeps it; a video page is its mp4.
  * - A video pin is its poster, with the mp4 handed over as `sourceVideoUrl`
  *   for the archiver to fetch into the slot yt-dlp would fill. The note then
  *   has the shape a reel's has, video first.
- * - Anything else is its picture at 1200 wide.
+ * - Anything else is its picture, as pinimgForClipping keeps it.
  *
  * Returns null for any answer it does not recognise, including a refusal,
  * so the caller can go back to the page.
@@ -355,7 +400,7 @@ export function parsePinPage(html: string, id: string): ResolvedLink {
   const media: ResolvedMedia[] = [];
   const seen = new Set<string>();
   for (const item of page.media) {
-    const sized = item.kind === "image" ? pinimgAtSize(item.url) : item.url;
+    const sized = item.kind === "image" ? pinimgForClipping(item.url) : item.url;
     if (seen.has(sized)) continue;
     seen.add(sized);
     media.push({ url: sized, kind: item.kind });

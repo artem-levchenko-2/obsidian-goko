@@ -236,6 +236,30 @@ async function decodeBitmap(blob: Blob): Promise<ImageBitmap | null> {
 }
 
 /**
+ * The picture's RGBA bytes at no more than `maxWidth` wide, or null when
+ * this webview cannot decode it. Drawn onto an empty canvas, so what the
+ * picture leaves see-through stays see-through in the bytes.
+ */
+export async function readPixels(
+  blob: Blob,
+  maxWidth: number
+): Promise<{ data: Uint8ClampedArray; width: number; height: number } | null> {
+  const decoded = await decode(blob);
+  if (!decoded) return null;
+  try {
+    const canvas = draw(decoded.source, scaledSize(decoded.width, decoded.height, maxWidth));
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return null;
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+    return { data, width: canvas.width, height: canvas.height };
+  } catch {
+    return null;
+  } finally {
+    decoded.release();
+  }
+}
+
+/**
  * A preview made by the webview, for a format the wall cannot paint as it
  * stands but this webview can decode: HEIC on an iPhone.
  *

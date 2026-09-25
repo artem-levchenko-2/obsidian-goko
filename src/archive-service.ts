@@ -47,6 +47,8 @@ import { renderPdfCover } from "./pdf-cover";
 import { ClippingIndex } from "./index-store";
 import { hashUrl } from "./core/hash";
 import { dedupeMedia, normalizeUrl, sourceVideoKeyFor } from "./core/normalize";
+import { pinimgStandIn } from "./core/pinterest";
+import { isOpaque } from "./core/alpha";
 import { isThreadsUrl, supportsSourceDownload } from "./core/resolve";
 import { youtubeDurationCap } from "./core/youtube";
 import { sniffVideoUrl } from "./sniff";
@@ -156,6 +158,8 @@ export class ArchiveService {
       },
       folder: normalizePath(this.settings().attachmentFolder),
       maxBytes: this.settings().maxBytes,
+      standIn: pinimgStandIn,
+      opaque: isOpaque,
     };
   }
 

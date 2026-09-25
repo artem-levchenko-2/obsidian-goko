@@ -20,6 +20,15 @@ export interface ArchiveDeps {
   write: (path: string, data: ArrayBuffer) => Promise<void>;
   folder: string;
   maxBytes: number;
+  /**
+   * A lighter copy of the same picture, or "": the JPEG a CDN renders of an
+   * original that is kept only because it might be see-through. Tried when
+   * the original is refused, and taken in its place when `opaque` says the
+   * original did not need keeping.
+   */
+  standIn?: (url: string) => string;
+  /** Whether a downloaded picture has no see-through pixels at all. */
+  opaque?: (data: ArrayBuffer) => Promise<boolean>;
 }
 
 export interface ArchiveOutcome {
@@ -251,7 +260,9 @@ export async function archiveOne(
   deps: ArchiveDeps
 ): Promise<ArchiveOutcome> {
   const base: ArchiveOutcome = { key: media.key, kind: media.kind };
+  const standIn = media.kind === "image" ? (deps.standIn?.(media.url) ?? "") : "";
   const candidates = [media.url, ...(media.fallbacks ?? [])];
+  if (standIn && !candidates.includes(standIn)) candidates.push(standIn);
 
   const pathFor = (url: string): string =>
     `${deps.folder}/${archiveFilename({ ...media, url })}`;
@@ -263,11 +274,23 @@ export async function archiveOne(
 
   let lastFailure = "no source url";
 
-  for (const url of candidates) {
-    const result = await attempt(url, referer, deps);
+  for (const candidate of candidates) {
+    let url = candidate;
+    let result = await attempt(url, referer, deps);
     if (typeof result === "string") {
       lastFailure = result;
       continue;
+    }
+
+    // An original kept for its transparency that turns out to have none is
+    // the stand-in's picture at many times the size. The stand-in is saved
+    // instead, and the original stays if the stand-in will not come.
+    if (url === media.url && standIn && deps.opaque && (await deps.opaque(result.arrayBuffer))) {
+      const lighter = await attempt(standIn, referer, deps);
+      if (typeof lighter !== "string") {
+        url = standIn;
+        result = lighter;
+      }
     }
 
     const path = pathFor(url);
