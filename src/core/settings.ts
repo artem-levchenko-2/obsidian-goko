@@ -5,7 +5,7 @@ import type { GridSpace, SharedClipTarget } from "./spaces";
 import { INSPECTOR_DEFAULT } from "./inspector";
 import { SIDEBAR_DEFAULT } from "./sidebar";
 import type { Effort, VisionProvider } from "./vision";
-import { DEFAULT_EFFORT, DEFAULT_MODELS } from "./vision";
+import { DEFAULT_CONCURRENCY, DEFAULT_EFFORT, DEFAULT_MODELS } from "./vision";
 import type { ArrivalMode } from "./arrivals";
 import { DEFAULT_ARRIVAL_MODE } from "./arrivals";
 
@@ -103,6 +103,12 @@ export interface GokoSettings {
    */
   aiCliPath: string;
   aiEffort: Effort;
+  /**
+   * How many clippings are described at the same time, 1 to 10. Each is its
+   * own request, or its own Claude Code run. A device's own: it is about how
+   * much this machine and this subscription can take at once.
+   */
+  aiConcurrency: number;
 
   /**
    * Let the plugin write `tags`, which the Web Clipper owns by convention.
@@ -235,6 +241,7 @@ export const DEFAULT_SETTINGS: GokoSettings = {
   aiArrivals: DEFAULT_ARRIVAL_MODE,
   aiCliPath: "",
   aiEffort: DEFAULT_EFFORT,
+  aiConcurrency: DEFAULT_CONCURRENCY,
   allowEditingTags: false,
   grids: [],
   folders: [],

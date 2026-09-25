@@ -344,6 +344,22 @@ export class GokoView extends ItemView {
 
     this.progress = new ProgressBar(this.contentEl);
     this.plugin.capture.onProgress = (state) => this.progress?.set(state);
+    // A long describe is the job most in need of a count and a way out: at
+    // several at once, a thousand clippings still take a while, and each one
+    // is a Claude Code run or a request that is paid for.
+    this.plugin.vision.onProgress = (done, total, running) => {
+      if (total === 0) {
+        this.progress?.set(null);
+        return;
+      }
+      this.progress?.set({
+        fraction: null,
+        label: running > 1 ? `Describing, ${running} at once\u2026` : "Describing\u2026",
+        done,
+        total,
+        onStop: () => this.plugin.vision.stop(),
+      });
+    };
     this.plugin.capture.onFinished = (label, path) => {
       this.progress?.finish(`Clipped ${label}`);
       // Armed, not flown: the tile does not exist until the index change
@@ -1309,6 +1325,7 @@ export class GokoView extends ItemView {
     this.playback = null;
     this.plugin.capture.onProgress = null;
     this.plugin.capture.onFinished = null;
+    this.plugin.vision.onProgress = null;
     this.progress?.destroy();
     this.progress = null;
     this.actionBar?.destroy();

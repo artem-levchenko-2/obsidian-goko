@@ -288,6 +288,11 @@ It is off by default and does nothing until you turn it on. Then Goko can look
 at a clipping and write a summary and categories into its frontmatter, as
 ordinary properties you can edit or delete.
 
+Select a pile of cards and describe them in one go. Goko works through them
+several at a time, up to ten as **Descriptions at once** allows, shows the
+count at the top of the wall with a Stop button, and stops by itself when the
+provider says its limit is reached.
+
 <details>
 <summary>Three ways to run it</summary>
 

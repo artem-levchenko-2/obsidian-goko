@@ -1,7 +1,7 @@
 import { AbstractInputSuggest, App, Notice, Platform, PluginSettingTab, SecretComponent, Setting, setIcon } from "obsidian";
 import type { ButtonComponent, IconName, SettingDefinition, SettingDefinitionItem } from "obsidian";
 import { parseRules } from "./core/rules";
-import { CLI_MODELS, DEFAULT_MODELS } from "./core/vision";
+import { CLI_MODELS, DEFAULT_MODELS, MAX_CONCURRENCY, clampConcurrency } from "./core/vision";
 import type { Effort, VisionProvider } from "./core/vision";
 import { slotCandidates, surveyProperties } from "./core/facet-catalog";
 import { facetLabel } from "./core/filter";
@@ -709,6 +709,17 @@ export class GokoSettingTab extends PluginSettingTab {
       control: { type: "dropdown", key: "aiEffort", options: EFFORT_LABELS },
     };
 
+    const concurrency: SettingDefinition = {
+      ...words(COPY.concurrency),
+      control: {
+        type: "dropdown",
+        key: "aiConcurrency",
+        options: Object.fromEntries(
+          Array.from({ length: MAX_CONCURRENCY }, (_, i) => [String(i + 1), String(i + 1)])
+        ),
+      },
+    };
+
     const cliPath: SettingDefinition = {
       ...words(COPY.cliPath),
       visible: cli,
@@ -733,11 +744,12 @@ export class GokoSettingTab extends PluginSettingTab {
       control: { type: "dropdown", key: "aiArrivals", options: ARRIVAL_LABELS },
     };
 
-    return [provider, apiKey, modelName, cliModel, cliModelId, effort, cliPath, tagProperty, auto, arrivals];
+    return [provider, apiKey, modelName, cliModel, cliModelId, effort, concurrency, cliPath, tagProperty, auto, arrivals];
   }
 
   getControlValue(key: string): unknown {
     if (key === "maxSizeMb") return Math.round(this.plugin.settings.maxBytes / 1048576);
+    if (key === "aiConcurrency") return String(clampConcurrency(this.plugin.settings.aiConcurrency));
     return (this.plugin.settings as unknown as Record<string, unknown>)[key];
   }
 
@@ -762,6 +774,10 @@ export class GokoSettingTab extends PluginSettingTab {
         const minutes = Number(value);
         if (!NUMBER_LIMITS.youtubeVideoMinutes.ok(minutes)) return;
         settings.youtubeVideoMinutes = minutes;
+        break;
+      }
+      case "aiConcurrency": {
+        settings.aiConcurrency = clampConcurrency(value);
         break;
       }
       case "thumbnailWidth": {

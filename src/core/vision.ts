@@ -457,6 +457,28 @@ export function describeCliFailure(run: CliRun, error: string | null): string {
   return run.code === null ? "Claude Code did not finish" : `Claude Code exited with code ${run.code}`;
 }
 
+/**
+ * Whether a failure says the provider will refuse the rest of the batch too:
+ * a subscription's window used up, or a rate limit. Read off the sentences
+ * describeFailure and describeCliFailure write, which are the only ones the
+ * queue sees.
+ */
+export function isLimitFailure(reason: string): boolean {
+  const said = reason.toLowerCase();
+  return said.includes("usage limit") || said.includes("rate limited");
+}
+
+/** How many clippings may be described at once. */
+export const MAX_CONCURRENCY = 10;
+export const DEFAULT_CONCURRENCY = 3;
+
+/** A count of workers the queue can run, whatever the setting says. */
+export function clampConcurrency(value: unknown): number {
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return DEFAULT_CONCURRENCY;
+  return Math.min(MAX_CONCURRENCY, Math.max(1, Math.round(n)));
+}
+
 export const DEFAULT_MODELS: Record<VisionProvider, string> = {
   openai: "gpt-4o-mini",
   anthropic: "claude-haiku-4-5-20251001",

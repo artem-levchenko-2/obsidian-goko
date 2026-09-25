@@ -301,6 +301,11 @@ export const COPY = copy({
     desc: "How hard Claude Code thinks about each clipping. Low is enough for most, and uses the least of your subscription.",
     aliases: ["thinking", "reasoning", "quality"],
   },
+  concurrency: {
+    name: "Descriptions at once",
+    desc: "How many clippings are described at the same time. More finishes a long batch sooner and uses up a subscription's window as fast.",
+    aliases: ["parallel", "batch", "concurrency", "workers", "queue"],
+  },
   cliPath: {
     name: "Path to claude",
     desc: "Where the claude program is. Leave empty to look in the usual places.",

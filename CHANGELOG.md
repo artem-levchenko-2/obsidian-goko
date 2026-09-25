@@ -5,6 +5,20 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Descriptions run several at a time, three by default and up to ten with
+  Descriptions at once under AI descriptions. Each worker takes the next
+  clipping as soon as it is free, so one slow picture no longer holds up a
+  batch.
+- A describe shows its count at the top of the wall with a Stop button. Stop
+  lets the running ones finish and drops the rest.
+- A batch stops by itself at the first answer saying the subscription's
+  window or the provider's rate limit is used up, and says how many were left,
+  instead of failing every remaining clipping in turn.
+
 ## [1.0.6] - 2026-09-26
 
 ### Fixed

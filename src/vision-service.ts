@@ -8,6 +8,7 @@ import type { ClippingRecord } from "./core/scan";
 import { splitFrontmatter } from "./core/scan";
 import type { GokoSettings } from "./core/settings";
 import { buildTiles } from "./core/tile";
+import { runPool } from "./core/pool";
 import {
   articleText,
   buildCliArgs,
@@ -17,8 +18,10 @@ import {
   describeCliFailure,
   describeFailure,
   extractText,
+  clampConcurrency,
   imageMime,
   isDescribed,
+  isLimitFailure,
   parseCliResult,
   parseResponse,
   pickImage,
@@ -34,10 +37,16 @@ import type { VisionImage, VisionSettings } from "./core/vision";
  * Everything that can be reasoned about without a network is in core/vision.ts.
  * This is the part that reads bytes off the disk, carries them to a provider
  * — over HTTP with a key, or to Claude Code on this machine — and hands the
- * answer to the one door that writes frontmatter. One request at a time,
- * always: a provider rate-limits, a sync client falls over under a hundred
- * file writes, and a queue that runs in order is a queue whose progress
- * means something.
+ * answer to the one door that writes frontmatter.
+ *
+ * A few at a time, as many as Descriptions at once says, from one queue: a
+ * worker that finishes takes the next clipping, so one slow picture holds up
+ * a worker rather than the batch. One at a time was the rule once, for fear
+ * of rate limits and of a sync client under a burst of writes, and it made a
+ * library of two thousand an afternoon's wait for a Claude Code run that
+ * spends most of its time starting. The limit is still answered: the first
+ * failure that says the window is used up or the rate is exceeded stops the
+ * queue, and what was left in it is said, rather than failed one by one.
  */
 
 /** The picture going with a request, once it is known to exist and be readable. */
@@ -61,9 +70,16 @@ export class VisionService {
   private queue: string[] = [];
   private queued = new Set<string>();
   private running = false;
+  /** Set when the provider has said no to the rest; see run. */
+  private halted = false;
 
-  /** Progress for the wall's bar, when it is open to show one. */
-  onProgress: ((done: number, total: number) => void) | null = null;
+  /** Progress for the wall's bar, when it is open to show one. Zero of zero
+      is the queue finished. */
+  onProgress: ((done: number, total: number, running: number) => void) | null = null;
+  /** Set when Stop was pressed, so the closing notice says so. */
+  private stopped = false;
+  /** How many describe right now, for the bar. */
+  private active = 0;
 
   constructor(
     private app: App,
@@ -144,6 +160,19 @@ export class VisionService {
     void this.run();
   }
 
+  /**
+   * The Stop on the wall's bar. Nothing new is started and what was waiting
+   * is let go; the ones already running finish and are written, since the
+   * work on them is done and paid for.
+   */
+  stop(): void {
+    if (!this.running) return;
+    this.stopped = true;
+    this.halted = true;
+    this.queue = [];
+    this.queued.clear();
+  }
+
   /** Everything on the wall without a summary yet. */
   describeUndescribed(): void {
     const paths = this.index.records().filter((r) => !isDescribed(r)).map((r) => r.path);
@@ -157,35 +186,57 @@ export class VisionService {
   private async run(): Promise<void> {
     if (this.running) return;
     this.running = true;
-    const total = this.queue.length;
+    this.halted = false;
+    this.stopped = false;
     let done = 0;
     let written = 0;
     let failed = 0;
     let lastFailure = "";
+    let limit = "";
 
-    try {
-      while (this.queue.length > 0) {
-        const path = this.queue.shift()!;
-        this.queued.delete(path);
-        const record = this.index.get(path);
-        if (record) {
-          const result = await this.describeOne(record);
-          if (result === true) written++;
-          else if (result) {
-            failed++;
-            lastFailure = result;
+    const next = (): string | undefined => {
+      const path = this.queue.shift();
+      if (path !== undefined) this.queued.delete(path);
+      return path;
+    };
+    const work = async (path: string): Promise<void> => {
+      const record = this.index.get(path);
+      if (record) {
+        this.active++;
+        this.onProgress?.(done, done + this.queue.length + this.active, this.active);
+        const result = await this.describeOne(record).finally(() => this.active--);
+        if (result === true) written++;
+        else if (result) {
+          failed++;
+          lastFailure = result;
+          // The rest would be refused the same way. Stop taking more; the
+          // ones already running finish, and are counted as they do.
+          if (isLimitFailure(result) && !limit) {
+            limit = result;
+            this.halted = true;
           }
         }
-        done++;
-        this.onProgress?.(done, Math.max(total, done + this.queue.length));
       }
+      done++;
+      this.onProgress?.(done, done + this.queue.length + this.active, this.active);
+    };
+
+    try {
+      await runPool(next, work, clampConcurrency(this.settings().aiConcurrency), () => this.halted);
     } finally {
       this.running = false;
-      this.onProgress?.(0, 0);
+      this.onProgress?.(0, 0, 0);
     }
 
     const notes = written === 1 ? "1 clipping" : `${written} clippings`;
-    if (failed === 0) new Notice(`Goko: described ${notes}`);
+    if (this.stopped) {
+      new Notice(`Goko: stopped after describing ${notes}`);
+    } else if (limit) {
+      const left = this.queue.length;
+      this.queue = [];
+      this.queued.clear();
+      new Notice(`Goko: described ${notes}, then stopped: ${limit}. ${left} not described yet — run it again once the limit resets.`);
+    } else if (failed === 0) new Notice(`Goko: described ${notes}`);
     else new Notice(`Goko: described ${notes}, ${failed} failed (${lastFailure})`);
   }
 
