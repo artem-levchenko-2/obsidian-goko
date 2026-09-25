@@ -5,6 +5,34 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-09-26
+
+### Added
+
+- Copy image, in a card's right-click menu and in full screen, where a right
+  click on the picture and `⌘C` do it too. The whole picture goes to the
+  clipboard as a PNG.
+- Select in full screen, a button on the bar and `Space`: walk through the
+  cards with the arrows, pick the ones you want, and they are still picked on
+  the wall when you close it.
+- Card details can open as a sheet. With Card details set to Sheet, in the
+  settings or the grid's settings menu, a click opens the card in a panel
+  that slides up over the wall, the picture beside its details, with a band
+  of the wall above it and a close in that band. Cmd-click and a drag still
+  pick without opening.
+- Deleting a grid or removing a folder asks with a box to tick: unticked, the
+  clippings go back to the inbox or the grid; ticked, they go to the trash
+  with it, along with the media nothing else uses.
+
+### Changed
+
+- A grid's or a folder's row in the rail has a menu at the pointer, like a
+  card's, rather than a panel in the middle of the window. The name is typed
+  over in the row, the icon is picked and the description written in a panel
+  beside it, the colour is a submenu. New grid and New folder name themselves
+  in the rail the same way. On a phone, where there is no rail, the sheets
+  stay.
+
 ## [1.0.7] - 2026-09-26
 
 ### Added

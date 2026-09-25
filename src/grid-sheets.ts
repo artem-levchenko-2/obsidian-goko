@@ -60,6 +60,9 @@ export interface GridsController {
   remove(index: number): Promise<void>;
   /** Makes a grid a folder on another; see demoteGrid in view.ts. */
   demote?(name: string, into: string): Promise<void>;
+  /** Asks about deleting a grid in the view's own dialog, which can take its
+      clippings with it. The sheet's question is the fallback. */
+  confirmRemove?(name: string): void;
 }
 
 /**
@@ -484,6 +487,11 @@ function confirmDelete(
   index: number,
   after: () => void
 ): void {
+  if (grids.confirmRemove) {
+    sheet.close();
+    grids.confirmRemove(grid.name);
+    return;
+  }
   const smart = isSmartGrid(grid);
   const members = smart ? 0 : grids.memberCount(grid.name);
   const home = grids.home().name;
@@ -503,17 +511,6 @@ function confirmDelete(
     destructive: true,
     onConfirm: () => void grids.remove(index).then(after),
   });
-}
-
-/** Deleting one directly, for a caller that already knows which. */
-export function openDeleteGrid(
-  sheet: Sheet,
-  grids: GridsController,
-  grid: GridSpace,
-  index: number,
-  after: () => void = () => undefined
-): void {
-  confirmDelete(sheet, grids, grid, index, after);
 }
 
 /** The whole set: pick a grid, then pick what to do with it. */
@@ -961,86 +958,3 @@ export function openFolderEditor(
   else sheet.open(screen);
 }
 
-/**
- * Removing a folder deletes its definition and nothing else: the members
- * keep a key that no longer resolves, which folders.ts reads as loose, so
- * they reappear on the wall. Said here, because it is what makes this safe
- * to confirm.
- */
-export function openRemoveFolder(
-  sheet: Sheet,
-  folders: FoldersController,
-  folder: FolderSpace,
-  after: () => void = () => undefined
-): void {
-  const members = folders.memberCount(folder.name);
-  confirm(sheet, {
-    title: `Remove ${folder.name}?`,
-    note:
-      members === 0
-        ? "The folder is empty. Nothing else changes."
-        : `${members} ${plural(members, "clipping returns", "clippings return")} to the wall. No notes are deleted.`,
-    cta: "Remove",
-    destructive: true,
-    onConfirm: () => void folders.remove(folder.name).then(after),
-  });
-}
-
-/**
- * Removing folders, which asks what should happen to what is inside them.
- *
- * Three rows rather than the usual two, because "remove" means two different
- * things here and the plugin should not pick one on the user's behalf: the
- * definition can go while the clippings return to the wall, or the notes can
- * go with it. An empty batch has nothing to ask, so the second row is not
- * offered and this reads as the plain confirmation it used to be.
- */
-export function openRemoveFolders(
-  sheet: Sheet,
-  folders: readonly FolderSpace[],
-  members: number,
-  handlers: { onRemove: () => void; onDelete: () => void }
-): void {
-  const n = folders.length;
-  const title = n === 1 ? `Remove ${folders[0].name}?` : `Remove ${n} folders?`;
-  const them = n === 1 ? "it" : "them";
-
-  const screen: SheetScreen = {
-    title,
-    note:
-      members === 0
-        ? `${n === 1 ? "The folder is" : "They are"} empty. Nothing else changes.`
-        : `${members} ${plural(members, "clipping is", "clippings are")} inside. They can come back onto the wall, or go to trash with ${them}.`,
-    filters: false,
-    active: 0,
-    hints: PICK_HINTS,
-    rows: () => {
-      const rows: SheetRow[] = [
-        { label: "Cancel", icon: "x", onChoose: () => sheet.close() },
-        {
-          label: n === 1 ? "Remove the folder" : `Remove ${n} folders`,
-          icon: "folder-minus",
-          onChoose: () => {
-            sheet.close();
-            handlers.onRemove();
-          },
-        },
-      ];
-      if (members > 0) {
-        rows.push({
-          label: `Remove and delete ${members} ${plural(members, "clipping", "clippings")}`,
-          icon: "trash-2",
-          destructive: true,
-          onChoose: () => {
-            sheet.close();
-            handlers.onDelete();
-          },
-        });
-      }
-      return rows;
-    },
-  };
-
-  if (sheet.isOpen) sheet.push(screen);
-  else sheet.open(screen);
-}

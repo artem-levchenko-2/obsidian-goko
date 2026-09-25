@@ -382,6 +382,13 @@ export class GridRenderer {
     model: TileModel,
     origin: { rect: { x: number; y: number; w: number; h: number }; at: { x: number; y: number } }
   ) => void = () => {};
+  /**
+   * Whether a plain click opens the card as well as selecting it. Asked on
+   * each click, so the setting that decides it takes effect without the wall
+   * being rebuilt. Off, the click only selects and the side panel says what
+   * was picked; on, the card opens in the sheet at once.
+   */
+  openOnClick: () => boolean = () => false;
 
   /**
    * The tile-size stage the layout follows; stageColumns turns it into
@@ -1728,6 +1735,20 @@ export class GridRenderer {
     return [...this.selection];
   }
 
+  isSelected(id: string): boolean {
+    return this.selection.has(id);
+  }
+
+  /**
+   * Adds a card to the selection or takes it out, as a cmd-click does. For
+   * the full screen's Select, which picks cards while walking through them
+   * and leaves them picked on the wall when it closes.
+   */
+  toggleSelected(id: string): void {
+    if (!this.byId.has(id)) return;
+    this.selectOnly(id, toggleSelection(this.baseFor("clippings"), id));
+  }
+
   /**
    * The selected clippings themselves, in the wall's own order.
    *
@@ -2922,7 +2943,14 @@ export class GridRenderer {
       // selected. It used to open the full screen, which is the right gesture
       // for looking at a picture and the wrong one for reading a title or
       // fixing a tag: it covered the wall and lost your place. The full
-      // screen is a button in that panel now.
+      // screen is a button in that panel now, unless the details are set to
+      // open as a sheet, where the click is the way in. It opens without
+      // picking the card: in the sheet, Select is how a card is picked, and a
+      // card already picked by the click would be unpicked by the first Space.
+      if (this.openOnClick()) {
+        this.openDetail(model, { x: 0.5, y: 0.5 });
+        return;
+      }
       this.selectOnly(model.id, new Set([model.id]));
     };
   }

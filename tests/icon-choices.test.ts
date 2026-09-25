@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GRID_ICONS, ICON_GROUPS, iconIndex, offeredIcons } from "../src/core/icon-choices";
+import { GRID_ICONS, ICON_GROUPS, iconIndex, iconsMatching, offeredIcons } from "../src/core/icon-choices";
 import { PLAIN_GRID_ICON } from "../src/core/shared-config";
 
 describe("ICON_GROUPS", () => {
@@ -39,5 +39,17 @@ describe("offeredIcons", () => {
   it("opens on the first icon when there is none", () => {
     expect(iconIndex("")).toBe(0);
     expect(offeredIcons("")).toHaveLength(GRID_ICONS.length);
+  });
+});
+
+describe("iconsMatching", () => {
+  it("finds icons by part of their name, words joined the way names are", () => {
+    expect(iconsMatching("ham")).toEqual(["hammer"]);
+    expect(iconsMatching("paint bucket")).toEqual(["paint-bucket"]);
+  });
+
+  it("is every icon for nothing typed, and none for nonsense", () => {
+    expect(iconsMatching("  ")).toHaveLength(GRID_ICONS.length);
+    expect(iconsMatching("zzzz")).toEqual([]);
   });
 });

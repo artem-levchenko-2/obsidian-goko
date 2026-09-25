@@ -9,6 +9,9 @@ import { DEFAULT_CONCURRENCY, DEFAULT_EFFORT, DEFAULT_MODELS } from "./vision";
 import type { ArrivalMode } from "./arrivals";
 import { DEFAULT_ARRIVAL_MODE } from "./arrivals";
 
+/** Where a picked card's details are shown; see GokoSettings.detailStyle. */
+export type DetailStyle = "panel" | "sheet";
+
 export interface GokoSettings {
   clippingsFolder: string;
   attachmentFolder: string;
@@ -177,6 +180,12 @@ export interface GokoSettings {
    */
   inspectorWidth: number;
   inspectorHidden: boolean;
+  /**
+   * How a picked card is shown on a desktop: described in the panel down the
+   * right, opened full screen from its Open, or opened at once by the click
+   * in a sheet that slides up over the wall. A device's own, like the panel.
+   */
+  detailStyle: DetailStyle;
   /** Whether the inbox is laid out in islands by suggested destination. */
   inboxGrouped: boolean;
 
@@ -256,6 +265,7 @@ export const DEFAULT_SETTINGS: GokoSettings = {
   sidebarHidden: false,
   inspectorWidth: INSPECTOR_DEFAULT,
   inspectorHidden: false,
+  detailStyle: "panel",
   inboxGrouped: false,
   gridLookScope: "all",
   gridTileSizes: {},

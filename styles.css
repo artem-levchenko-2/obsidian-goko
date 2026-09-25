@@ -1914,6 +1914,15 @@ body.pg-resizing {
   pointer-events: none;
 }
 
+/* The box that takes a grid's clippings with it. */
+.pg-confirm-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 12px;
+  cursor: pointer;
+}
+
 .pg-confirm-list {
   margin: 0 0 8px;
   padding-left: 20px;
@@ -2433,6 +2442,58 @@ body.pg-resizing {
   position: absolute;
   inset: 0;
   z-index: 50;
+}
+
+/* The sheet a card opens in when details are set to open as one. The panel
+   stops short of the top so a band of the wall stays in sight above it, dimmed,
+   with the close in that band; the detail view draws inside the panel as it
+   draws over the wall, its ground the panel's own. */
+.goko-view .pg-sheet {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: none;
+}
+
+.goko-view .pg-sheet.is-open {
+  display: block;
+}
+
+.goko-view .pg-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.goko-view .pg-sheet-panel {
+  position: absolute;
+  top: 56px;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  overflow: hidden;
+  border-radius: 16px 16px 0 0;
+  background: var(--background-primary);
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.35);
+}
+
+.goko-view button.pg-sheet-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.goko-view button.pg-sheet-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
 }
 
 .pg-detail-backdrop {
@@ -5537,4 +5598,90 @@ body.is-mobile .pg-actionbar button.pg-bar-button {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 12px;
+}
+
+/* A colour row in a menu: the circle filled in its own colour. */
+.pg-menu-icon.is-swatch svg {
+  fill: currentColor;
+}
+
+/* A name typed over in place in the rail, as a file is renamed in the
+   explorer: the field takes the name's own room in the row. */
+.pg-sidebar input.pg-sidebar-rename {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  font-size: inherit;
+}
+
+/* The panel beside a rail row, for an icon or a line of text. */
+.pg-popover {
+  position: fixed;
+  z-index: var(--layer-menu);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--background-secondary);
+  box-shadow: var(--shadow-l);
+  border: 1px solid var(--background-modifier-border);
+}
+
+/* Six to a row, so each group of twelve is two full rows. */
+.pg-icon-popover {
+  width: 252px;
+}
+
+.pg-text-popover {
+  width: 300px;
+}
+
+.pg-popover input {
+  width: 100%;
+}
+
+.pg-popover-icons {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+  max-height: 320px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.pg-popover-caption {
+  grid-column: 1 / -1;
+  padding: 6px 2px 2px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+.pg-popover button.pg-popover-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 34px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.pg-popover button.pg-popover-icon:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.pg-popover button.pg-popover-icon.is-on {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.pg-popover-empty {
+  grid-column: 1 / -1;
+  padding: 12px 4px;
+  color: var(--text-faint);
+  text-align: center;
 }

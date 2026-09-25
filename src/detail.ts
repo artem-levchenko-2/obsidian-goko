@@ -66,6 +66,18 @@ export interface DetailActions {
   onMakeCover: (id: string, media: string) => void;
   /** Whether a menu is up, so the overlay can leave the keyboard to it. */
   isMenuOpen: () => boolean;
+  /** Whether the clipping is in the wall's selection. */
+  isSelected: (id: string) => boolean;
+  /**
+   * Puts the clipping in the wall's selection or takes it out, so cards can
+   * be picked while walking through them here and are still picked on the
+   * wall when this closes.
+   */
+  onToggleSelect: (id: string) => void;
+  /** Copies the picture on the stage, whole, to the clipboard. */
+  onCopyImage: (model: TileModel) => void;
+  /** A right click on the picture, for the menu of what can be done to it. */
+  onMediaMenu: (model: TileModel, x: number, y: number) => void;
 }
 
 export interface DetailOrigin {
@@ -249,6 +261,28 @@ export class DetailView {
     return this.root !== null;
   }
 
+  /** Whether this opens as a sheet rather than over the whole wall. */
+  private sheet = false;
+
+  /**
+   * Where the next open draws, and how: over the whole wall, the card flying
+   * up out of it, or inside a sheet the view slides up from the bottom, with
+   * the wall showing in a band above it. The layout is worked out against
+   * whichever element this is, so the picture and its details sit the same
+   * way in both. Ignored while open.
+   */
+  present(container: HTMLElement, sheet: boolean): void {
+    if (this.root) return;
+    this.container = container;
+    this.sheet = sheet;
+  }
+
+  /**
+   * In a sheet, how the view takes the sheet down before the contents go,
+   * so it slides away full rather than empty. Called with the teardown.
+   */
+  beforeClose: ((done: () => void) => void) | null = null;
+
   /** Which clipping the stage is showing, for the wall to hand back a fresh copy of. */
   get currentId(): string | null {
     return this.current?.id ?? null;
@@ -330,20 +364,32 @@ export class DetailView {
     });
 
     this.root = this.container.createDiv({ cls: "pg-detail" });
+    this.root.toggleClass("is-sheet", this.sheet);
     const backdrop = this.root.createDiv({ cls: "pg-detail-backdrop" });
-    backdrop.onclick = () => this.close();
+    // In a sheet this is the sheet's own ground, where a click is a click
+    // inside it; the band of wall above the sheet is what closes it.
+    backdrop.onclick = () => {
+      if (!this.sheet) this.close();
+    };
     this.backdrop = backdrop;
 
     // One of the wall's own chrome buttons, not a member of the detail view's
     // action bar. Back is the one control that still stands alone — the rest
     // of the wall's chrome moved into the dock — so it keeps the rules that
-    // set had rather than imitating the dock.
-    const back = this.root.createEl("button", { cls: "pg-detail-back" });
-    setIcon(back, "arrow-left");
-    attachTip(back, "Back", "\u238b");
-    back.onclick = () => this.close();
+    // set had rather than imitating the dock. A sheet has its close above it.
+    if (!this.sheet) {
+      const back = this.root.createEl("button", { cls: "pg-detail-back" });
+      setIcon(back, "arrow-left");
+      attachTip(back, "Back", "\u238b");
+      back.onclick = () => this.close();
+    }
 
     this.stage = this.root.createDiv({ cls: "pg-detail-stage" });
+    this.stage.addEventListener("contextmenu", (event: MouseEvent) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (this.current) this.actions.onMediaMenu(this.current, event.clientX, event.clientY);
+    });
     this.layer = this.stage.createDiv({ cls: "pg-detail-zoom" });
     this.view = { ...FIT };
     this.dragging = false;
@@ -367,13 +413,16 @@ export class DetailView {
     const target = layout.stage;
     this.place(layout, bounds);
 
-    this.paintAll(model, layout, true);
+    this.paintAll(model, layout, !this.sheet);
 
     this.onStageReady?.();
     this.zoomedNow = false;
     this.applyView();
     this.installGestures();
-    this.fly(target, this.origin);
+    // A sheet arrives whole, slid up by the view; the card does not fly into
+    // a panel that is itself moving.
+    if (this.sheet) this.root.addClass("is-open");
+    else this.fly(target, this.origin);
 
     this.onKey = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
@@ -876,6 +925,24 @@ export class DetailView {
 
     const mod = (event: KeyboardEvent): boolean => event.metaKey || event.ctrlKey;
 
+    // First, because it is what a walk through the wall with the arrows is
+    // for when it is for picking: Space, and the next card. The cards stay
+    // picked on the wall behind, for the selection bar to act on.
+    const picked = (): boolean => this.actions.isSelected(model.id);
+    const select = add(
+      "check-circle",
+      "Select",
+      "Space",
+      (event) => event.key === " " && !mod(event) && !event.shiftKey,
+      () => {
+        this.actions.onToggleSelect(model.id);
+        select.toggleClass("is-on", picked());
+      }
+    );
+    select.toggleClass("is-on", picked());
+
+    rule();
+
     add(
       "file-text",
       "Open note",
@@ -898,6 +965,17 @@ export class DetailView {
         "B",
         (event) => !mod(event) && !event.shiftKey && keyIs(event, "b"),
         () => window.open(model.record.source)
+      );
+    }
+    if (model.kind === "image") {
+      add(
+        "clipboard-copy",
+        "Copy image",
+        "\u2318C",
+        // Not while text in the details is selected: then ⌘C is copying that.
+        (event) =>
+          mod(event) && !event.shiftKey && keyIs(event, "c") && !this.container.win.getSelection()?.toString(),
+        () => this.actions.onCopyImage(model)
       );
     }
     // Both reach for the filesystem, which mobile does not have. Gated the way
@@ -1320,6 +1398,13 @@ export class DetailView {
 
     if (this.onKey) this.container.doc.removeEventListener("keydown", this.onKey, true);
     this.onKey = null;
+
+    if (this.sheet && !immediate) {
+      const done = (): void => this.teardown();
+      if (this.beforeClose) this.beforeClose(done);
+      else done();
+      return;
+    }
 
     if (immediate || !this.stage || !this.origin) {
       this.teardown();

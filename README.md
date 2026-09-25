@@ -173,7 +173,16 @@ note, all editable in place.
 
 Hover a card for its name and tags, or sweep across one with several pictures
 to flip through them. Video plays in the panel with a timeline, and any frame
-can become the card's cover.
+can become the card's cover. Right-click a card, or the picture in full
+screen, to copy the image itself.
+
+Prefer the picture large? Set **Card details** to **Sheet**, and a click opens
+the card in a sheet that slides up over the wall, the picture beside its
+details, with a band of the wall still in sight above it.
+
+Walking through cards full screen with the arrows, press `Space` or **Select**
+on any you want. They are still picked on the wall when you close it, for the
+selection bar to act on.
 
 Select several cards with a drag, or with a long press on a phone, and a bar
 rises beside the dock to retag, move, describe or delete them all at once.
@@ -197,6 +206,8 @@ bottom.
 | `⌘Z` `⌘⇧Z` | Undo and redo a move, an edit, a grid change |
 | `⌘1` to `⌘9` | Switch grids in their stored order |
 | `←` `→` `↑` `↓` | Move between tiles |
+| `Space` | In full screen, pick the card or put it back |
+| `⌘C` | In full screen, copy the picture |
 | `Esc` | Close whatever is open |
 
 Use Ctrl in place of ⌘ on Windows and Linux. These work over the wall and
@@ -218,6 +229,9 @@ board made on a desktop is on your phone after a sync.
 
 A rail down the left lists them with their folders and their counts. Drag
 cards onto a row to file them, and drag the rows themselves to reorder them.
+Right-click a row for everything else: rename it in place, pick its icon or
+write its description in a panel beside it, give it a colour, or delete it,
+with a box to take its clippings too.
 Folders are piles inside a grid. Gather some tiles into one card to make a
 folder, a collage of what is inside, and drag its corner to set it to one, two
 or three columns wide.

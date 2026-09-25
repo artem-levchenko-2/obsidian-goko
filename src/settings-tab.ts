@@ -14,6 +14,7 @@ import {
   PROPERTY_LIST_EMPTY,
   RULES_PLACEHOLDER,
   SCOPE_LABELS,
+  DETAIL_STYLE_LABELS,
   toolStatus,
 } from "./core/settings-copy";
 import type { DesktopOs, SettingCopy, VideoTool } from "./core/settings-copy";
@@ -433,6 +434,12 @@ export class GokoSettingTab extends PluginSettingTab {
           {
             ...words(COPY.autoplayVideo),
             control: { type: "toggle", key: "autoplayVideo" },
+          },
+          {
+            ...words(COPY.detailStyle),
+            // A phone's panel is a sheet along the bottom already.
+            visible: () => !Platform.isMobile,
+            control: { type: "dropdown", key: "detailStyle", options: DETAIL_STYLE_LABELS },
           },
           {
             ...words(COPY.tileTitle),

@@ -270,3 +270,15 @@ export function planFolderMove(
 
   return { moved, blocked };
 }
+
+/**
+ * A name for a folder made before it is named, "New folder" or the first
+ * of "New folder 2", "New folder 3" free on this grid, compared as the disk
+ * compares, without case.
+ */
+export function newFolderName(taken: readonly string[]): string {
+  const used = new Set(taken.map((name) => name.trim().toLowerCase()));
+  let name = "New folder";
+  for (let n = 2; used.has(name.toLowerCase()); n++) name = `New folder ${n}`;
+  return name;
+}

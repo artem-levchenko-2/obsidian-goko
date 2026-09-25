@@ -15,6 +15,8 @@ export interface MenuItem {
    */
   detailIcon?: string;
   destructive?: boolean;
+  /** A colour for the icon, filled: the row is a swatch, as in a colour list. */
+  tint?: string;
   /** Draws a rule above this row, for grouping without a heading. */
   divider?: boolean;
   /** Dimmed and inert: shown so the set reads whole, but not selectable. */
@@ -293,6 +295,10 @@ export class ContextMenu {
       // needs the gutter, or the labels jump sideways as things are selected.
       // A panel where no row has one drops it instead, see below.
       if (item.icon) setIcon(icon, item.icon);
+      if (item.tint) {
+        icon.addClass("is-swatch");
+        icon.style.color = item.tint;
+      }
       row.createDiv({
         cls: "pg-menu-label",
         text: item.labelFor?.(this.query) ?? item.label,

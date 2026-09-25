@@ -37,10 +37,16 @@ export interface SidebarHandlers {
   onPick: (grid: string, folder?: string) => void;
   /** Show every clipping in the vault, filed or not. */
   onPickAll: () => void;
-  /** The grid's own menu — rename, colour, description, order, delete. */
-  onManage: (grid: string) => void;
-  /** Make a grid, from the row at the end of the list. */
-  onNewGrid: () => void;
+  /** The grid's own menu, at the pointer: rename, icon, colour, delete. */
+  onGridMenu: (grid: string, x: number, y: number) => void;
+  /** A folder's own menu, at the pointer. */
+  onFolderMenu: (grid: string, folder: string, x: number, y: number) => void;
+  /**
+   * Make a grid named what was typed into the row at the end of the list.
+   * Answers whether it was made, so a name that is refused stays in the
+   * field to be fixed rather than vanishing.
+   */
+  onCreateGrid: (name: string) => Promise<boolean>;
   /** Clippings dropped onto a row. */
   onDrop: (ids: string[], grid: string, folder?: string) => void;
   /** A row dropped on another row: reordered, moved, or turned into the other kind. */
@@ -71,6 +77,15 @@ export class Sidebar {
    * to know before then whether it may take it.
    */
   private moving: RailItem | null = null;
+  /**
+   * The row whose name is being typed over, if one is, and what has been
+   * typed so far. Kept here because the rail is rebuilt on every wall
+   * refresh, and a field that lived only in the DOM would be thrown away
+   * mid-word by a card landing.
+   */
+  private renaming: { grid: string; folder: string | null; value: string; commit: (name: string) => Promise<boolean> } | null = null;
+  /** The name typed into the New grid row, while it is a field. */
+  private creating: { value: string } | null = null;
 
   constructor(
     private container: HTMLElement,
@@ -125,6 +140,70 @@ export class Sidebar {
     this.apply();
   }
 
+  /**
+   * Turns a row's name into a field, in place, the way a file is renamed in
+   * the explorer. Enter or leaving the field commits, Escape puts the name
+   * back. `commit` answers whether the name was taken, so one that was
+   * refused stays in the field to be fixed. False when the row is not on
+   * screen, for the caller to fall back on.
+   */
+  rename(grid: string, folder: string | null, commit: (name: string) => Promise<boolean>): boolean {
+    if (!this.shown) return false;
+    if (folder) this.folded.delete(grid);
+    this.renaming = { grid, folder, value: folder ?? grid, commit };
+    this.render();
+    return this.list.querySelector(".pg-sidebar-rename") !== null;
+  }
+
+  /** Where a row is on screen, for a panel opened beside it. */
+  rowRect(grid: string, folder: string | null = null): DOMRect | null {
+    if (!this.shown) return null;
+    const rows = this.list.querySelectorAll<HTMLElement>(".pg-sidebar-row");
+    for (const row of Array.from(rows)) {
+      if (row.dataset.grid === grid && (row.dataset.folder ?? null) === folder) return row.getBoundingClientRect();
+    }
+    return null;
+  }
+
+  /** A name field in place of a row's name; see rename. */
+  private nameField(host: HTMLElement): void {
+    const state = this.renaming;
+    if (!state) return;
+    const input = host.createEl("input", { cls: "pg-sidebar-rename", type: "text" });
+    input.value = state.value;
+    let settled = false;
+    const finish = async (keep: boolean): Promise<void> => {
+      if (settled) return;
+      settled = true;
+      const name = input.value.trim();
+      if (keep && name && name !== (state.folder ?? state.grid)) {
+        if (!(await state.commit(name))) {
+          // Refused, with the reason already said: back into the field.
+          settled = false;
+          input.focus();
+          return;
+        }
+      }
+      this.renaming = null;
+      this.render();
+    };
+    input.oninput = () => {
+      state.value = input.value;
+    };
+    input.onkeydown = (event: KeyboardEvent) => {
+      event.stopPropagation();
+      if (event.key === "Enter") void finish(true);
+      else if (event.key === "Escape") void finish(false);
+    };
+    input.onblur = () => void finish(true);
+    // A click in the field is the field's, not the row's.
+    input.onclick = (event) => event.stopPropagation();
+    window.setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+  }
+
   private apply(): void {
     const paneWidth = this.container.getBoundingClientRect().width;
     // A phone has no room and no pointer for this; the grid menu does the work.
@@ -164,14 +243,7 @@ export class Sidebar {
     if (model.grids.length > 0) this.caption("Grids");
     for (const grid of model.grids) this.row(grid, {});
 
-    const add = this.list.createEl("button", { cls: "pg-sidebar-add" });
-    const glyph = add.createSpan({ cls: "pg-sidebar-glyph" });
-    setIcon(glyph, "plus");
-    add.createSpan({ cls: "pg-sidebar-name", text: "New grid" });
-    add.onclick = (event) => {
-      event.stopPropagation();
-      this.handlers.onNewGrid();
-    };
+    this.addRow();
 
     // Views last: they are rules rather than places, and a rule is a thing
     // you consult rather than a thing you file into.
@@ -179,6 +251,55 @@ export class Sidebar {
       this.caption("Views");
       for (const view of model.views) this.row(view, {});
     }
+  }
+
+  /**
+   * The row that makes a grid. A click turns it into a field for the name,
+   * where the grid is made on Enter: in place, in the list it will join,
+   * rather than in a panel in the middle of the window. Its icon and colour
+   * are the row's own menu afterwards.
+   */
+  private addRow(): void {
+    const add = this.list.createEl("button", { cls: "pg-sidebar-add" });
+    const glyph = add.createSpan({ cls: "pg-sidebar-glyph" });
+    setIcon(glyph, "plus");
+    if (!this.creating) {
+      add.createSpan({ cls: "pg-sidebar-name", text: "New grid" });
+      add.onclick = (event) => {
+        event.stopPropagation();
+        this.creating = { value: "" };
+        this.render();
+      };
+      return;
+    }
+
+    const state = this.creating;
+    const input = add.createEl("input", { cls: "pg-sidebar-rename", type: "text", placeholder: "Grid name" });
+    input.value = state.value;
+    let settled = false;
+    const finish = async (keep: boolean): Promise<void> => {
+      if (settled) return;
+      settled = true;
+      const name = input.value.trim();
+      if (keep && name && !(await this.handlers.onCreateGrid(name))) {
+        settled = false;
+        input.focus();
+        return;
+      }
+      this.creating = null;
+      this.render();
+    };
+    input.oninput = () => {
+      state.value = input.value;
+    };
+    input.onkeydown = (event: KeyboardEvent) => {
+      event.stopPropagation();
+      if (event.key === "Enter") void finish(true);
+      else if (event.key === "Escape") void finish(false);
+    };
+    input.onblur = () => void finish(Boolean(input.value.trim()));
+    input.onclick = (event) => event.stopPropagation();
+    window.setTimeout(() => input.focus(), 0);
   }
 
   /** Every clipping in the vault. Not a grid: nothing is filed into it. */
@@ -202,6 +323,7 @@ export class Sidebar {
   private row(entry: SidebarGrid, options: { home?: boolean }): void {
     const name = entry.grid.name;
     const row = this.list.createEl("button", { cls: "pg-sidebar-row" });
+    row.dataset.grid = name;
     if (name === this.active && !this.activeFolder && !this.showingAll) row.addClass("is-on");
     if (entry.smart) row.addClass("is-smart");
     if (options.home) row.addClass("is-system");
@@ -215,7 +337,8 @@ export class Sidebar {
     const color = options.home ? HOME_TINT : gridTint(entry.grid);
     glyph.style.color = color;
 
-    row.createSpan({ cls: "pg-sidebar-name", text: name });
+    if (this.renaming && this.renaming.grid === name && this.renaming.folder === null) this.nameField(row);
+    else row.createSpan({ cls: "pg-sidebar-name", text: name });
     row.createSpan({ cls: "pg-sidebar-count", text: entry.count > 0 ? String(entry.count) : "" });
     // What the grid is for, under the pointer: the one place it is shown
     // outside the grid's own sheet, now that the wall carries no band for it.
@@ -246,15 +369,13 @@ export class Sidebar {
       event.stopPropagation();
       this.handlers.onPick(name);
     };
-    // Home is the fallback rather than an entry in the registry: there is
-    // nothing about it to rename, reorder or delete.
-    if (!options.home) {
-      row.oncontextmenu = (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        this.handlers.onManage(name);
-      };
-    }
+    // A menu at the pointer, as a card's is. Home has one too, for its
+    // name and its icon; the menu leaves out what it cannot do.
+    row.oncontextmenu = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      this.handlers.onGridMenu(name, event.clientX, event.clientY);
+    };
     // Nothing is filed into a view: it shows whatever matches its rules, and a
     // card dropped on one would have to be given a value it never asked for.
     if (!entry.smart) this.makeTarget(row, name);
@@ -265,6 +386,8 @@ export class Sidebar {
     if (this.folded.has(name)) return;
     for (const held of folders) {
       const sub = this.list.createEl("button", { cls: "pg-sidebar-row is-folder" });
+      sub.dataset.grid = name;
+      sub.dataset.folder = held.folder.name;
       if (name === this.active && held.folder.name === this.activeFolder && !this.showingAll) {
         sub.addClass("is-on");
       }
@@ -275,7 +398,11 @@ export class Sidebar {
       const folderGlyph = sub.createSpan({ cls: "pg-sidebar-glyph" });
       setIcon(folderGlyph, held.folder.icon || "folder");
       folderGlyph.style.color = color;
-      sub.createSpan({ cls: "pg-sidebar-name", text: held.folder.name });
+      if (this.renaming && this.renaming.grid === name && this.renaming.folder === held.folder.name) {
+        this.nameField(sub);
+      } else {
+        sub.createSpan({ cls: "pg-sidebar-name", text: held.folder.name });
+      }
       sub.createSpan({
         cls: "pg-sidebar-count",
         text: held.count > 0 ? String(held.count) : "",
@@ -283,6 +410,11 @@ export class Sidebar {
       sub.onclick = (event) => {
         event.stopPropagation();
         this.handlers.onPick(name, held.folder.name);
+      };
+      sub.oncontextmenu = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.handlers.onFolderMenu(held.folder.grid, held.folder.name, event.clientX, event.clientY);
       };
       this.makeTarget(sub, name, held.folder.name);
       this.makeMovable(sub, { kind: "folder", grid: held.folder.grid, folder: held.folder.name });
@@ -301,7 +433,8 @@ export class Sidebar {
    * a drag that ended outside the window never tells the row it started on.
    */
   private makeMovable(row: HTMLElement, item: RailItem): void {
-    row.draggable = true;
+    // Not while its name is being typed over; see nameField.
+    row.draggable = !row.querySelector(".pg-sidebar-rename");
     const unmark = (): void => {
       row.removeClass("is-drop-before");
       row.removeClass("is-drop-after");

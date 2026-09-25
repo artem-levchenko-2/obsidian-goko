@@ -8,6 +8,7 @@ import {
   TFile,
   WorkspaceLeaf,
   normalizePath,
+  requestUrl,
   setIcon,
 } from "obsidian";
 import { absolutePath, droppedFilePath, vaultRoot } from "./convert";
@@ -16,7 +17,7 @@ import { copyToDownloads, revealInFinder, systemAvailable } from "./core/system"
 import { ActionBar } from "./action-bar";
 import { buildCommands, facetValueCommands } from "./core/commands";
 import type { PaletteContext } from "./core/commands";
-import { ConfirmDeleteModal } from "./confirm";
+import { ConfirmDeleteModal, ConfirmRemovePlaceModal } from "./confirm";
 import { isDateToken, todayISO } from "./core/dates";
 import { settled } from "./core/settle";
 import { Sheet } from "./sheet";
@@ -25,15 +26,12 @@ import { holdingAcross, isEditable, toggleAcross, withValue } from "./core/edita
 import type { EditablePolicy } from "./core/editable";
 import { ContextMenu } from "./context-menu";
 import {
-  openDeleteGrid,
   openFolderEditor,
   openGridActions,
   openGridEditor,
   openGridsManager,
   openNewGrid,
   openNewSmartGrid,
-  openRemoveFolders,
-  openRemoveFolder,
 } from "./grid-sheets";
 import { DetailView } from "./detail";
 import { Inspector } from "./inspector";
@@ -45,7 +43,7 @@ import { pdfPathOf } from "./core/pdf";
 import { previewNotice } from "./core/preview-route";
 import type { MenuItem } from "./context-menu";
 import type { FoldersController, GridsController } from "./grid-sheets";
-import { FOLDER_WIDTHS, folderTileId, partitionWall, planFolderMove } from "./core/folders";
+import { FOLDER_WIDTHS, folderTileId, newFolderName, partitionWall, planFolderMove, validateFolderName } from "./core/folders";
 import { resolveLook } from "./core/look";
 import { slotCandidates, surveyProperties } from "./core/facet-catalog";
 import type { GridLook, ResolvedLook } from "./core/look";
@@ -86,12 +84,15 @@ import { moveBeside, sidebarModel } from "./core/sidebar";
 import type { RailDrop } from "./core/sidebar";
 import { demotedFolder, demotionRefusal, insertBeside, promotedGrid, promotionRefusal } from "./core/regrid";
 import type { NarrowTarget } from "./core/palette-query";
-import { gridColorVar } from "./core/spaces";
+import { GRID_COLORS, MAX_GRID_DESCRIPTION, gridColorVar, validateGridName } from "./core/spaces";
 import { STAGES, expandStage, shrinkStage, stageLabel } from "./core/density";
 import type { DensityStage } from "./core/density";
 import { describeFiles } from "./core/media-refs";
 import { orphansAfterDeleting, removeMedia } from "./sweep";
-import { pathInsideVault } from "./core/file-clip";
+import { mimeForPath, pathInsideVault } from "./core/file-clip";
+import { attachTip } from "./core/tip";
+import { renderStill } from "./core/derive";
+import { nodeRequire } from "./core/system";
 import {
   effectiveGrid,
   fileableGrid,
@@ -110,6 +111,8 @@ import type { WallOrder } from "./core/order";
 import { domainOf } from "./core/scan";
 import type { ClippingRecord } from "./core/scan";
 import { validatePathName } from "./core/placement";
+import { openIconPopover, openTextPopover } from "./popover";
+import { GRID_ICONS } from "./core/icon-choices";
 import { RuleStrip } from "./rule-strip";
 import type { MoveResult } from "./placement-service";
 import {
@@ -537,8 +540,9 @@ export class GokoView extends ItemView {
           else if (staying) this.refresh({ replace: true });
         },
         onPickAll: () => this.showLibrary(),
-        onManage: (grid) => this.manageGrid(grid),
-        onNewGrid: () => this.promptNewGrid(),
+        onGridMenu: (grid, x, y) => this.openRailGridMenu(grid, x, y),
+        onFolderMenu: (grid, folder, x, y) => this.openRailFolderMenu(grid, folder, x, y),
+        onCreateGrid: (name) => this.createGridNamed(name),
         onDrop: (ids, grid, folder) => void this.moveTo(ids, grid, folder),
         onRailDrop: (drop) => void this.onRailDrop(drop),
         onResize: (width) => {
@@ -579,7 +583,7 @@ export class GokoView extends ItemView {
       },
       this.plugin.settings.inspectorWidth
     );
-    this.inspector.setHidden(this.plugin.settings.inspectorHidden);
+    this.inspector.setHidden(this.plugin.settings.inspectorHidden || this.sheetMode());
     this.watchBottomInset();
 
     /*
@@ -758,6 +762,10 @@ export class GokoView extends ItemView {
       onDescribe: (id) => this.plugin.vision.describe([id], true),
       onMakeCover: (id, media) => void this.setCover(id, media),
       isMenuOpen: () => this.menu?.isOpen ?? false,
+      isSelected: (id) => this.grid?.isSelected(id) ?? false,
+      onToggleSelect: (id) => this.grid?.toggleSelected(id),
+      onCopyImage: (model) => void this.copyImage(model),
+      onMediaMenu: (model, x, y) => this.openMediaMenu(model, x, y),
     }, () => this.plugin.settings.cardProperties,
       (model) => tilesForRecord(model.record, this.plugin.archiver.cache),
       (key) => isEditable(key, this.editPolicy()));
@@ -765,6 +773,10 @@ export class GokoView extends ItemView {
       this.grid?.focusTile(null);
       this.playback?.setEnabled(this.look().autoplayVideo);
     };
+    this.buildSheet();
+    // The click opens the card in the sheet when that is how details are
+    // shown; the side panel then has nothing to add and stays away.
+    this.grid.openOnClick = () => this.sheetMode();
     this.grid.onOpenDetail = (model, origin) => {
       // A document opens as a document. The card is a picture of its first
       // page, which is what a wall needs; a lightbox around that picture is
@@ -780,6 +792,14 @@ export class GokoView extends ItemView {
       // is resolved first, and hiding early leaves a hole in the meantime.
       const detail = this.detail;
       if (!detail) return;
+      if (this.sheetMode() && this.sheetPanel) {
+        detail.present(this.sheetPanel, true);
+        detail.beforeClose = (done) => this.hideSheet(done);
+        this.showSheet();
+      } else {
+        detail.present(this.contentEl, false);
+        detail.beforeClose = null;
+      }
       detail.onStageReady = () => {
         this.grid?.focusTile(model.id);
         // Nothing behind the backdrop is worth decoding. This mattered less
@@ -1448,6 +1468,16 @@ export class GokoView extends ItemView {
       }
     }
 
+    // The picture itself, whole, for pasting into anything that takes one.
+    const shown = n === 1 ? this.shownTiles.find((tile) => tile.id === ids[0]) : undefined;
+    if (shown && shown.kind === "image") {
+      reach.push({
+        icon: "clipboard-copy",
+        label: "Copy image",
+        onSelect: () => void this.copyImage(shown),
+      });
+    }
+
     // Where the note actually is, for pasting somewhere outside Obsidian. The
     // whole path from the root of the disk where there is one, and the vault's
     // own path on a phone, which has no such thing to give.
@@ -1907,6 +1937,7 @@ export class GokoView extends ItemView {
    * take effect.
    */
   applyLiveSettings(): void {
+    this.inspector?.setHidden(this.plugin.settings.inspectorHidden || this.sheetMode());
     // Not while the detail view is up. It turns playback off deliberately and
     // restores it on close, so obeying the setting here would set the wall
     // playing behind the backdrop.
@@ -3048,6 +3079,139 @@ export class GokoView extends ItemView {
     void this.plugin.saveSettings();
   }
 
+  /**
+   * Whether a picked card opens as a sheet over the wall rather than being
+   * described in the side panel. A desktop's choice: a phone's panel is
+   * already a sheet along the bottom.
+   */
+  private sheetMode(): boolean {
+    return !Platform.isMobile && this.plugin.settings.detailStyle === "sheet";
+  }
+
+  private sheetHost: HTMLElement | null = null;
+  private sheetPanel: HTMLElement | null = null;
+  private sheetBackdrop: HTMLElement | null = null;
+
+  /**
+   * The sheet a card opens in when details are set to open as one: a panel
+   * that slides up from the bottom and stops short of the top, so a band of
+   * the wall stays in sight above it, with the close in that band. The
+   * detail view draws inside the panel exactly as it draws over the wall.
+   */
+  private buildSheet(): void {
+    const host = this.contentEl.createDiv({ cls: "pg-sheet" });
+    const backdrop = host.createDiv({ cls: "pg-sheet-backdrop" });
+    backdrop.onclick = () => this.detail?.close();
+    const close = host.createEl("button", { cls: "pg-sheet-close" });
+    setIcon(close, "x");
+    attachTip(close, "Close", "\u238b");
+    close.onclick = () => this.detail?.close();
+    this.sheetPanel = host.createDiv({ cls: "pg-sheet-panel" });
+    this.sheetHost = host;
+    this.sheetBackdrop = backdrop;
+  }
+
+  private showSheet(): void {
+    const host = this.sheetHost;
+    const panel = this.sheetPanel;
+    if (!host || !panel) return;
+    host.addClass("is-open");
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const rise = panel.animate([{ transform: "translateY(100%)" }, { transform: "translateY(0)" }], {
+      duration: reduce ? 0 : 340,
+      easing: "cubic-bezier(0.32, 0.72, 0, 1)",
+    });
+    this.sheetBackdrop?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: reduce ? 0 : 240 });
+    // The details were laid out while the panel was still below the pane,
+    // and the zoom works from where the picture is on screen, so they are
+    // measured again once it has arrived.
+    rise.onfinish = () => this.detail?.relayout();
+  }
+
+  private hideSheet(done: () => void): void {
+    const host = this.sheetHost;
+    const panel = this.sheetPanel;
+    if (!host || !panel) {
+      done();
+      return;
+    }
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const fall = panel.animate([{ transform: "translateY(0)" }, { transform: "translateY(100%)" }], {
+      duration: reduce ? 0 : 260,
+      easing: "cubic-bezier(0.4, 0, 1, 1)",
+      fill: "forwards",
+    });
+    this.sheetBackdrop?.animate([{ opacity: 1 }, { opacity: 0 }], { duration: reduce ? 0 : 240, fill: "forwards" });
+    const finish = (): void => {
+      host.removeClass("is-open");
+      fall.cancel();
+      this.sheetBackdrop?.getAnimations().forEach((animation) => animation.cancel());
+      done();
+    };
+    fall.onfinish = finish;
+    fall.oncancel = () => undefined;
+  }
+
+  /**
+   * The whole picture to the clipboard, as a PNG, which is the one image
+   * format every clipboard takes: a JPEG or a WebP is decoded and drawn out
+   * again rather than handed over in a form the thing pasted into may not
+   * read. From the archived file where there is one, and from its address
+   * when the clipping has not been archived yet.
+   */
+  private async copyImage(model: TileModel): Promise<void> {
+    try {
+      let blob: Blob;
+      if (model.remote) {
+        const response = await requestUrl({ url: model.filePath, method: "GET" });
+        blob = new Blob([response.arrayBuffer]);
+      } else {
+        const data = await this.app.vault.adapter.readBinary(normalizePath(model.filePath));
+        blob = new Blob([data], { type: mimeForPath(model.filePath) ?? "" });
+      }
+      const still = await renderStill(blob);
+      if (!still) throw new Error("the picture could not be read");
+      // Electron's own clipboard on a desktop, which takes the picture as
+      // it is. The web clipboard asks for the window to have focus and for
+      // permission, and a menu row clicked a moment after the window came
+      // forward can have neither. A phone has only the web one.
+      const electron = nodeRequire("electron") as {
+        clipboard?: { writeImage: (image: unknown) => void };
+        nativeImage?: { createFromBuffer: (buffer: Uint8Array) => { isEmpty: () => boolean } };
+      } | null;
+      const native = electron?.nativeImage?.createFromBuffer(new Uint8Array(still.data));
+      if (electron?.clipboard && native && !native.isEmpty()) {
+        electron.clipboard.writeImage(native);
+      } else {
+        await navigator.clipboard.write([
+          new ClipboardItem({ "image/png": new Blob([still.data], { type: "image/png" }) }),
+        ]);
+      }
+      new Notice("Goko: image copied");
+    } catch (error) {
+      new Notice(`Goko: could not copy the image (${error instanceof Error ? error.message : String(error)})`);
+    }
+  }
+
+  /** What a right click on the picture in the full screen offers. */
+  private openMediaMenu(model: TileModel, x: number, y: number): void {
+    const items: MenuItem[] = [];
+    if (model.kind === "image") {
+      items.push({ icon: "clipboard-copy", label: "Copy image", detail: "\u2318C", onSelect: () => void this.copyImage(model) });
+    }
+    const selected = this.grid?.isSelected(model.id) ?? false;
+    items.push({
+      icon: "check-circle",
+      label: selected ? "Deselect" : "Select",
+      detail: "Space",
+      onSelect: () => {
+        this.grid?.toggleSelected(model.id);
+        this.detail?.refreshMeta(model);
+      },
+    });
+    this.menu?.open(items, x, y);
+  }
+
   private toggleInspector(): void {
     if (!this.inspector) return;
     const hidden = !this.inspector.isHidden;
@@ -3073,6 +3237,231 @@ export class GokoView extends ItemView {
    * icon, colour, description, order, delete. The manager's list of actions
    * for that grid, opened where the grid is rather than in another corner.
    */
+  /**
+   * A grid's menu in the rail, at the pointer: every change to a grid made
+   * where the grid is, the name in its row, the icon and the description in
+   * a panel beside it, the colour in a submenu. The grid sheet in the middle
+   * of the window is left for a phone, which has no rail to do it in.
+   */
+  private openRailGridMenu(name: string, x: number, y: number): void {
+    const settings = this.plugin.settings;
+    const home = name === settings.homeGridName;
+    const grid = home ? this.homeGrid() : settings.grids.find((entry) => entry.name === name);
+    if (!grid) return;
+    const smart = isSmartGrid(grid);
+
+    const items: MenuItem[] = [
+      { icon: "arrow-right", label: "Open", onSelect: () => this.openGridFromRail(name) },
+      ...this.gridEditItems(name).map((item, i) => (i === 0 ? { ...item, divider: true } : item)),
+    ];
+    if (!home) {
+      if (!smart) {
+        const targets = this.demoteTargetRows(name);
+        items.push({
+          icon: "folder-input",
+          label: "Make it a folder",
+          divider: true,
+          disabled: targets.length === 0,
+          submenu: targets.length > 0 ? targets : undefined,
+        });
+      }
+      items.push({
+        icon: "trash-2",
+        label: smart ? "Delete view" : "Delete grid",
+        divider: true,
+        destructive: true,
+        onSelect: () => this.confirmDeleteGrid(name),
+      });
+    }
+    this.menu?.open(items, x, y);
+  }
+
+  /**
+   * The changes to a grid that are made where the grid is: its name in its
+   * row, its icon and description in a panel beside the row, its colour in a
+   * submenu. Where the rail is not showing, on a phone or in a pane too
+   * narrow for it, the name and the panels fall back to the grid's sheet.
+   */
+  private gridEditItems(name: string): MenuItem[] {
+    const settings = this.plugin.settings;
+    const home = name === settings.homeGridName;
+    const grid = home ? this.homeGrid() : settings.grids.find((entry) => entry.name === name);
+    if (!grid) return [];
+    const doc = this.contentEl.doc;
+    const beside = (): DOMRect | null => this.sidebar?.rowRect(name) ?? null;
+    const save = (next: GridSpace): Promise<void> => this.renameGridDef(name, next);
+
+    const items: MenuItem[] = [
+      {
+        icon: "pencil",
+        label: "Rename",
+        onSelect: () => {
+          if (!this.sidebar?.rename(name, null, (next) => this.renameGridTo(grid, next))) this.manageGrid(name);
+        },
+      },
+      {
+        icon: grid.icon || "layout-grid",
+        label: "Icon",
+        onSelect: () => {
+          const rect = beside();
+          if (!rect) return this.manageGrid(name);
+          openIconPopover(doc, rect, grid.icon, (icon) => void save({ ...grid, icon }));
+        },
+      },
+    ];
+    if (home) return items;
+
+    const colours: MenuItem[] = [
+      {
+        icon: "circle-off",
+        label: "None",
+        detailIcon: grid.color ? undefined : "check",
+        onSelect: () => {
+          const next: GridSpace = { ...grid };
+          delete next.color;
+          void save(next);
+        },
+      },
+      ...GRID_COLORS.map((color) => ({
+        icon: "circle",
+        label: color.charAt(0).toUpperCase() + color.slice(1),
+        tint: gridColorVar(color),
+        detailIcon: grid.color === color ? "check" : undefined,
+        onSelect: () => void save({ ...grid, color }),
+      })),
+    ];
+    items.push({ icon: "palette", label: "Colour", submenu: colours });
+    items.push({
+      icon: "text",
+      label: "Description",
+      detail: grid.description ? undefined : "none",
+      onSelect: () => {
+        const rect = beside();
+        if (!rect) return this.manageGrid(name);
+        openTextPopover(doc, rect, {
+          value: grid.description ?? "",
+          placeholder: "What this grid is for",
+          maxLength: MAX_GRID_DESCRIPTION,
+          onSave: (value) => {
+            const next: GridSpace = { ...grid };
+            if (value) next.description = value;
+            else delete next.description;
+            void save(next);
+          },
+        });
+      },
+    });
+    // A view's rules are a form of their own, which stays in the sheet.
+    if (isSmartGrid(grid)) {
+      items.push({ icon: "filter", label: "Edit rules", onSelect: () => this.manageGrid(name) });
+    }
+    return items;
+  }
+
+  /** A folder's menu in the rail, at the pointer. */
+  private openRailFolderMenu(gridKey: string, folder: string, x: number, y: number): void {
+    const settings = this.plugin.settings;
+    const entry = settings.folders.find((f) => f.grid === gridKey && f.name === folder);
+    if (!entry) return;
+    const gridName = this.gridNameFor(gridKey);
+    const items: MenuItem[] = [
+      {
+        icon: "arrow-right",
+        label: "Open",
+        onSelect: () => {
+          this.openGridFromRail(gridName);
+          this.enterFolder(folder);
+        },
+      },
+      {
+        icon: "pencil",
+        label: "Rename",
+        divider: true,
+        onSelect: () => this.renameFolderInRail(entry),
+      },
+      {
+        icon: entry.icon || "folder",
+        label: "Icon",
+        onSelect: () => this.pickFolderIcon(entry),
+      },
+      {
+        icon: "layout-grid",
+        label: "Make it a grid",
+        divider: true,
+        onSelect: () => void this.promoteFolder(gridKey, folder),
+      },
+      {
+        icon: "corner-up-right",
+        label: "Move to grid",
+        submenu: this.folderGridMoveRows([entry]),
+      },
+      {
+        icon: "trash-2",
+        label: "Remove folder",
+        divider: true,
+        destructive: true,
+        onSelect: () => this.confirmRemoveFolders([entry]),
+      },
+    ];
+    this.menu?.open(items, x, y);
+  }
+
+  /** The wall onto a grid chosen in the rail, as a click on its row does. */
+  private openGridFromRail(name: string): void {
+    this.showAll = false;
+    this.activate(name);
+    if (this.openFolder) this.leaveFolder();
+  }
+
+  /**
+   * A grid renamed from its row. The same checks the grid editor makes,
+   * said in a notice; false keeps the field open to fix the name.
+   */
+  private async renameGridTo(grid: GridSpace, next: string): Promise<boolean> {
+    const settings = this.plugin.settings;
+    const others = settings.grids.map((g) => g.name).filter((n) => n !== grid.name);
+    const isHome = grid.name === settings.homeGridName;
+    const reason =
+      validateGridName(next, others, isHome ? "" : settings.homeGridName, grid.name) ??
+      (this.byFolders && !isSmartGrid(grid) && !isHome ? validatePathName(next, [], "grid name") : null);
+    if (reason) {
+      new Notice(`Goko: ${reason}`);
+      return false;
+    }
+    await this.renameGridDef(grid.name, { ...grid, name: next.trim() });
+    return true;
+  }
+
+  /** A folder renamed from its row; see renameGridTo. */
+  private async renameFolderTo(folder: FolderSpace, next: string): Promise<boolean> {
+    const others = this.plugin.settings.folders
+      .filter((f) => f.grid === folder.grid && f.name !== folder.name)
+      .map((f) => f.name);
+    const reason =
+      validateFolderName(next, others, folder.name) ??
+      (this.byFolders ? validatePathName(next, [], "folder name") : null);
+    if (reason) {
+      new Notice(`Goko: ${reason}`);
+      return false;
+    }
+    await this.renameFolderDef(folder.name, { ...folder, name: next.trim() });
+    return true;
+  }
+
+  /** A grid made from the rail's New grid field, plain until its menu says otherwise. */
+  private async createGridNamed(name: string): Promise<boolean> {
+    const settings = this.plugin.settings;
+    const reason =
+      validateGridName(name, settings.grids.map((g) => g.name), settings.homeGridName) ??
+      (this.byFolders ? validatePathName(name, [], "grid name") : null);
+    if (reason) {
+      new Notice(`Goko: ${reason}`);
+      return false;
+    }
+    await this.createGridDef({ name: name.trim(), icon: GRID_ICONS[0] });
+    return true;
+  }
+
   private manageGrid(name: string): void {
     if (!this.sheet) return;
     const grid = this.plugin.settings.grids.find((entry) => entry.name === name);
@@ -3130,16 +3519,46 @@ export class GokoView extends ItemView {
   }
 
   private deleteActiveGrid(): void {
-    if (!this.sheet) return;
     const index = this.activeGridIndex();
     // Home is where an unknown grid falls back to, so it always has to exist.
     if (index === -1) return;
-    // Straight to the question about this grid. It used to open the manager
-    // and stop there, leaving you on a list of every grid with nothing chosen,
-    // which is not what a row saying Delete grid promises.
-    openDeleteGrid(this.sheet, this.gridsController(), this.activeGrid(), index, () =>
-      this.refresh()
-    );
+    this.confirmDeleteGrid(this.activeGrid().name);
+  }
+
+  /**
+   * Asks about deleting a grid, and whether its clippings go too.
+   *
+   * Unticked, the clippings return to the inbox, as deleting a grid always
+   * did. Ticked, they are trashed first, with the media nothing else uses,
+   * and then the grid goes, which in folder mode leaves its folder empty for
+   * the trash.
+   */
+  private confirmDeleteGrid(name: string): void {
+    const settings = this.plugin.settings;
+    const grid = settings.grids.find((entry) => entry.name === name);
+    if (!grid) return;
+    const smart = isSmartGrid(grid);
+    const members = smart ? [] : membersOf(this.plugin.index.records(), name).map((record) => record.path);
+    const media = members.length > 0 ? this.doomedMedia(members) : null;
+    new ConfirmRemovePlaceModal(
+      this.app,
+      {
+        kind: "grid",
+        name,
+        smart,
+        members: members.length,
+        returnsTo: settings.homeGridName,
+        media: media && media.paths.length > 0 ? describeFiles(media) : undefined,
+      },
+      (withClippings) => {
+        const remove = (): Promise<void> => this.removeGridDef(settings.grids.indexOf(grid));
+        if (withClippings && members.length > 0) {
+          void this.deleteClippings(members, media?.paths ?? []).then(remove);
+        } else {
+          void remove();
+        }
+      }
+    ).open();
   }
 
   private manageGrids(): void {
@@ -3184,12 +3603,35 @@ export class GokoView extends ItemView {
       // two levels into the plugin's settings, which is where it was looked
       // for and not found. setLookKey already writes to the right place.
       ...this.gridLookItems(look, own),
+      // How a picked card is shown. A desktop's choice; see sheetMode.
+      ...(Platform.isMobile
+        ? []
+        : [
+            {
+              icon: this.sheetMode() ? "panel-bottom" : "panel-right",
+              label: "Card details",
+              detail: this.sheetMode() ? "Sheet" : "Side panel",
+              submenu: (["panel", "sheet"] as const).map((style) => ({
+                icon: style === "sheet" ? "panel-bottom" : "panel-right",
+                label: style === "sheet" ? "Sheet" : "Side panel",
+                detailIcon: this.plugin.settings.detailStyle === style ? "check" : undefined,
+                onSelect: () => {
+                  this.plugin.settings.detailStyle = style;
+                  void this.plugin.saveSettings();
+                },
+              })),
+            },
+          ]),
       {
         icon: "pencil",
         label: "Edit grid",
         divider: true,
         detail: active.name,
-        onSelect: () => this.editActiveGrid(),
+        // The same changes the grid's row offers, made in the rail beside it.
+        // Where there is no rail to make them in, the grid's sheet.
+        ...(this.sidebar?.isShowing
+          ? { submenu: this.gridEditItems(active.name) }
+          : { onSelect: () => this.editActiveGrid() }),
       },
       {
         icon: "folder-input",
@@ -3209,13 +3651,19 @@ export class GokoView extends ItemView {
         destructive: !isHome,
         onSelect: () => this.deleteActiveGrid(),
       },
-      {
-        icon: "layers",
-        label: "Manage grids",
-        divider: true,
-        detail: `${this.allGrids().length} grids`,
-        onSelect: () => this.manageGrids(),
-      },
+      // The rail is where grids are managed when it is showing: each row has
+      // its menu, and dragging orders them. The manager is for where it is not.
+      ...(this.sidebar?.isShowing
+        ? []
+        : [
+            {
+              icon: "layers",
+              label: "Manage grids",
+              divider: true,
+              detail: `${this.allGrids().length} grids`,
+              onSelect: () => this.manageGrids(),
+            },
+          ]),
       // What the pane shows. These were buttons on the bar until the bar
       // became two toolbars with four errands between them; they are settings
       // consulted now and then, not errands, and a menu is where those live.
@@ -4402,17 +4850,36 @@ export class GokoView extends ItemView {
    * clipping's own delete does, reference-counted media included.
    */
   private confirmRemoveFolders(folders: FolderSpace[]): void {
-    if (!this.sheet) return;
-    const members = folders.flatMap((folder) => this.folderMembers(folder.name));
-    openRemoveFolders(this.sheet, folders, members.length, {
-      onRemove: () => void this.removeFolderDefs(folders),
-      onDelete: () => {
-        const media = this.doomedMedia(members);
-        void this.deleteClippings(members, media.paths).then(() =>
-          this.removeFolderDefs(folders)
-        );
+    const members = folders.flatMap((folder) => this.membersOfFolder(folder.grid, folder.name));
+    const media = members.length > 0 ? this.doomedMedia(members) : null;
+    const name = folders.length === 1 ? folders[0].name : `${folders.length} folders`;
+    new ConfirmRemovePlaceModal(
+      this.app,
+      {
+        kind: "folder",
+        name,
+        smart: false,
+        members: members.length,
+        returnsTo: this.gridNameFor(folders[0]?.grid ?? ""),
+        media: media && media.paths.length > 0 ? describeFiles(media) : undefined,
       },
-    });
+      (withClippings) => {
+        // In folder mode each folder is a directory to take away, which the
+        // one-at-a-time removal knows how to do and the batch does not.
+        const remove = async (): Promise<void> => {
+          if (this.byFolders) {
+            for (const folder of folders) await this.removeFolderDef(folder.name, true, folder.grid);
+          } else {
+            await this.removeFolderDefs(folders);
+          }
+        };
+        if (withClippings && members.length > 0) {
+          void this.deleteClippings(members, media?.paths ?? []).then(remove);
+        } else {
+          void remove();
+        }
+      }
+    ).open();
   }
 
   /**
@@ -4462,7 +4929,15 @@ export class GokoView extends ItemView {
 
   /** Opens the editor for a new folder; `seed` is moved in once it is made. */
   private promptNewFolder(seed: string[]): void {
-    if (!this.sheet || !this.canFile()) return;
+    if (!this.canFile()) return;
+    // In the rail when it is showing: made at once as New folder, with the
+    // cards moved in, and its name then typed over in its row. The folder's
+    // sheet is for where there is no rail.
+    if (this.sidebar?.isShowing) {
+      void this.newFolderInRail(seed);
+      return;
+    }
+    if (!this.sheet) return;
     openFolderEditor(
       this.sheet,
       this.foldersController(),
@@ -4480,14 +4955,34 @@ export class GokoView extends ItemView {
     );
   }
 
+  /** A folder's name typed over in its rail row, or its sheet without a rail. */
+  private renameFolderInRail(folder: FolderSpace): void {
+    const grid = this.gridNameFor(folder.grid);
+    if (!this.sidebar?.rename(grid, folder.name, (next) => this.renameFolderTo(folder, next))) this.editFolder(folder);
+  }
+
+  /** A folder's icon from the panel beside its rail row, or its sheet without a rail. */
+  private pickFolderIcon(folder: FolderSpace): void {
+    const rect = this.sidebar?.rowRect(this.gridNameFor(folder.grid), folder.name);
+    if (!rect) return this.editFolder(folder);
+    openIconPopover(this.contentEl.doc, rect, folder.icon, (icon) => void this.renameFolderDef(folder.name, { ...folder, icon }));
+  }
+
+  private async newFolderInRail(seed: string[]): Promise<void> {
+    const key = this.folderGridKey();
+    const name = newFolderName(this.plugin.settings.folders.filter((f) => f.grid === key).map((f) => f.name));
+    const folder: FolderSpace = { name, icon: "folder", grid: key, width: 1 };
+    await this.createFolderDef(folder);
+    if (seed.length > 0) await this.moveToFolder(seed, name);
+    this.refresh();
+    this.grid?.spotlight(folderTileId(folder));
+    const made = this.plugin.settings.folders.find((f) => f.grid === key && f.name === name) ?? folder;
+    this.renameFolderInRail(made);
+  }
+
   private editFolder(folder: FolderSpace): void {
     if (!this.sheet) return;
     openFolderEditor(this.sheet, this.foldersController(), folder, false, () => this.refresh());
-  }
-
-  private removeFolder(folder: FolderSpace): void {
-    if (!this.sheet) return;
-    openRemoveFolder(this.sheet, this.foldersController(), folder, () => this.refresh());
   }
 
   private async resizeFolder(name: string, width: FolderWidth, record = true): Promise<void> {
@@ -4545,9 +5040,14 @@ export class GokoView extends ItemView {
       { icon: "folder-open", label: "Open", onSelect: () => this.enterFolder(name) },
       {
         icon: "pencil",
-        label: "Edit folder",
+        label: "Rename",
         divider: true,
-        onSelect: () => this.editFolder(folder),
+        onSelect: () => this.renameFolderInRail(folder),
+      },
+      {
+        icon: folder.icon || "folder",
+        label: "Icon",
+        onSelect: () => this.pickFolderIcon(folder),
       },
       {
         icon: "corner-up-right",
@@ -4578,9 +5078,9 @@ export class GokoView extends ItemView {
         label: many ? `Remove ${batch.length} folders` : "Remove folder",
         divider: true,
         destructive: true,
-        // One folder keeps the plain confirmation it has always had; a batch
-        // goes through the one that asks about the clippings inside.
-        onSelect: () => (many ? this.confirmRemoveFolders(batch) : this.removeFolder(folder)),
+        // One question for one folder or several: what happens to the
+        // clippings inside, with a box to take them too.
+        onSelect: () => this.confirmRemoveFolders(batch),
       },
     ];
     this.menu?.open(items, x, y);
@@ -4707,6 +5207,7 @@ export class GokoView extends ItemView {
       reorder: (index, delta) => this.reorderGridDef(index, delta),
       remove: (index) => this.removeGridDef(index),
       demote: (name, into) => this.demoteGrid(name, into),
+      confirmRemove: (name) => this.confirmDeleteGrid(name),
     };
   }
 

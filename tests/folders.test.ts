@@ -11,6 +11,7 @@ import {
   spanFor,
   validateFolderName,
   widthForDrag,
+  newFolderName,
 } from "../src/core/folders";
 import type { FolderSpace } from "../src/core/folders";
 import type { ClippingRecord } from "../src/core/scan";
@@ -277,5 +278,13 @@ describe("planFolderMove", () => {
   it("counts a folder only against the target grid, not against every grid", () => {
     const all = [here("Film"), { ...there("Film"), grid: "Reading" }];
     expect(planFolderMove([all[0]], "Design", all).moved.map((f) => f.name)).toEqual(["Film"]);
+  });
+});
+
+describe("newFolderName", () => {
+  it("is New folder, or the first number after it that is free", () => {
+    expect(newFolderName([])).toBe("New folder");
+    expect(newFolderName(["Brass", "new folder"])).toBe("New folder 2");
+    expect(newFolderName(["New folder", "New folder 2"])).toBe("New folder 3");
   });
 });

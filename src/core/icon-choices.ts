@@ -169,3 +169,12 @@ export function iconIndex(current: string): number {
   if (at >= 0) return at;
   return current ? GRID_ICONS.length : 0;
 }
+
+/**
+ * The icons whose names hold what was typed, in the list's own order. Words
+ * are joined the way icon names are, so "paint bucket" finds paint-bucket.
+ */
+export function iconsMatching(query: string): string[] {
+  const words = query.trim().toLowerCase().replace(/\s+/g, "-");
+  return words ? GRID_ICONS.filter((name) => name.includes(words)) : [...GRID_ICONS];
+}

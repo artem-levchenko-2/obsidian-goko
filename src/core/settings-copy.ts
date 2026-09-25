@@ -71,6 +71,11 @@ export const SCOPE_LABELS = {
   grid: "Per grid",
 } as const;
 
+export const DETAIL_STYLE_LABELS = {
+  panel: "Side panel",
+  sheet: "Sheet",
+} as const;
+
 const copy = <T extends Record<string, SettingCopy>>(entries: T): T => entries;
 
 /** A switch's two states, in the order the switch goes. */
@@ -119,6 +124,14 @@ export const COPY = copy({
       "Videos play only while you hover over them."
     ),
     aliases: ["video", "play", "motion", "memory"],
+  },
+  detailStyle: {
+    name: "Card details",
+    lines: [
+      { label: "Side panel", text: "A click picks a card and the panel on the right says what it is. Open shows it full screen." },
+      { label: "Sheet", text: "A click opens the card in a sheet over the wall, the picture beside its details." },
+    ],
+    aliases: ["inspector", "panel", "sheet", "details", "open", "full screen", "overlay"],
   },
   tileTitle: {
     name: "Title on hover",
