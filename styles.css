@@ -405,6 +405,13 @@
   box-shadow: inset 0 -2px 0 var(--interactive-accent);
 }
 
+/* A row taking the dragged one into itself: a grid becoming one of its
+   folders, or a folder moving onto it. The whole row is outlined rather
+   than one edge, because the drop is onto the row, not beside it. */
+.pg-sidebar button.pg-sidebar-row.is-drop-into {
+  box-shadow: inset 0 0 0 2px var(--interactive-accent);
+}
+
 /* The line under the two system rows. Not a border on a row: a rule is
    between things rather than part of one. */
 .pg-sidebar-rule {

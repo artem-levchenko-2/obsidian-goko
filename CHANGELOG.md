@@ -5,6 +5,24 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- A folder can become a grid, and a grid a folder on another grid. Drag a
+  folder out between the grids in the rail, or drop a grid onto another grid
+  or between its folders; or use Make it a grid in a folder's menu and Make it
+  a folder in the grid's. The new grid keeps its old grid's icon and colour. A
+  grid with folders of its own is refused, with the reason. Undo reverses
+  either.
+- Dropping a folder onto the middle of another grid's row moves it there.
+
+### Fixed
+
+- Moving a folder to another grid with grids following folders no longer
+  leaves the empty folder behind, which put it straight back on the grid it
+  had left.
+
 ## [1.0.4] - 2026-09-26
 
 ### Fixed

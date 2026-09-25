@@ -1,12 +1,14 @@
 import { Platform, setIcon, setTooltip } from "obsidian";
 import { DRAG_TYPE } from "./core/drag";
-import type { RailItem, SidebarGrid, SidebarModel } from "./core/sidebar";
+import type { RailDrop, RailItem, SidebarGrid, SidebarModel } from "./core/sidebar";
 import {
   RAIL_TYPE,
   SIDEBAR_MAX,
   SIDEBAR_MIN,
-  canDropBeside,
   clampSidebarWidth,
+  dropZone,
+  offersInto,
+  railDrop,
   sidebarVisible,
 } from "./core/sidebar";
 import { HOME_TINT, gridTint } from "./core/spaces";
@@ -41,10 +43,8 @@ export interface SidebarHandlers {
   onNewGrid: () => void;
   /** Clippings dropped onto a row. */
   onDrop: (ids: string[], grid: string, folder?: string) => void;
-  /** A grid or view row dropped just before or after another. */
-  onMoveGrid: (grid: string, beside: string, after: boolean) => void;
-  /** A folder row dropped beside another folder of the same grid. */
-  onMoveFolder: (grid: string, folder: string, beside: string, after: boolean) => void;
+  /** A row dropped on another row: reordered, moved, or turned into the other kind. */
+  onRailDrop: (drop: RailDrop) => void;
   /** A width the person dragged, to be remembered for this device. */
   onResize: (width: number) => void;
   /** The rail appearing or going, so the wall can be laid out again. */
@@ -291,8 +291,10 @@ export class Sidebar {
 
   /**
    * A row that can be dragged to a new place in the rail, and that takes
-   * another of its kind dropped on it: on its top half the other goes just
-   * above, on its bottom half just below.
+   * another row dropped on it: see railDrop for what each drop means. The
+   * edges put the other just above or below; the middle of a grid's row,
+   * when that means something, takes it in, and the row lights up whole to
+   * say so rather than drawing a line.
    *
    * Its own data type, so the card drop on the same row ignores it and it
    * ignores cards. The type is checked as well as the row in hand, because
@@ -303,11 +305,14 @@ export class Sidebar {
     const unmark = (): void => {
       row.removeClass("is-drop-before");
       row.removeClass("is-drop-after");
+      row.removeClass("is-drop-into");
     };
-    const accepts = (event: DragEvent): boolean =>
-      !!event.dataTransfer?.types.includes(RAIL_TYPE) &&
-      this.moving !== null &&
-      canDropBeside(this.moving, item);
+    const dropAt = (event: DragEvent): RailDrop | null => {
+      if (!event.dataTransfer?.types.includes(RAIL_TYPE) || this.moving === null) return null;
+      const rect = row.getBoundingClientRect();
+      const zone = dropZone(event.clientY - rect.top, rect.height, offersInto(this.moving, item));
+      return railDrop(this.moving, item, zone);
+    };
 
     row.addEventListener("dragstart", (event: DragEvent) => {
       if (!event.dataTransfer) return;
@@ -321,28 +326,27 @@ export class Sidebar {
       row.removeClass("is-moving");
     });
     row.addEventListener("dragover", (event: DragEvent) => {
-      if (!accepts(event)) return;
+      const drop = dropAt(event);
+      if (!drop) {
+        unmark();
+        return;
+      }
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
-      const rect = row.getBoundingClientRect();
-      const after = event.clientY > rect.top + rect.height / 2;
-      row.toggleClass("is-drop-before", !after);
+      const into = (drop.kind === "demote" && drop.beside === null) || drop.kind === "folder-move";
+      const after = !into && "after" in drop && drop.after;
+      row.toggleClass("is-drop-into", into);
+      row.toggleClass("is-drop-before", !into && !after);
       row.toggleClass("is-drop-after", after);
     });
     row.addEventListener("dragleave", unmark);
     row.addEventListener("drop", (event: DragEvent) => {
-      const moving = this.moving;
-      const ok = accepts(event);
-      const after = row.hasClass("is-drop-after");
+      const drop = dropAt(event);
       unmark();
-      if (!ok || !moving) return;
+      if (!drop) return;
       event.preventDefault();
       this.moving = null;
-      if (moving.kind === "folder" && item.kind === "folder") {
-        this.handlers.onMoveFolder(moving.grid, moving.folder, item.folder, after);
-      } else {
-        this.handlers.onMoveGrid(moving.grid, item.grid, after);
-      }
+      this.handlers.onRailDrop(drop);
     });
   }
 

@@ -58,6 +58,8 @@ export interface GridsController {
   rename(from: string, next: GridSpace): Promise<void>;
   reorder(index: number, delta: number): Promise<void>;
   remove(index: number): Promise<void>;
+  /** Makes a grid a folder on another; see demoteGrid in view.ts. */
+  demote?(name: string, into: string): Promise<void>;
 }
 
 /**
@@ -585,6 +587,14 @@ function gridActionsScreen(
       detail: at === count - 1 ? "last" : undefined,
       onChoose: () => move(1),
     });
+    const targets = grids.grids().filter((g) => !isSmartGrid(g) && g.name !== grid.name);
+    if (grids.demote && !isSmartGrid(grid) && targets.length > 0) {
+      rows.push({
+        label: "Make it a folder",
+        icon: "folder-input",
+        onChoose: () => sheet.push(demoteScreen(sheet, grids, grid, targets)),
+      });
+    }
     rows.push({
       label: "Delete",
       icon: "trash-2",
@@ -602,6 +612,34 @@ function gridActionsScreen(
     filters: true,
     hints: PICK_HINTS,
     rows: build,
+  };
+}
+
+/**
+ * Where a grid is to go as a folder: every other grid it could sit on. The
+ * choice closes the sheet, since the grid it was opened for no longer is one.
+ */
+function demoteScreen(
+  sheet: Sheet,
+  grids: GridsController,
+  grid: GridSpace,
+  targets: readonly GridSpace[]
+): SheetScreen {
+  return {
+    title: `Make ${grid.name} a folder on`,
+    placeholder: "Search grids…",
+    filters: true,
+    hints: PICK_HINTS,
+    rows: () =>
+      targets.map((target) => ({
+        label: target.name,
+        icon: target.icon,
+        tint: gridColorVar(target.color),
+        onChoose: () => {
+          sheet.close();
+          void grids.demote?.(grid.name, target.name);
+        },
+      })),
   };
 }
 

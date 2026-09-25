@@ -218,6 +218,40 @@ export class PlacementService {
   }
 
   /**
+   * Moves a grid's or a folder's directory to where the other kind lives:
+   * `Library/Craft/Leather` up to `Library/Leather`, or `Library/Tabletop`
+   * down to `Library/Craft/Tabletop`. One rename, as for renaming, so every
+   * note and every link travels with it.
+   *
+   * False when nothing moved: frontmatter mode, where there is no directory
+   * and the caller rewrites keys instead; a source that is not there; or a
+   * target that is, which is refused rather than merged into.
+   */
+  async relocate(from: { grid: string; folder?: string }, to: { grid: string; folder?: string }): Promise<boolean> {
+    if (!this.byFolders) return false;
+    const source = this.app.vault.getFolderByPath(this.folderFor(from.grid, from.folder ?? ""));
+    if (!source) return false;
+    const target = this.folderFor(to.grid, to.folder ?? "");
+    if (await this.app.vault.adapter.exists(target)) {
+      new Notice(`Goko: there is already a folder at ${target}`);
+      return false;
+    }
+    try {
+      await this.app.fileManager.renameFile(source, target);
+      return true;
+    } catch (error) {
+      new Notice(`Goko: could not move ${source.path} (${String(error)})`);
+      return false;
+    }
+  }
+
+  /** Whether a grid's or a folder's directory is free to be made. */
+  async isFree(grid: string, folder = ""): Promise<boolean> {
+    if (!this.byFolders) return true;
+    return !(await this.app.vault.adapter.exists(this.folderFor(grid, folder)));
+  }
+
+  /**
    * Takes a grid's folder away, and its clippings back to the Inbox.
    *
    * Deliberately not a delete of what is inside: a grid is a way of looking

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { canDropBeside, moveBeside } from "../src/core/sidebar";
+import { dropZone, moveBeside, offersInto, railDrop } from "../src/core/sidebar";
+import type { RailItem } from "../src/core/sidebar";
 
 describe("moveBeside", () => {
   const list = ["a", "b", "c", "d"];
@@ -41,23 +42,81 @@ describe("moveBeside", () => {
   });
 });
 
-describe("canDropBeside", () => {
-  it("moves a grid among grids and a view among views", () => {
-    expect(canDropBeside({ kind: "grid", grid: "Craft" }, { kind: "grid", grid: "Tabletop" })).toBe(true);
-    expect(canDropBeside({ kind: "view", grid: "Recent" }, { kind: "view", grid: "Videos" })).toBe(true);
-    expect(canDropBeside({ kind: "grid", grid: "Craft" }, { kind: "view", grid: "Videos" })).toBe(false);
+describe("railDrop", () => {
+  const craft: RailItem = { kind: "grid", grid: "Craft" };
+  const tabletop: RailItem = { kind: "grid", grid: "Tabletop" };
+  const leather: RailItem = { kind: "folder", grid: "Craft", folder: "Leather" };
+  const wood: RailItem = { kind: "folder", grid: "Craft", folder: "Wood" };
+  const maps: RailItem = { kind: "folder", grid: "Tabletop", folder: "Maps" };
+  const recent: RailItem = { kind: "view", grid: "Recent" };
+  const videos: RailItem = { kind: "view", grid: "Videos" };
+
+  it("reorders a grid among grids and a view among views on the edges", () => {
+    expect(railDrop(craft, tabletop, "after")).toEqual({ kind: "grid-order", grid: "Craft", beside: "Tabletop", after: true });
+    expect(railDrop(recent, videos, "before")).toEqual({ kind: "grid-order", grid: "Recent", beside: "Videos", after: false });
   });
 
-  it("keeps a folder inside its own grid", () => {
-    const leather = { kind: "folder" as const, grid: "Craft", folder: "Leather" };
-    expect(canDropBeside(leather, { kind: "folder", grid: "Craft", folder: "Wood" })).toBe(true);
-    expect(canDropBeside(leather, { kind: "folder", grid: "Tabletop", folder: "Maps" })).toBe(false);
-    expect(canDropBeside(leather, { kind: "grid", grid: "Craft" })).toBe(false);
+  it("reorders a folder among its own grid's folders", () => {
+    expect(railDrop(leather, wood, "before")).toEqual({
+      kind: "folder-order",
+      grid: "Craft",
+      folder: "Leather",
+      beside: "Wood",
+      after: false,
+    });
   });
 
-  it("does nothing for a row dropped on itself", () => {
-    expect(canDropBeside({ kind: "grid", grid: "Craft" }, { kind: "grid", grid: "Craft" })).toBe(false);
-    const leather = { kind: "folder" as const, grid: "Craft", folder: "Leather" };
-    expect(canDropBeside(leather, { ...leather })).toBe(false);
+  it("makes a grid dropped on another grid's middle a folder on it", () => {
+    expect(railDrop(tabletop, craft, "into")).toEqual({ kind: "demote", grid: "Tabletop", into: "Craft", beside: null, after: true });
+  });
+
+  it("makes a grid dropped between another grid's folders a folder there", () => {
+    expect(railDrop(tabletop, leather, "after")).toEqual({ kind: "demote", grid: "Tabletop", into: "Craft", beside: "Leather", after: true });
+  });
+
+  it("makes a folder dropped between grids a grid there", () => {
+    expect(railDrop(leather, tabletop, "before")).toEqual({
+      kind: "promote",
+      grid: "Craft",
+      folder: "Leather",
+      beside: "Tabletop",
+      after: false,
+    });
+    expect(railDrop(leather, craft, "after")?.kind).toBe("promote");
+  });
+
+  it("moves a folder dropped on another grid's middle to that grid", () => {
+    expect(railDrop(leather, tabletop, "into")).toEqual({ kind: "folder-move", grid: "Craft", folder: "Leather", into: "Tabletop" });
+    expect(railDrop(leather, craft, "into")).toBeNull();
+  });
+
+  it("does nothing across views, onto itself, or between two grids' folders", () => {
+    expect(railDrop(craft, videos, "after")).toBeNull();
+    expect(railDrop(recent, craft, "into")).toBeNull();
+    expect(railDrop(craft, craft, "into")).toBeNull();
+    expect(railDrop(craft, leather, "after")).toBeNull();
+    expect(railDrop(leather, leather, "after")).toBeNull();
+    expect(railDrop(leather, maps, "after")).toBeNull();
+  });
+});
+
+describe("dropZone", () => {
+  it("splits a row in halves when only its edges take a drop", () => {
+    expect(dropZone(5, 40, false)).toBe("before");
+    expect(dropZone(25, 40, false)).toBe("after");
+  });
+
+  it("gives the middle half to the row itself when it can take one", () => {
+    expect(dropZone(5, 40, true)).toBe("before");
+    expect(dropZone(20, 40, true)).toBe("into");
+    expect(dropZone(35, 40, true)).toBe("after");
+  });
+
+  it("offers the middle only on another grid's row, and never to a view", () => {
+    expect(offersInto({ kind: "grid", grid: "A" }, { kind: "grid", grid: "B" })).toBe(true);
+    expect(offersInto({ kind: "folder", grid: "A", folder: "F" }, { kind: "grid", grid: "B" })).toBe(true);
+    expect(offersInto({ kind: "folder", grid: "A", folder: "F" }, { kind: "grid", grid: "A" })).toBe(false);
+    expect(offersInto({ kind: "view", grid: "V" }, { kind: "grid", grid: "B" })).toBe(false);
+    expect(offersInto({ kind: "grid", grid: "A" }, { kind: "folder", grid: "B", folder: "F" })).toBe(false);
   });
 });

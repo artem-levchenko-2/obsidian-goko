@@ -222,6 +222,12 @@ Folders are piles inside a grid. Gather some tiles into one card to make a
 folder, a collage of what is inside, and drag its corner to set it to one, two
 or three columns wide.
 
+A board can change shape as it grows. Drag a folder out between the grids and
+it becomes a grid of its own, in its old grid's icon and colour. Drop a grid
+onto another, or between its folders, and it becomes one of them. **Make it a
+grid** and **Make it a folder** in the menus do the same, and undo takes
+either back.
+
 <details>
 <summary>📁 <b>Grids that are real folders</b></summary>
 

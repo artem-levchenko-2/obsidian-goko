@@ -138,10 +138,8 @@ export function sidebarVisible(paneWidth: number, hidden: boolean): boolean {
 }
 
 /**
- * A row being dragged to a new place in the rail. A grid moves among grids
- * and a view among views, because the rail lists the two apart; a folder
- * moves among its own grid's folders, because moving it to another grid
- * would refile every card in it, which is not what reordering says.
+ * A row being dragged to a new place in the rail: a grid, a view, or a
+ * folder on a grid.
  */
 export type RailItem =
   | { kind: "grid"; grid: string }
@@ -151,13 +149,79 @@ export type RailItem =
 /** The data type a rail row carries while it is dragged. */
 export const RAIL_TYPE = "application/x-goko-rail";
 
-/** Whether `moving` can be dropped beside `target`, and is not `target` itself. */
-export function canDropBeside(moving: RailItem, target: RailItem): boolean {
-  if (moving.kind !== target.kind) return false;
-  if (moving.kind === "folder" && target.kind === "folder") {
-    return moving.grid === target.grid && moving.folder !== target.folder;
+/** Which part of a row a dragged row is over: an edge, or the row itself. */
+export type DropZone = "before" | "after" | "into";
+
+/** What a drop on the rail does. */
+export type RailDrop =
+  /** A grid or a view put before or after another of its kind. */
+  | { kind: "grid-order"; grid: string; beside: string; after: boolean }
+  /** A folder put before or after another folder of the same grid. */
+  | { kind: "folder-order"; grid: string; folder: string; beside: string; after: boolean }
+  /** A folder moved, with its clippings, onto another grid. */
+  | { kind: "folder-move"; grid: string; folder: string; into: string }
+  /** A folder made a grid of its own, placed beside `beside`. */
+  | { kind: "promote"; grid: string; folder: string; beside: string; after: boolean }
+  /** A grid made a folder on `into`, beside the folder `beside` or last. */
+  | { kind: "demote"; grid: string; into: string; beside: string | null; after: boolean };
+
+/**
+ * Whether dropping `moving` on `target` can mean "into" rather than beside
+ * it: a grid or a folder dropped on the middle of another grid's row.
+ */
+export function offersInto(moving: RailItem, target: RailItem): boolean {
+  return target.kind === "grid" && moving.kind !== "view" && moving.grid !== target.grid;
+}
+
+/**
+ * The zone of a row the pointer is in, `offset` pixels down a row `height`
+ * tall. Halves when only the edges mean anything; when the row itself can
+ * take the drop, a quarter at each edge and the middle half for the row.
+ */
+export function dropZone(offset: number, height: number, into: boolean): DropZone {
+  if (!into) return offset > height / 2 ? "after" : "before";
+  if (offset < height / 4) return "before";
+  if (offset > (height * 3) / 4) return "after";
+  return "into";
+}
+
+/**
+ * What dropping `moving` on `target` in `zone` does, or null for nothing.
+ *
+ * The edges of a row reorder, as they always did, and cross over where the
+ * two kinds meet: a folder dropped between grids becomes a grid there, and
+ * a grid dropped between another grid's folders becomes one of them. The
+ * middle of a grid's row takes a grid as a folder, or a folder as a folder
+ * moved to it. Views are rules rather than places and only reorder among
+ * themselves.
+ */
+export function railDrop(moving: RailItem, target: RailItem, zone: DropZone): RailDrop | null {
+  const after = zone === "after";
+  if (moving.kind === "view" || target.kind === "view") {
+    if (moving.kind !== "view" || target.kind !== "view") return null;
+    if (zone === "into" || moving.grid === target.grid) return null;
+    return { kind: "grid-order", grid: moving.grid, beside: target.grid, after };
   }
-  return moving.grid !== target.grid;
+
+  if (moving.kind === "grid") {
+    if (moving.grid === target.grid) return null;
+    if (target.kind === "folder") {
+      return { kind: "demote", grid: moving.grid, into: target.grid, beside: target.folder, after };
+    }
+    if (zone === "into") return { kind: "demote", grid: moving.grid, into: target.grid, beside: null, after: true };
+    return { kind: "grid-order", grid: moving.grid, beside: target.grid, after };
+  }
+
+  if (target.kind === "grid") {
+    if (zone === "into") {
+      if (moving.grid === target.grid) return null;
+      return { kind: "folder-move", grid: moving.grid, folder: moving.folder, into: target.grid };
+    }
+    return { kind: "promote", grid: moving.grid, folder: moving.folder, beside: target.grid, after };
+  }
+
+  if (zone === "into" || moving.grid !== target.grid || moving.folder === target.folder) return null;
+  return { kind: "folder-order", grid: moving.grid, folder: moving.folder, beside: target.folder, after };
 }
 
 /**

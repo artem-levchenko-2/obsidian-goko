@@ -83,6 +83,8 @@ import { PENDING_RETRY_MS, PendingSources } from "./core/pending";
 import { SpaceBar } from "./space-bar";
 import { Sidebar } from "./sidebar";
 import { moveBeside, sidebarModel } from "./core/sidebar";
+import type { RailDrop } from "./core/sidebar";
+import { demotedFolder, demotionRefusal, insertBeside, promotedGrid, promotionRefusal } from "./core/regrid";
 import type { NarrowTarget } from "./core/palette-query";
 import { gridColorVar } from "./core/spaces";
 import { STAGES, expandStage, shrinkStage, stageLabel } from "./core/density";
@@ -522,9 +524,7 @@ export class GokoView extends ItemView {
         onManage: (grid) => this.manageGrid(grid),
         onNewGrid: () => this.promptNewGrid(),
         onDrop: (ids, grid, folder) => void this.moveTo(ids, grid, folder),
-        onMoveGrid: (grid, beside, after) => void this.moveGridBeside(grid, beside, after),
-        onMoveFolder: (grid, folder, beside, after) =>
-          void this.moveFolderBeside(grid, folder, beside, after),
+        onRailDrop: (drop) => void this.onRailDrop(drop),
         onResize: (width) => {
           this.plugin.settings.sidebarWidth = width;
           void this.plugin.saveSettings();
@@ -3175,6 +3175,14 @@ export class GokoView extends ItemView {
         onSelect: () => this.editActiveGrid(),
       },
       {
+        icon: "folder-input",
+        label: "Make it a folder",
+        // Home and views cannot be folders; see demotionRefusal. Shown and
+        // inert for them, as Delete grid is, so the menu keeps its shape.
+        disabled: isHome || isSmartGrid(active) || this.demoteTargetRows(active.name).length === 0,
+        submenu: isHome || isSmartGrid(active) ? undefined : this.demoteTargetRows(active.name),
+      },
+      {
         icon: "trash-2",
         label: "Delete grid",
         // Shown rather than hidden, so the row does not appear and vanish
@@ -4245,6 +4253,17 @@ export class GokoView extends ItemView {
     ];
   }
 
+  /** The grids a grid can become a folder on: every other manual grid. */
+  private demoteTargetRows(name: string): MenuItem[] {
+    return this.plugin.settings.grids
+      .filter((grid) => !isSmartGrid(grid) && grid.name !== name)
+      .map((grid) => ({
+        icon: grid.icon,
+        label: grid.name,
+        onSelect: () => void this.demoteGrid(name, grid.name),
+      }));
+  }
+
   /**
    * Moves folders to another grid, definitions and members together.
    *
@@ -4279,7 +4298,9 @@ export class GokoView extends ItemView {
     const carried = moved.map((folder) => ({
       name: folder.name,
       origin: folder.grid,
-      members: this.folderMembers(folder.name),
+      // By the folder's own grid rather than the one on screen: a folder
+      // dropped on another grid in the rail can be from any of them.
+      members: this.membersOfFolder(folder.grid, folder.name),
     }));
     const all = carried.flatMap((entry) => entry.members);
     const placement = this.placementOf(all);
@@ -4292,6 +4313,16 @@ export class GokoView extends ItemView {
       for (const { name, origin, members } of carried) {
         const entry = settings.folders.find((f) => f.grid === origin && f.name === name);
         if (entry) entry.grid = key;
+        // In folder mode the directory goes whole. Moving its notes one by
+        // one left it behind empty, and the registry, which reads the tree,
+        // put the folder straight back on the grid it had just left.
+        if (this.byFolders) {
+          await this.plugin.placement.relocate(
+            { grid: this.gridNameFor(origin), folder: name },
+            { grid: target, folder: name }
+          );
+          continue;
+        }
         if (members.length === 0) continue;
         const from = members.map((path) => current.get(path) ?? path);
         const result = await this.assign(from, target, name);
@@ -4315,8 +4346,18 @@ export class GokoView extends ItemView {
         for (const { name, origin } of carried) {
           const entry = settings.folders.find((f) => f.grid === key && f.name === name);
           if (entry) entry.grid = origin;
+          if (this.byFolders) {
+            await this.plugin.placement.relocate(
+              { grid: target, folder: name },
+              { grid: this.gridNameFor(origin), folder: name }
+            );
+          }
         }
         await this.plugin.saveSettings();
+        if (this.byFolders) {
+          this.refresh();
+          return;
+        }
         const now = await this.restorePlacement(
           placement,
           all.map((path) => current.get(path) ?? path)
@@ -4497,6 +4538,14 @@ export class GokoView extends ItemView {
         submenu: this.folderGridMoveRows(batch),
       },
       {
+        icon: "layout-grid",
+        label: "Make it a grid",
+        // One folder at a time: each becomes a grid of its own, and a batch
+        // would be a dozen grids from one click that nobody asked to line up.
+        disabled: many,
+        onSelect: () => void this.promoteFolder(folder.grid, folder.name),
+      },
+      {
         icon: "move-horizontal",
         label: "Size",
         detail: labels[String(folder.width)],
@@ -4640,6 +4689,7 @@ export class GokoView extends ItemView {
       rename: (from, next) => this.renameGridDef(from, next),
       reorder: (index, delta) => this.reorderGridDef(index, delta),
       remove: (index) => this.removeGridDef(index),
+      demote: (name, into) => this.demoteGrid(name, into),
     };
   }
 
@@ -4775,6 +4825,217 @@ export class GokoView extends ItemView {
     const to = folders.findIndex((folder) => folder.grid === grid && folder.name === beside);
     if (from < 0 || to < 0) return;
     await this.putInOrder(folders, moveBeside(folders, from, to, after), `Move ${name}`);
+  }
+
+  /** A drop on the rail, whichever of its five meanings it has. */
+  private async onRailDrop(drop: RailDrop): Promise<void> {
+    switch (drop.kind) {
+      case "grid-order":
+        return this.moveGridBeside(drop.grid, drop.beside, drop.after);
+      case "folder-order":
+        return this.moveFolderBeside(drop.grid, drop.folder, drop.beside, drop.after);
+      case "folder-move": {
+        const folder = this.plugin.settings.folders.find(
+          (f) => f.grid === drop.grid && f.name === drop.folder
+        );
+        if (folder) await this.moveFoldersTo([folder], drop.into);
+        return;
+      }
+      case "promote":
+        return this.promoteFolder(drop.grid, drop.folder, { grid: drop.beside, after: drop.after });
+      case "demote":
+        return this.demoteGrid(drop.grid, drop.into, { folder: drop.beside, after: drop.after });
+    }
+  }
+
+  /** The clippings in one folder of one grid, whichever grid is on screen. */
+  private membersOfFolder(gridKey: string, name: string): string[] {
+    return filterByGrid(
+      this.plugin.index.records(),
+      this.gridNameFor(gridKey),
+      this.plugin.settings.homeGridName,
+      this.registered()
+    )
+      .filter((record) => record.folder.trim() === name)
+      .map((record) => record.path);
+  }
+
+  /**
+   * A folder made a grid of its own, with every clipping in it.
+   *
+   * The definitions change first and the clippings follow: in folder mode the
+   * directory's move is what the registry sync hears, and by then the new
+   * grid is already in the list, where the sync keeps it with its look rather
+   * than adding it plain at the end. Placed beside `beside` when it was
+   * dropped there, and just after the grid it came off otherwise.
+   */
+  private async promoteFolder(
+    gridKey: string,
+    name: string,
+    beside?: { grid: string; after: boolean },
+    record = true
+  ): Promise<void> {
+    const settings = this.plugin.settings;
+    const folder = settings.folders.find((f) => f.grid === gridKey && f.name === name);
+    if (!folder) return;
+    const refusal =
+      promotionRefusal(folder, settings.grids, settings.homeGridName) ??
+      ((await this.plugin.placement.isFree(name)) ? null : `there is already a folder called ${name} beside the grids`);
+    if (refusal) {
+      new Notice(`Goko: ${refusal}`);
+      return;
+    }
+
+    const from = settings.grids.find((g) => g.name === gridKey);
+    const grid = promotedGrid(folder, from);
+    const members = this.membersOfFolder(gridKey, name);
+    const placement = this.placementOf(members);
+    const wasGrids = [...settings.grids];
+    const wasFolders = [...settings.folders];
+    const inside = this.openFolder === name && this.gridKey() === gridKey;
+
+    const nextGrids = insertBeside(
+      settings.grids,
+      grid,
+      (g) => g.name === (beside?.grid ?? gridKey),
+      beside?.after ?? true
+    );
+    settings.grids.splice(0, settings.grids.length, ...nextGrids);
+    settings.folders.splice(settings.folders.indexOf(folder), 1);
+    await this.plugin.saveSettings();
+
+    if (this.byFolders) {
+      const moved = await this.plugin.placement.relocate({ grid: this.gridNameFor(gridKey), folder: name }, { grid: name });
+      if (!moved) {
+        settings.grids.splice(0, settings.grids.length, ...wasGrids);
+        settings.folders.splice(0, settings.folders.length, ...wasFolders);
+        await this.plugin.saveSettings();
+        this.refresh();
+        return;
+      }
+    } else if (members.length > 0) {
+      await this.assign(members, name);
+    }
+
+    if (inside) this.activate(name);
+    else this.refresh();
+    new Notice(`Goko: ${name} is a grid now`);
+    if (!record) return;
+    this.history.push({
+      label: `Make ${name} a grid`,
+      undo: async () => {
+        settings.grids.splice(0, settings.grids.length, ...wasGrids);
+        settings.folders.splice(0, settings.folders.length, ...wasFolders);
+        const following = settings.activeGrid === name;
+        if (following) settings.activeGrid = this.gridNameFor(gridKey);
+        await this.plugin.saveSettings();
+        if (this.byFolders) {
+          await this.plugin.placement.relocate({ grid: name }, { grid: this.gridNameFor(gridKey), folder: name });
+        } else {
+          await this.restorePlacement(placement, members);
+        }
+        if (following) this.spaceBar?.setActive(this.activeGrid());
+        this.refresh();
+      },
+      redo: () => this.promoteFolder(gridKey, name, beside, false),
+    });
+  }
+
+  /**
+   * A grid made a folder on another, with every clipping on it.
+   *
+   * Refused, with the reason, for anything demotionRefusal refuses: a view, a
+   * grid with folders of its own, a name the target's folders already use.
+   * Placed beside `beside` among the target's folders, or after the last.
+   */
+  private async demoteGrid(
+    name: string,
+    into: string,
+    beside?: { folder: string | null; after: boolean },
+    record = true
+  ): Promise<void> {
+    const settings = this.plugin.settings;
+    const grid = settings.grids.find((g) => g.name === name);
+    if (!grid) return;
+    const target = settings.grids.find((g) => g.name === into);
+    const refusal =
+      demotionRefusal(grid, target, settings.folders) ??
+      ((await this.plugin.placement.isFree(into, name)) ? null : `${into} already has a folder called ${name}`);
+    if (refusal) {
+      new Notice(`Goko: ${refusal}`);
+      return;
+    }
+
+    const folder = demotedFolder(grid, into);
+    const members = membersOf(this.plugin.index.records(), name).map((r) => r.path);
+    const placement = this.placementOf(members);
+    const wasGrids = [...settings.grids];
+    const wasFolders = [...settings.folders];
+    const wasStage = settings.gridTileSizes[name];
+    const wasActive = settings.activeGrid;
+
+    const last = settings.folders.filter((f) => f.grid === into).at(-1)?.name ?? null;
+    const anchor = beside?.folder ?? last;
+    const nextFolders = insertBeside(
+      settings.folders,
+      folder,
+      (f) => f.grid === into && f.name === anchor,
+      beside?.folder ? beside.after : true
+    );
+    settings.folders.splice(0, settings.folders.length, ...nextFolders);
+    settings.grids.splice(settings.grids.indexOf(grid), 1);
+    delete settings.gridTileSizes[name];
+    const inside = settings.activeGrid === name;
+    if (inside) settings.activeGrid = into;
+    await this.plugin.saveSettings();
+
+    if (this.byFolders) {
+      const moved = await this.plugin.placement.relocate({ grid: name }, { grid: into, folder: name });
+      if (!moved) {
+        settings.grids.splice(0, settings.grids.length, ...wasGrids);
+        settings.folders.splice(0, settings.folders.length, ...wasFolders);
+        if (wasStage !== undefined) settings.gridTileSizes[name] = wasStage;
+        settings.activeGrid = wasActive;
+        await this.plugin.saveSettings();
+        this.refresh();
+        return;
+      }
+    } else if (members.length > 0) {
+      await this.assign(members, into, name);
+    }
+
+    if (inside) {
+      this.spaceBar?.setActive(this.activeGrid());
+      this.enterFolder(name);
+    }
+    this.refresh();
+    new Notice(`Goko: ${name} is a folder on ${into} now`);
+    if (!record) return;
+    this.history.push({
+      label: `Make ${name} a folder`,
+      undo: async () => {
+        settings.grids.splice(0, settings.grids.length, ...wasGrids);
+        settings.folders.splice(0, settings.folders.length, ...wasFolders);
+        if (wasStage !== undefined) settings.gridTileSizes[name] = wasStage;
+        // Back onto the grid itself if the wall had followed it into the
+        // folder it became, rather than left inside a folder that is gone.
+        const following = settings.activeGrid === into && this.openFolder === name;
+        if (following) {
+          settings.activeGrid = name;
+          this.openFolder = null;
+          this.spaceBar?.setFolder(null);
+        }
+        await this.plugin.saveSettings();
+        if (this.byFolders) {
+          await this.plugin.placement.relocate({ grid: into, folder: name }, { grid: name });
+        } else {
+          await this.restorePlacement(placement, members);
+        }
+        if (following) this.spaceBar?.setActive(this.activeGrid());
+        this.refresh();
+      },
+      redo: () => this.demoteGrid(name, into, beside, false),
+    });
   }
 
   /**
