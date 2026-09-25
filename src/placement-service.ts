@@ -5,6 +5,7 @@ import {
   freePath,
   pathForPlacement,
   placementOfPath,
+  takenIgnoringCase,
   treeFromFolders,
 } from "./core/placement";
 import type { FolderTree } from "./core/placement";
@@ -93,9 +94,7 @@ export class PlacementService {
       const target = pathForPlacement(file.path, root, placement);
       // Already there. Not a move, not a write, and not an error.
       if (!target) continue;
-      const free = freePath(target, (candidate) =>
-        this.app.vault.getAbstractFileByPath(candidate) !== null
-      );
+      const free = freePath(target, this.takenBeside(target));
       try {
         await this.app.fileManager.renameFile(file, free);
         now[now.length - 1] = free;
@@ -105,6 +104,15 @@ export class PlacementService {
       }
     }
     return { moved, paths: now };
+  }
+
+  /**
+   * What is already in the folder a note is moving into, compared without
+   * case, so a move never lands on a name the disk counts as taken.
+   */
+  private takenBeside(target: string): (path: string) => boolean {
+    const folder = this.app.vault.getFolderByPath(target.slice(0, target.lastIndexOf("/")));
+    return takenIgnoringCase((folder?.children ?? []).map((child) => child.path));
   }
 
   /** Frontmatter mode: the key travels, the note stays. */
@@ -237,9 +245,7 @@ export class PlacementService {
     const home = folder ? this.folderFor(grid) : this.root();
     const landed: string[] = [];
     for (const note of notes) {
-      const target = freePath(`${home}/${note.name}`, (candidate) =>
-        this.app.vault.getAbstractFileByPath(candidate) !== null
-      );
+      const target = freePath(`${home}/${note.name}`, this.takenBeside(`${home}/${note.name}`));
       try {
         await this.app.fileManager.renameFile(note, target);
         landed.push(target);

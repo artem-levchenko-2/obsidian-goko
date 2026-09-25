@@ -96,6 +96,23 @@ export function freePath(target: string, taken: (path: string) => boolean): stri
   return `${stem} ${Date.now()}${ext}`;
 }
 
+/**
+ * A `taken` for freePath that answers the way the disk under the vault does.
+ *
+ * Obsidian finds a file by its exact spelling, while the disks of a Mac and
+ * of Windows ignore case: beside `Hair.md`, Obsidian calls `hair.md` free,
+ * and creating it fails with "File already exists". So paths are compared
+ * folded, in lower case and in one Unicode form, since a Mac's disk also
+ * takes the composed and the decomposed spelling of an accent as one name.
+ * On Linux, where case does count, the cost is a ` 2` that was not needed.
+ */
+export function takenIgnoringCase(existing: Iterable<string>): (path: string) => boolean {
+  const fold = (path: string): string => path.normalize("NFC").toLowerCase();
+  const folded = new Set<string>();
+  for (const path of existing) folded.add(fold(path));
+  return (path) => folded.has(fold(path));
+}
+
 /** A grid and the folders on it, as the folder tree says. */
 export interface FolderTree {
   grids: string[];

@@ -7,6 +7,7 @@ import {
   mergeFolders,
   pathForPlacement,
   placementOfPath,
+  takenIgnoringCase,
   treeFromFolders,
   validatePathName,
 } from "../src/core/placement";
@@ -88,6 +89,29 @@ describe("freePath", () => {
   it("counts up past what is taken, before the extension", () => {
     const taken = new Set(["Library/a.md", "Library/a 2.md"]);
     expect(freePath("Library/a.md", (p) => taken.has(p))).toBe("Library/a 3.md");
+  });
+});
+
+describe("takenIgnoringCase", () => {
+  it("treats a name that differs only in case as taken", () => {
+    const taken = takenIgnoringCase(["Library/Style/Hair.md"]);
+    expect(taken("Library/Style/hair.md")).toBe(true);
+    expect(taken("library/style/HAIR.md")).toBe(true);
+    expect(freePath("Library/Style/hair.md", taken)).toBe("Library/Style/hair 2.md");
+  });
+
+  it("folds case outside the Latin alphabet too", () => {
+    expect(takenIgnoringCase(["Library/Аниме.md"])("Library/аниме.md")).toBe(true);
+  });
+
+  it("takes both spellings of an accented letter as one name", () => {
+    const composed = "Library/Caf\u00e9.md";
+    const decomposed = "Library/Cafe\u0301.md";
+    expect(takenIgnoringCase([composed])(decomposed)).toBe(true);
+  });
+
+  it("leaves a different name free", () => {
+    expect(takenIgnoringCase(["Library/Hair.md"])("Library/Hair 2.md")).toBe(false);
   });
 });
 

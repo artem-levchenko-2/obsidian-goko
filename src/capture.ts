@@ -11,6 +11,7 @@ import { readArticle } from "./article";
 import { normalizeUrl } from "./core/normalize";
 import { fileableGrid } from "./core/spaces";
 import { withGridKey } from "./core/drop";
+import { freePath, takenIgnoringCase } from "./core/placement";
 import type { ClippingIndex } from "./index-store";
 import {
   ResolvedLink,
@@ -203,12 +204,7 @@ export class CaptureService {
       await this.app.vault.createFolder(clippings).catch(() => {});
     }
 
-    let notePath = normalizePath(`${clippings}/${title}.md`);
-    let m = 2;
-    while (this.app.vault.getAbstractFileByPath(notePath)) {
-      notePath = normalizePath(`${clippings}/${title} ${m}.md`);
-      m++;
-    }
+    const notePath = this.freeNotePath(clippings, title);
 
     try {
       const file = await this.app.vault.create(
@@ -327,12 +323,7 @@ export class CaptureService {
       await this.app.vault.createFolder(folder).catch(() => {});
     }
 
-    let path = normalizePath(`${folder}/${title}.md`);
-    let n = 2;
-    while (this.app.vault.getAbstractFileByPath(path)) {
-      path = normalizePath(`${folder}/${title} ${n}.md`);
-      n++;
-    }
+    const path = this.freeNotePath(folder, title);
 
     let file: TFile;
     try {
@@ -913,6 +904,19 @@ export class CaptureService {
     return { ok: true };
   }
 
+  /**
+   * The path a new note of this name gets in a folder: the name itself, or
+   * ` 2`, ` 3` after it. Compared without case, as the disk compares; see
+   * takenIgnoringCase.
+   */
+  private freeNotePath(folder: string, name: string): string {
+    const siblings = this.app.vault.getFolderByPath(folder)?.children ?? [];
+    return freePath(
+      normalizePath(`${folder}/${name}.md`),
+      takenIgnoringCase(siblings.map((child) => child.path))
+    );
+  }
+
   private async createNote(
     link: ResolvedLink,
     content?: (grid: string) => string,
@@ -924,13 +928,7 @@ export class CaptureService {
       await this.app.vault.createFolder(folder).catch(() => {});
     }
 
-    const base = noteNameFor(link.title, link.url);
-    let path = normalizePath(`${folder}/${base}.md`);
-    let n = 2;
-    while (this.app.vault.getAbstractFileByPath(path)) {
-      path = normalizePath(`${folder}/${base} ${n}.md`);
-      n++;
-    }
+    const path = this.freeNotePath(folder, noteNameFor(link.title, link.url));
 
     try {
       return await this.app.vault.create(path, content ? content(grid) : buildNote(link, today(), grid));
