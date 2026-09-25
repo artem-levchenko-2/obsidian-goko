@@ -262,6 +262,30 @@ describe("noteNameFor", () => {
     expect(noteNameFor("", "not a url")).toBe("Untitled clipping");
     expect(noteNameFor("///", "not a url")).toBe("Untitled clipping");
   });
+
+  it("never starts with a dot, which hides the note from Obsidian", () => {
+    expect(noteNameFor(". walking home.", "https://e.com")).toBe("walking home");
+    expect(noteNameFor(".Nightshift", "https://e.com")).toBe("Nightshift");
+  });
+
+  it("never starts with an underscore, which the index skips", () => {
+    expect(noteNameFor("________Moodboard", "https://e.com")).toBe("Moodboard");
+    expect(noteNameFor("_ draft", "https://e.com")).toBe("draft");
+  });
+
+  it("never ends with a dot, which Windows refuses", () => {
+    expect(noteNameFor("Copper Lamp ..", "https://e.com")).toBe("Copper Lamp");
+    expect(noteNameFor("x".repeat(99) + " .", "https://e.com")).toBe("x".repeat(99));
+  });
+
+  it("keeps the dots and underscores inside a name", () => {
+    expect(noteNameFor("v1.2 release_notes", "https://e.com")).toBe("v1.2 release_notes");
+  });
+
+  it("falls back to the url when the title is only dots", () => {
+    expect(noteNameFor(".", "https://e.com/a")).toBe("e.com a");
+    expect(noteNameFor("...", "not a url")).toBe("Untitled clipping");
+  });
 });
 
 describe("directMediaKind", () => {

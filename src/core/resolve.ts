@@ -732,24 +732,35 @@ export function bareLink(url: string): ResolvedLink {
   return { url, title: "", description: "", author: "", published: "", media: [] };
 }
 
-/** Vault-safe note name derived from a title, never empty. */
+/**
+ * Vault-safe note name derived from a title, never empty.
+ *
+ * Safe means more than legal. A name that starts with a dot is a hidden file,
+ * which Obsidian does not list at all, and one that starts with an underscore
+ * is how the index tells a file that is not a clipping, such as `_Goko.md`:
+ * either way the clipping is written and never seen. So both are stripped
+ * from the front, as are dots at the end, which Windows refuses in a name.
+ * Titles do start that way: ". dressing up." is a real kind of caption.
+ */
 export function noteNameFor(title: string, url: string): string {
-  const cleaned = title
-    .replace(/[\\/:*?"<>|#^[\]]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (cleaned) return cleaned.slice(0, 100).trim();
+  const cleaned = vaultName(title);
+  if (cleaned) return cleaned;
 
   try {
     const parsed = new URL(url);
-    return `${parsed.hostname.replace(/^www\./, "")}${parsed.pathname}`
-      .replace(/[\\/:*?"<>|#^[\]]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .slice(0, 100);
+    return vaultName(`${parsed.hostname.replace(/^www\./, "")}${parsed.pathname}`) || "Untitled clipping";
   } catch {
     return "Untitled clipping";
   }
+}
+
+function vaultName(raw: string): string {
+  return raw
+    .replace(/[\\/:*?"<>|#^[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^[\s._]+/, "")
+    .slice(0, 100)
+    .replace(/[\s.]+$/, "");
 }
 
 /** A value quoted for a line of YAML frontmatter. */
