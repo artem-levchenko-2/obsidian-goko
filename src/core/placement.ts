@@ -155,6 +155,14 @@ export function treeFromFolders(folderPaths: readonly string[], root: string): F
 }
 
 /**
+ * Entries a merge dropped because their folder had gone, by key, with where
+ * they stood. Kept by the caller across merges, so an entry whose folder
+ * comes back — a tree read while a sync was still delivering it, a folder
+ * moved away and back — returns as it was rather than plain at the end.
+ */
+export type Retired<T> = Map<string, { entry: T; index: number }>;
+
+/**
  * Merges what the folder tree holds with what the shared config remembers.
  *
  * The tree is the truth about what exists; the config is the truth about how
@@ -164,6 +172,12 @@ export function treeFromFolders(folderPaths: readonly string[], root: string): F
  * is gone is dropped — deleting a folder in the explorer is a way of deleting
  * a grid, and a registry that kept it would show an empty board forever.
  *
+ * Dropped, but not forgotten when `retired` is given: a tree read before the
+ * vault had finished loading once dropped every grid, and each came back
+ * plain as its folder was found, which cost a vault all its icons and
+ * colours. A name that returns takes its entry back from `retired`, at the
+ * place it had.
+ *
  * Smart views are not folders and never appear in the tree, so they are kept
  * from the stored list untouched — `isSmart` is what tells them apart.
  */
@@ -171,25 +185,17 @@ export function mergeByName<T extends { name: string }>(
   names: readonly string[],
   stored: readonly T[],
   make: (name: string) => T,
-  isSmart: (entry: T) => boolean = () => false
+  isSmart: (entry: T) => boolean = () => false,
+  retired?: Retired<T>
 ): T[] {
-  const wanted = new Set(names);
-  const out: T[] = [];
-  const seen = new Set<string>();
-
-  for (const entry of stored) {
-    if (isSmart(entry)) {
-      out.push(entry);
-      continue;
-    }
-    if (!wanted.has(entry.name) || seen.has(entry.name)) continue;
-    out.push(entry);
-    seen.add(entry.name);
-  }
-  for (const name of names) {
-    if (!seen.has(name)) out.push(make(name));
-  }
-  return out;
+  return merge(
+    names.map((name) => ({ id: name, name })),
+    stored,
+    (entry) => entry.name,
+    (wanted) => make(wanted.name),
+    isSmart,
+    retired
+  );
 }
 
 /**
@@ -202,21 +208,56 @@ export function mergeByName<T extends { name: string }>(
 export function mergeFolders<T extends { name: string; grid: string }>(
   tree: ReadonlyArray<{ name: string; grid: string }>,
   stored: readonly T[],
-  make: (entry: { name: string; grid: string }) => T
+  make: (entry: { name: string; grid: string }) => T,
+  retired?: Retired<T>
 ): T[] {
   const key = (entry: { name: string; grid: string }): string => `${entry.grid}/${entry.name}`;
-  const wanted = new Map(tree.map((entry) => [key(entry), entry]));
+  return merge(
+    tree.map((entry) => ({ id: key(entry), ...entry })),
+    stored,
+    key,
+    (wanted) => make({ name: wanted.name, grid: wanted.grid ?? "" }),
+    () => false,
+    retired
+  );
+}
+
+function merge<T, W extends { id: string; name: string; grid?: string }>(
+  tree: readonly W[],
+  stored: readonly T[],
+  key: (entry: T) => string,
+  make: (wanted: W) => T,
+  isSmart: (entry: T) => boolean,
+  retired?: Retired<T>
+): T[] {
+  const wanted = new Set(tree.map((entry) => entry.id));
   const out: T[] = [];
   const seen = new Set<string>();
 
-  for (const entry of stored) {
+  stored.forEach((entry, index) => {
+    if (isSmart(entry)) {
+      out.push(entry);
+      return;
+    }
     const id = key(entry);
-    if (!wanted.has(id) || seen.has(id)) continue;
+    if (seen.has(id)) return;
+    if (!wanted.has(id)) {
+      retired?.set(id, { entry, index });
+      return;
+    }
     out.push(entry);
     seen.add(id);
-  }
+  });
   for (const entry of tree) {
-    if (!seen.has(key(entry))) out.push(make(entry));
+    if (seen.has(entry.id)) continue;
+    seen.add(entry.id);
+    const back = retired?.get(entry.id);
+    if (back) {
+      retired?.delete(entry.id);
+      out.splice(Math.min(back.index, out.length), 0, back.entry);
+    } else {
+      out.push(make(entry));
+    }
   }
   return out;
 }

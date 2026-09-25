@@ -18,6 +18,9 @@ import { CaptureService } from "./capture";
 import { AnnotateService } from "./annotate-service";
 import { PlacementService } from "./placement-service";
 import { mergeByName, mergeFolders } from "./core/placement";
+import type { Retired } from "./core/placement";
+import type { GridSpace } from "./core/spaces";
+import type { FolderSpace } from "./core/folders";
 import { mimeForPath, pathFromFileUrl, titleFromPath } from "./core/file-clip";
 import { nodeRequire } from "./core/system";
 import { VisionService } from "./vision-service";
@@ -33,14 +36,15 @@ import {
   PLAIN_FOLDER_ICON,
   PLAIN_GRID_ICON,
   SHARED_FILE,
-  acceptsShared,
-  choosesLooks,
+  configHash,
   defaultShared,
+  descendsFrom,
   extractShared,
+  lineageOf,
+  nextLineage,
   publishesShared,
   parseShared,
   rebaseShared,
-  revisionOf,
   serializeShared,
   sharedOf,
   withShared,
@@ -70,8 +74,23 @@ export default class GokoPlugin extends Plugin {
   private arrivals!: ArrivalCheck;
   /** The last shared file this device wrote, to recognise its own echo. */
   private wroteShared = "";
-  /** The revision of the shared file this device last read or wrote. */
-  private sharedRevision = 0;
+  /**
+   * The config this device last read from or wrote to the shared file, by
+   * fingerprint, and the lineage it came with. What its next write is
+   * written on top of.
+   */
+  private sharedBase: { hash: string; lineage: string[] } = { hash: "", lineage: [] };
+  /** The fingerprint of the config in the shared file as this device last
+      saw it, so a save that would write the same config again does not. */
+  private fileHash = "";
+  /**
+   * Grids and folders the registry dropped this session because their folder
+   * was not there, so one whose folder comes back returns as it was; see
+   * mergeByName. For the session only: a folder deleted for good is gone
+   * from the shared file too, and its look with it.
+   */
+  private retiredGrids: Retired<GridSpace> = new Map();
+  private retiredFolders: Retired<FolderSpace> = new Map();
   private archiveTimer = 0;
   /**
    * Notes that appeared in the folder since the last archive pass and have
@@ -165,7 +184,6 @@ export default class GokoPlugin extends Plugin {
     // After the settings, because it needs the clippings folder to know where
     // to look, and before anything reads a grid.
     await this.syncShared();
-    this.watchShared();
 
     // Before the index, which asks it where a path files a clipping.
     this.placement = new PlacementService(this.app, () => this.settings);
@@ -399,8 +417,18 @@ export default class GokoPlugin extends Plugin {
       callback: () => this.archiveAllMedia(),
     });
 
-    this.watchFolders();
     this.app.workspace.onLayoutReady(() => {
+      // Not at load. While Obsidian is still listing the vault it reports
+      // every folder and file as created, one at a time, and a registry
+      // reconciled on each of those saw a tree with only some of the grids
+      // in it: it dropped the rest, then brought each back plain as its
+      // folder was listed, and saved that. Every launch of a large vault cost
+      // it its icons and colours. The tree is whole from here.
+      this.watchFolders();
+      this.watchShared();
+      // A sync may have delivered the shared file while the vault was loading,
+      // which is before anything was listening for it.
+      void this.rereadShared();
       // Here and not at load: whether the note is already there is a
       // question for the vault index, and a new tab needs a workspace to go in.
       void this.handOverGuide();
@@ -738,13 +766,15 @@ export default class GokoPlugin extends Plugin {
       // A grid's own default, not the inbox's: the inbox has an icon of its
       // own that a folder turned grid should not borrow.
       (name) => ({ name, icon: PLAIN_GRID_ICON }),
-      isSmartGrid
+      isSmartGrid,
+      this.retiredGrids
     );
-    const folders = mergeFolders(tree.folders, this.settings.folders, (entry) => ({
-      ...entry,
-      icon: PLAIN_FOLDER_ICON,
-      width: 1 as const,
-    }));
+    const folders = mergeFolders(
+      tree.folders,
+      this.settings.folders,
+      (entry) => ({ ...entry, icon: PLAIN_FOLDER_ICON, width: 1 as const }),
+      this.retiredFolders
+    );
 
     const same =
       JSON.stringify(grids) === JSON.stringify(this.settings.grids) &&
@@ -779,7 +809,14 @@ export default class GokoPlugin extends Plugin {
     // start, and getFileByPath answering null here once cost a device its
     // grids. The adapter reads the filesystem and is always ready.
     const adapter = this.app.vault.adapter;
+    // What this device held when it last ran. The grids themselves are never
+    // in data.json, so without this copy a device starts every launch holding
+    // nothing, and has nothing to tell a stale file apart from a newer one by.
     const backup = this.backupShared();
+    if (backup) {
+      this.settings = withShared(this.settings, backup.shared);
+      this.sharedBase = { hash: configHash(backup.shared), lineage: backup.lineage };
+    }
 
     if (await adapter.exists(path)) {
       try {
@@ -787,20 +824,7 @@ export default class GokoPlugin extends Plugin {
         this.wroteShared = body;
         const raw = extractShared(body);
         if (raw !== null) {
-          const found = parseShared(raw, sharedOf(this.settings));
-          const revision = revisionOf(raw);
-          this.sharedRevision = revision;
-          // Every grid plain, written by a device that had not seen this
-          // one's looks, while this one was closed: the looks come back from
-          // the copy and go out again, which is what mends the other device.
-          if (backup && !acceptsShared(found, revision, backup.shared, backup.revision)) {
-            this.settings = withShared(this.settings, rebaseShared(found, backup.shared));
-            this.sharedRevision = Math.max(revision, backup.revision);
-            await this.writeShared();
-            return;
-          }
-          this.settings = withShared(this.settings, found);
-          this.keepBackup(found, revision);
+          await this.takeShared(parseShared(raw, sharedOf(this.settings)), lineageOf(raw), !backup);
           return;
         }
       } catch {
@@ -808,16 +832,38 @@ export default class GokoPlugin extends Plugin {
       }
       // Unreadable, or half-written by a sync still in flight. What this
       // device already has beats nothing, and the next save republishes it.
-      // What it has is the copy, when there is one: the grids themselves are
-      // never in data.json.
-      if (backup) this.settings = withShared(this.settings, backup.shared);
       new Notice("Goko: could not read the shared grid configuration.");
       return;
     }
 
     // Nothing to read, so this device publishes what it has — or stays quiet,
     // if what it has is only the defaults. writeShared decides which.
-    if (backup) this.settings = withShared(this.settings, backup.shared);
+    await this.writeShared();
+  }
+
+  /**
+   * Takes a config read from the shared file: whole, when its writer had
+   * seen what this device holds, and folded into what it holds otherwise;
+   * see descendsFrom. A fold is written straight back out, carrying both
+   * lines, so the device that wrote the stale file takes the result.
+   *
+   * `fresh` is a device with nothing of its own yet, the first launch on a
+   * new phone, which takes the file as it is.
+   */
+  private async takeShared(read: SharedConfig, lineage: string[], fresh: boolean): Promise<void> {
+    const held = sharedOf(this.settings);
+    this.fileHash = configHash(read);
+    if (fresh || descendsFrom(read, lineage, held)) {
+      this.settings = withShared(this.settings, read);
+      this.sharedBase = { hash: configHash(read), lineage };
+      this.keepBackup();
+      return;
+    }
+    this.settings = withShared(this.settings, rebaseShared(read, held));
+    this.sharedBase = {
+      hash: configHash(held),
+      lineage: nextLineage(configHash(read), this.sharedBase.lineage, lineage),
+    };
     await this.writeShared();
   }
 
@@ -825,18 +871,19 @@ export default class GokoPlugin extends Plugin {
     const shared = sharedOf(this.settings);
     // saveSettings also runs for the device's own half, the tile size among
     // them, and rewriting an identical file for those is sync churn on every
-    // device rather than a change to anything. Compared at the revision it
-    // was read or written at, so the same config is the same file.
-    if (serializeShared(shared, this.sharedRevision || undefined) === this.wroteShared) return;
+    // device rather than a change to anything.
+    if (configHash(shared) === this.fileHash) return;
     // Both routes to a write come through here, and publishesShared is what
     // decides for both. See it for why a fresh vault stays quiet.
     if (!publishesShared(this.wroteShared, shared)) return;
-    const revision = this.sharedRevision + 1;
-    const body = serializeShared(shared, revision);
+    // Written on top of what this device held, and saying so: see descendsFrom.
+    const lineage = nextLineage(this.sharedBase.hash, this.sharedBase.lineage);
+    const body = serializeShared(shared, lineage);
     // Remembered so the modify event our own write raises can be told apart
     // from one that arrived by sync.
     this.wroteShared = body;
-    this.sharedRevision = revision;
+    this.sharedBase = { hash: configHash(shared), lineage };
+    this.fileHash = this.sharedBase.hash;
     const path = this.sharedPath();
     const folder = normalizePath(this.settings.clippingsFolder);
     // A vault with nothing clipped yet has no clippings folder to keep the
@@ -849,25 +896,19 @@ export default class GokoPlugin extends Plugin {
       await this.app.vault.adapter.mkdir(folder);
     }
     await this.app.vault.adapter.write(path, body);
-    this.keepBackup(shared, revision);
+    this.keepBackup();
   }
 
-  /** This device's copy of the looks, when it has one worth having. */
-  private backupShared(): { shared: SharedConfig; revision: number } | null {
+  /** The copy of what this device last held, from its own settings. */
+  private backupShared(): { shared: SharedConfig; lineage: string[] } | null {
     const raw = this.settings.sharedBackup;
-    if (!raw) return null;
-    const shared = parseShared(raw, defaultShared());
-    return choosesLooks(shared) ? { shared, revision: revisionOf(raw) } : null;
+    if (!raw || typeof raw !== "object") return null;
+    return { shared: parseShared(raw, defaultShared()), lineage: lineageOf(raw) };
   }
 
-  /**
-   * Keeps a config as this device's copy, if it says how anything looks.
-   * A plain one leaves the copy as it was: a plain config is the very thing
-   * the copy is there to answer.
-   */
-  private keepBackup(shared: SharedConfig, revision: number): void {
-    if (!choosesLooks(shared)) return;
-    const copy = { ...shared, revision };
+  /** Keeps what this device holds now as its copy, with its lineage. */
+  private keepBackup(): void {
+    const copy = { ...sharedOf(this.settings), lineage: this.sharedBase.lineage };
     if (JSON.stringify(copy) === JSON.stringify(this.settings.sharedBackup)) return;
     this.settings.sharedBackup = copy;
     void this.saveLocal();
@@ -878,44 +919,36 @@ export default class GokoPlugin extends Plugin {
    * sync delivering another device's grids looks like from here.
    */
   private watchShared(): void {
-    const reread = async (path: string): Promise<void> => {
-      if (path !== this.sharedPath()) return;
-      let body: string;
-      try {
-        body = await this.app.vault.adapter.read(this.sharedPath());
-      } catch {
-        return;
-      }
-      // Our own write coming back. Acting on it would be harmless but would
-      // rebuild every open wall for nothing.
-      if (body === this.wroteShared) return;
-      const raw = extractShared(body);
-      if (raw === null) return;
-      const held = sharedOf(this.settings);
-      const read = parseShared(raw, held);
-      const revision = revisionOf(raw);
-      // Now what is on disk, as far as this device knows, so the next save
-      // does not write the same thing straight back at whoever sent it.
-      this.wroteShared = body;
-      if (acceptsShared(read, revision, held, this.sharedRevision)) {
-        this.settings = withShared(this.settings, read);
-        this.sharedRevision = revision;
-        this.keepBackup(read, revision);
-      } else {
-        // Every grid plain, from a device that had not read this one's
-        // looks. Kept, with whatever grid it found that this device had not,
-        // and sent back out, so that device is put right too.
-        this.settings = withShared(this.settings, rebaseShared(read, held));
-        this.sharedRevision = Math.max(revision, this.sharedRevision);
-        await this.writeShared();
-      }
-      for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRID)) {
-        if (leaf.view instanceof GokoView) leaf.view.refreshGrids();
-      }
+    const reread = (path: string): void => {
+      if (path === this.sharedPath()) void this.rereadShared();
     };
+    this.registerEvent(this.app.vault.on("modify", (file) => reread(file.path)));
+    this.registerEvent(this.app.vault.on("create", (file) => reread(file.path)));
+  }
 
-    this.registerEvent(this.app.vault.on("modify", (file) => void reread(file.path)));
-    this.registerEvent(this.app.vault.on("create", (file) => void reread(file.path)));
+  /** Reads the shared file again, if it is not what this device last wrote. */
+  private async rereadShared(): Promise<void> {
+    let body: string;
+    try {
+      body = await this.app.vault.adapter.read(this.sharedPath());
+    } catch {
+      return;
+    }
+    // Our own write coming back. Acting on it would be harmless but would
+    // rebuild every open wall for nothing.
+    if (body === this.wroteShared) return;
+    const raw = extractShared(body);
+    if (raw === null) return;
+    // Now what is on disk, as far as this device knows, so the next save
+    // does not write the same thing straight back at whoever sent it.
+    this.wroteShared = body;
+    await this.takeShared(parseShared(raw, sharedOf(this.settings)), lineageOf(raw), false);
+    // A fold can bring back a grid the other device still had a folder
+    // for; the tree here says whether it exists.
+    await this.syncRegistry();
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRID)) {
+      if (leaf.view instanceof GokoView) leaf.view.refreshGrids();
+    }
   }
 
   async loadSettings(): Promise<void> {

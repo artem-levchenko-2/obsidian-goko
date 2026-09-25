@@ -192,12 +192,12 @@ export interface GokoSettings {
    */
   gridTileSizes: Record<string, DensityStage>;
   /**
-   * The last shared configuration this device saw that said how anything
-   * looks, kept in the device's own settings as a copy the shared file
-   * cannot take with it. When the file arrives with every grid plain while
-   * this device was closed, this is what the looks are put back from; see
-   * choosesLooks. Read through parseShared, so a copy edited into nonsense
-   * is simply no copy.
+   * The shared configuration this device last held, with its lineage, kept
+   * in the device's own settings where the shared file cannot take it away.
+   * It is what a launch starts from, so a file written while this device
+   * was closed, by one that had never seen these grids, is folded into it
+   * rather than replacing it; see descendsFrom. Read through parseShared,
+   * so a copy edited into nonsense is simply no copy.
    */
   sharedBackup?: unknown;
   /** Full path to yt-dlp, "" to discover it on PATH and in common installs. */

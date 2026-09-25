@@ -5,6 +5,7 @@ import type { FolderSpace } from "./folders";
 import { MAX_GRID_DESCRIPTION, isGridColor } from "./spaces";
 import type { GridSpace } from "./spaces";
 import type { GridLook } from "./look";
+import { hashUrl } from "./hash";
 
 /**
  * The half of the settings that describes the vault, and therefore belongs
@@ -124,47 +125,16 @@ export const PLAIN_GRID_ICON = "layout-grid";
 /** And what a folder on a grid starts as. */
 export const PLAIN_FOLDER_ICON = "folder";
 
-function gridChosen(grid: GridSpace): boolean {
-  return (
-    grid.icon !== PLAIN_GRID_ICON ||
-    grid.color !== undefined ||
-    grid.description !== undefined ||
-    grid.rules !== undefined ||
-    grid.look !== undefined
-  );
-}
-
-function folderChosen(folder: FolderSpace): boolean {
-  return folder.icon !== PLAIN_FOLDER_ICON || folder.width !== 1;
-}
-
-/**
- * Whether a config says how anything looks: an icon, a colour, a
- * description or a look on a grid, a smart grid's rules, an icon or a width
- * on a folder.
- *
- * In folder mode the folders themselves say which grids exist, so a device
- * can build the whole list without ever having read this file, and every
- * entry it builds is plain. Such a list is not a statement about the vault.
- * It is what a device writes when the file had not reached it yet or could
- * not be read, and published, it painted every grid in the vault plain on
- * every device: a hammer, a shirt and a colour on twenty grids went in one
- * sync. So a config that chooses nothing does not replace one that chooses
- * something unless it was written after it; see acceptsShared.
- */
-export function choosesLooks(shared: SharedConfig): boolean {
-  return shared.grids.some(gridChosen) || shared.folders.some(folderChosen);
-}
-
 /**
  * `base`, with the grids and folders only `extra` knows about added after
  * its own, and everything else — order, looks, home, the filter menu — as
  * `base` has it.
  *
- * What a config that chooses nothing is folded into rather than allowed to
- * overwrite, since what it can add is only what its device found in the
- * folder tree. A grid it lacks is kept: the folder tree is the judge of
- * what exists, and the registry sync drops a grid whose folder is gone.
+ * What a config from a device that had not seen `base` is folded into,
+ * rather than allowed to overwrite it; see descendsFrom. All such a device
+ * can add is what it found in its own folder tree. A grid it lacks is kept:
+ * the folder tree is the judge of what exists, and the registry sync drops
+ * a grid whose folder is gone.
  */
 export function rebaseShared(extra: SharedConfig, base: SharedConfig): SharedConfig {
   const grids = [...base.grids];
@@ -281,37 +251,71 @@ export function parseShared(raw: unknown, fallback: SharedConfig): SharedConfig 
 }
 
 /**
- * How many writes the file has had, as the file says: one more than the
- * revision its writer had last read. Zero for a file from before revisions,
- * or one that says something unusable.
+ * A fingerprint of a config, the same on every device that holds the same
+ * grids, folders and settings whatever order its objects' keys are in.
  */
-export function revisionOf(raw: unknown): number {
-  if (typeof raw !== "object" || raw === null) return 0;
-  const revision = (raw as Record<string, unknown>).revision;
-  return typeof revision === "number" && Number.isInteger(revision) && revision > 0 ? revision : 0;
+export function configHash(shared: SharedConfig): string {
+  const canonical = (value: unknown): unknown => {
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value === "object") {
+      const out: Record<string, unknown> = {};
+      for (const key of Object.keys(value).sort()) {
+        const inner = (value as Record<string, unknown>)[key];
+        if (inner !== undefined) out[key] = canonical(inner);
+      }
+      return out;
+    }
+    return value;
+  };
+  return hashUrl(JSON.stringify(canonical(shared)));
+}
+
+/** How many ancestors a file remembers. A device further behind than this
+    is treated as having seen none of them, which only means it is merged. */
+const LINEAGE = 32;
+
+/**
+ * The fingerprints of the configs a file was written on top of, newest
+ * first: the one its writer held, then the ones that one descended from. An
+ * empty list for a file from before lineage, or one from a device that had
+ * not read the file at all.
+ */
+export function lineageOf(raw: unknown): string[] {
+  if (typeof raw !== "object" || raw === null) return [];
+  const lineage = (raw as Record<string, unknown>).lineage;
+  return Array.isArray(lineage) ? lineage.filter((h): h is string => typeof h === "string").slice(0, LINEAGE) : [];
 }
 
 /**
- * Whether a device should take a config it has just read, over the one it
- * holds.
- *
- * Always, except in the one case that has cost a vault its looks: the
- * config read chooses nothing, the one held chooses something, and the one
- * read was not written after the one held. A device that had not seen the
- * held config wrote it, so it is not an answer to it. A plain config that is
- * newer is someone clearing the last look on purpose, and is taken.
- *
- * Deliberately narrow. Every other disagreement is settled the way it always
- * was, by the file, so an older device that never writes a revision is still
- * heard on everything but this.
+ * The lineage a device writes: what it held, then that config's own
+ * ancestry, and any other line it has folded in, without repeats.
  */
-export function acceptsShared(
-  read: SharedConfig,
-  readRevision: number,
-  held: SharedConfig,
-  heldRevision: number
-): boolean {
-  return choosesLooks(read) || !choosesLooks(held) || readRevision > heldRevision;
+export function nextLineage(held: string, ...lines: ReadonlyArray<readonly string[]>): string[] {
+  const out: string[] = [];
+  for (const hash of [held, ...lines.flat()]) {
+    if (hash && !out.includes(hash)) out.push(hash);
+  }
+  return out.slice(0, LINEAGE);
+}
+
+/**
+ * Whether a config read from the file was written by a device that had
+ * already seen `held`, and so may replace it.
+ *
+ * In folder mode a device can build its whole grid list from the folders
+ * without ever reading this file, and everything it builds is plain. Such
+ * a device, or one holding a copy days old, once published its list and
+ * every other device took it as the truth: twenty grids lost their icons
+ * and colours in one sync, and a guard on revision numbers did not stop it
+ * a second time, because a device that has read nothing counts from zero
+ * like everyone else. What does tell them apart is whether the writer had
+ * seen this device's config. The file carries the fingerprints of what its
+ * writer held, and a config this device's own fingerprint is not among is
+ * merged into what it holds rather than taking its place.
+ */
+export function descendsFrom(read: SharedConfig, readLineage: readonly string[], held: SharedConfig): boolean {
+  const mine = configHash(held);
+  return configHash(read) === mine || readLineage.includes(mine);
 }
 
 /** What a device should start from when no file has been written yet. */
@@ -322,11 +326,11 @@ export function defaultShared(): SharedConfig {
 const FENCE = "```";
 
 /** Serialised the way it is written, so a caller can tell its own write back
-    from one that arrived by sync without re-reading the file. The revision
+    from one that arrived by sync without re-reading the file. The lineage
     rides beside the config rather than in it: it is about the file, and a
     device's settings have no use for it. */
-export function serializeShared(shared: SharedConfig, revision?: number): string {
-  const body = revision === undefined ? shared : { ...shared, revision };
+export function serializeShared(shared: SharedConfig, lineage: readonly string[] = []): string {
+  const body = lineage.length === 0 ? shared : { ...shared, lineage };
   return [
     "# Goko",
     "",

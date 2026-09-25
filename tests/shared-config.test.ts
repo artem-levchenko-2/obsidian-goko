@@ -1,14 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
-  acceptsShared,
-  choosesLooks,
+  configHash,
   defaultShared,
+  descendsFrom,
   extractShared,
   isDefaultShared,
+  lineageOf,
+  nextLineage,
   parseShared,
   publishesShared,
   rebaseShared,
-  revisionOf,
   serializeShared,
   sharedOf,
   withShared,
@@ -303,40 +304,53 @@ describe("publishesShared", () => {
   });
 });
 
-describe("choosesLooks", () => {
-  const plain = (grids: SharedConfig["grids"], folders: SharedConfig["folders"] = []): SharedConfig => ({
+describe("configHash", () => {
+  const shared: SharedConfig = {
     ...defaultShared(),
-    grids,
-    folders,
+    grids: [{ name: "Tools", icon: "hammer", color: "orange" }],
+  };
+
+  it("is the same for the same config, whatever order its keys are in", () => {
+    const reordered = { ...shared, grids: [{ color: "orange" as const, icon: "hammer", name: "Tools" }] };
+    expect(configHash(reordered)).toBe(configHash(shared));
   });
 
-  it("is false for grids and folders exactly as the folder tree makes them", () => {
-    expect(
-      choosesLooks(
-        plain(
-          [{ name: "Posters", icon: "layout-grid" }, { name: "Tools", icon: "layout-grid" }],
-          [{ name: "Brass", icon: "folder", grid: "Tools", width: 1 }]
-        )
-      )
-    ).toBe(false);
-    expect(choosesLooks(defaultShared())).toBe(false);
+  it("changes with any look", () => {
+    const plain = { ...shared, grids: [{ name: "Tools", icon: "layout-grid" }] };
+    expect(configHash(plain)).not.toBe(configHash(shared));
   });
 
-  it("is true once any grid has an icon, a colour, a description, rules or a look", () => {
-    expect(choosesLooks(plain([{ name: "Tools", icon: "hammer" }]))).toBe(true);
-    expect(choosesLooks(plain([{ name: "Tools", icon: "layout-grid", color: "orange" }]))).toBe(true);
-    expect(choosesLooks(plain([{ name: "Tools", icon: "layout-grid", description: "Workshop" }]))).toBe(true);
-    expect(choosesLooks(plain([{ name: "Unread", icon: "layout-grid", rules: {} }]))).toBe(true);
-    expect(choosesLooks(plain([{ name: "Tools", icon: "layout-grid", look: {} }]))).toBe(true);
-  });
-
-  it("is true once any folder has an icon or a width of its own", () => {
-    expect(choosesLooks(plain([], [{ name: "Brass", icon: "gem", grid: "Tools", width: 1 }]))).toBe(true);
-    expect(choosesLooks(plain([], [{ name: "Brass", icon: "folder", grid: "Tools", width: 2 }]))).toBe(true);
+  it("survives a round trip through the file", () => {
+    const back = parseShared(extractShared(serializeShared(shared, ["abc"])), defaultShared());
+    expect(configHash(back)).toBe(configHash(shared));
   });
 });
 
-describe("acceptsShared", () => {
+describe("lineage", () => {
+  it("is read from the file, and empty for a file from before it", () => {
+    expect(lineageOf(extractShared(serializeShared(defaultShared(), ["b", "a"])))).toEqual(["b", "a"]);
+    expect(lineageOf(extractShared(serializeShared(defaultShared())))).toEqual([]);
+    expect(lineageOf({ lineage: "b" })).toEqual([]);
+    expect(lineageOf(null)).toEqual([]);
+  });
+
+  it("stays out of the config a device takes into its settings", () => {
+    const raw = extractShared(serializeShared(defaultShared(), ["b"]));
+    expect(Object.keys(parseShared(raw, defaultShared()))).not.toContain("lineage");
+  });
+
+  it("puts what was held first, then its ancestry, without repeats", () => {
+    expect(nextLineage("c", ["b", "a"], ["x", "a"])).toEqual(["c", "b", "a", "x"]);
+    expect(nextLineage("", [])).toEqual([]);
+  });
+
+  it("keeps a bounded number of ancestors", () => {
+    const long = Array.from({ length: 60 }, (_, i) => `h${i}`);
+    expect(nextLineage("top", long)).toHaveLength(32);
+  });
+});
+
+describe("descendsFrom", () => {
   const held: SharedConfig = {
     ...defaultShared(),
     grids: [
@@ -344,7 +358,7 @@ describe("acceptsShared", () => {
       { name: "Posters", icon: "image" },
     ],
   };
-  const plainRead: SharedConfig = {
+  const plain: SharedConfig = {
     ...defaultShared(),
     grids: [
       { name: "Posters", icon: "layout-grid" },
@@ -352,22 +366,18 @@ describe("acceptsShared", () => {
     ],
   };
 
-  it("refuses a plain config over a chosen one it was not written after", () => {
-    expect(acceptsShared(plainRead, 0, held, 12)).toBe(false);
-    expect(acceptsShared(plainRead, 12, held, 12)).toBe(false);
+  it("takes a config written on top of the one held", () => {
+    expect(descendsFrom(plain, [configHash(held)], held)).toBe(true);
+    expect(descendsFrom(plain, ["newer", configHash(held), "older"], held)).toBe(true);
   });
 
-  it("takes a plain config written after the one held, which is a look cleared on purpose", () => {
-    expect(acceptsShared(plainRead, 13, held, 12)).toBe(true);
+  it("refuses one from a device that had not seen it, however it counts", () => {
+    expect(descendsFrom(plain, [], held)).toBe(false);
+    expect(descendsFrom(plain, ["someone-else"], held)).toBe(false);
   });
 
-  it("takes anything that chooses looks, whatever its revision", () => {
-    const other = { ...held, grids: [{ name: "Tools", icon: "wrench" }] };
-    expect(acceptsShared(other, 0, held, 12)).toBe(true);
-  });
-
-  it("takes anything at all while this device holds nothing chosen", () => {
-    expect(acceptsShared(plainRead, 0, plainRead, 5)).toBe(true);
+  it("takes the same config back whatever its lineage", () => {
+    expect(descendsFrom({ ...held }, [], held)).toBe(true);
   });
 });
 
@@ -402,24 +412,5 @@ describe("rebaseShared", () => {
     ]);
     expect(out.folders.map((f) => f.name)).toEqual(["Brass", "Leather"]);
     expect(out.homeGridIcon).toBe(base.homeGridIcon);
-  });
-});
-
-describe("revisionOf", () => {
-  it("reads the revision a file was written at", () => {
-    const shared = defaultShared();
-    expect(revisionOf(extractShared(serializeShared(shared, 7)))).toBe(7);
-  });
-
-  it("is zero for a file from before revisions, or one that says nonsense", () => {
-    expect(revisionOf(extractShared(serializeShared(defaultShared())))).toBe(0);
-    expect(revisionOf({ revision: "7" })).toBe(0);
-    expect(revisionOf({ revision: -2 })).toBe(0);
-    expect(revisionOf(null)).toBe(0);
-  });
-
-  it("stays out of the config a device takes into its settings", () => {
-    const raw = extractShared(serializeShared(defaultShared(), 7));
-    expect(Object.keys(parseShared(raw, defaultShared()))).not.toContain("revision");
   });
 });

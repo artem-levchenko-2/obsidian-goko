@@ -209,6 +209,64 @@ describe("mergeByName", () => {
   });
 });
 
+describe("mergeByName with a memory of what it dropped", () => {
+  interface Grid {
+    name: string;
+    icon: string;
+    color?: string;
+  }
+  const make = (name: string): Grid => ({ name, icon: "layout-grid" });
+  const stored: Grid[] = [
+    { name: "Tools", icon: "hammer", color: "orange" },
+    { name: "Posters", icon: "image" },
+    { name: "Maps", icon: "map" },
+  ];
+
+  it("brings every grid back as it was when the tree was read half loaded", () => {
+    const retired = new Map();
+    // The first folder event of a launch, before the vault has listed any.
+    const empty = mergeByName([], stored, make, () => false, retired);
+    expect(empty).toEqual([]);
+    // Then the folders arrive one by one, in whatever order the disk gives.
+    let grids = empty;
+    for (const found of [["Maps"], ["Maps", "Tools"], ["Maps", "Tools", "Posters"]]) {
+      grids = mergeByName(found, grids, make, () => false, retired);
+    }
+    expect(grids).toEqual(stored);
+  });
+
+  it("still makes a plain grid for a folder it never knew", () => {
+    const retired = new Map();
+    expect(mergeByName(["Tools", "Posters", "Maps", "New"], stored, make, () => false, retired).at(-1)).toEqual({
+      name: "New",
+      icon: "layout-grid",
+    });
+  });
+});
+
+describe("mergeFolders with a memory of what it dropped", () => {
+  it("brings a folder back as it was, on its own grid", () => {
+    const stored = [
+      { name: "Brass", icon: "gem", grid: "Tools", width: 2 as const },
+      { name: "Leather", icon: "folder", grid: "Tools", width: 1 as const },
+    ];
+    const make = (entry: { name: string; grid: string }) => ({ ...entry, icon: "folder", width: 1 as const });
+    const retired = new Map();
+    const gone = mergeFolders([{ name: "Leather", grid: "Tools" }], stored, make, retired);
+    expect(gone.map((f) => f.name)).toEqual(["Leather"]);
+    const back = mergeFolders(
+      [
+        { name: "Leather", grid: "Tools" },
+        { name: "Brass", grid: "Tools" },
+      ],
+      gone,
+      make,
+      retired
+    );
+    expect(back).toEqual(stored);
+  });
+});
+
 describe("validatePathName", () => {
   it("accepts an ordinary name", () => {
     expect(validatePathName("Payments", [])).toBeNull();

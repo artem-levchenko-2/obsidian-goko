@@ -5,6 +5,22 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Grids no longer lose their icons, colours and order when Obsidian starts.
+  While Obsidian lists a vault it reports every folder as new, and Goko
+  rebuilt its list of grids on each of those, from a folder tree that did
+  not have them all yet: it dropped the rest and brought each back plain as
+  its folder was listed. It now waits for the vault to be listed, and a
+  grid whose folder goes and comes back returns as it was.
+- A device that had not read the vault's grids, or held a copy days old, can
+  no longer replace them for every device. The shared file now says which
+  configurations its writer had seen, and one written without having seen
+  this device's is merged into it instead. This replaces the revision number
+  1.0.4 added, which such a device could count past.
+
 ## [1.0.5] - 2026-09-26
 
 ### Added
