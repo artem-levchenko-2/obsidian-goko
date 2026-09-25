@@ -28,6 +28,22 @@ const SHORT_HOST = "pin.it";
 /** `/pin/<id>/`, or `/pin/<slug>--<id>/` as the regional pages write it. */
 const PIN_PATH = /^\/pin\/(?:[^/]*--)?(\d{5,25})(?:\/|$)/;
 
+/**
+ * `/pin/<id>/` for a pin whose id is not a number: fifty-odd or ninety-odd
+ * letters, digits, dashes and underscores. The resource does not answer for
+ * these, and the page answers with the pin only when it is public, so what
+ * recognising one buys is the page's picture where there is one, and one
+ * permalink to tell "already clipped" by. Asked to hold a capital and a
+ * digit, which such an id all but always does and a slug made of words
+ * does not.
+ */
+const LETTERED_PIN_PATH = /^\/pin\/([A-Za-z0-9_-]{40,120})(?:\/|$)/;
+
+function letteredPinId(pathname: string): string | null {
+  const id = LETTERED_PIN_PATH.exec(pathname)?.[1];
+  return id && /[A-Z]/.test(id) && /\d/.test(id) ? id : null;
+}
+
 function hostOf(url: string): string {
   try {
     return new URL(url).hostname.toLowerCase();
@@ -59,7 +75,7 @@ export function pinterestPinId(url: string): string | null {
     return null;
   }
   if (!PINTEREST_HOST.test(parsed.hostname)) return null;
-  return PIN_PATH.exec(parsed.pathname)?.[1] ?? null;
+  return PIN_PATH.exec(parsed.pathname)?.[1] ?? letteredPinId(parsed.pathname);
 }
 
 /**
@@ -391,6 +407,12 @@ export function parsePinResource(payload: unknown, id: string): ResolvedLink | n
  * at 1200 wide. The page's og:url is not kept, because for a pin saved from
  * another pin it names that other pin; the address stays the permalink of
  * the pin that was asked for.
+ *
+ * A page with no picture at all is not showing the pin. It is what
+ * Pinterest serves in its place to a reader who is not signed in, for a pin
+ * on a secret board or one only its owner can see: the site's front page,
+ * titled "Best ideas on Pinterest" in the reader's language. Nothing on it
+ * is about the pin, so nothing of it is kept but the pin's address.
  */
 export function parsePinPage(html: string, id: string): ResolvedLink {
   const url = pinPermalink(id);
@@ -404,6 +426,9 @@ export function parsePinPage(html: string, id: string): ResolvedLink {
     if (seen.has(sized)) continue;
     seen.add(sized);
     media.push({ url: sized, kind: item.kind });
+  }
+  if (media.length === 0) {
+    return { url, title: "Pinterest pin", description: "", author: "", published: "", media };
   }
 
   const link: ResolvedLink = {

@@ -20,6 +20,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Goko saves the original when it has see-through pixels, and Pinterest's
   JPEG, a fraction of the size, when it has none. A HEIC photo is saved as
   that JPEG instead of failing to download.
+- A pin whose address ends in letters and digits rather than a number is
+  recognised as a pin: a public one is clipped with its picture, and clipping
+  one twice finds the first.
+- A pin Pinterest shows only to a signed-in reader is saved as its address,
+  titled "Pinterest pin", instead of a scan of Pinterest's front page.
 
 ## [1.0.2] - 2026-09-24
 

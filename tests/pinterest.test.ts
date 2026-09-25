@@ -23,6 +23,10 @@ import type { ClippingRecord } from "../src/core/scan";
 const PIN_ID = "731246580913572846";
 const OTHER_PIN_ID = "2468013579864209";
 const HASH = "3fa1c07be29d4c8816f0a5e7b2c9d341";
+// Pins whose id is letters and digits come in these two lengths.
+const LETTERED_ID = "AQqp3E-YkHbLbREC6aoyG1PzDD2_5djlK6tKx62Ur3ZU-gepvfpTNB4";
+const LONG_LETTERED_ID =
+  "AKkLj4D8C-WO4wyLTgtU3gpDZEAq1o0zpRTgo2sQpvzCD1dCFuk_kpRe2UUJs69wnmOZkn1WSl28bHLudIgxTW0";
 const VIDEO_HASH = "9c2e71d0b4a85f36e1d7c0a92b5f4e18";
 const REEL = "https://www.instagram.com/reel/Qx7Lm2Np4Rt/";
 
@@ -157,6 +161,20 @@ describe("Pinterest addresses", () => {
     expect(pinterestPinId(`https://www.pinterest.com/pin/${PIN_ID}`)).toBe(PIN_ID);
     expect(pinterestPinId(`https://www.pinterest.com/pin/cozy-hallway-ideas--${PIN_ID}/`)).toBe(PIN_ID);
     expect(pinterestPinId(`https://www.pinterest.com/pin/${PIN_ID}/?mt=login`)).toBe(PIN_ID);
+  });
+
+  it("reads an id made of letters and digits", () => {
+    expect(pinterestPinId(`https://www.pinterest.com/pin/${LETTERED_ID}/`)).toBe(LETTERED_ID);
+    expect(pinterestPinId(`https://mx.pinterest.com/pin/${LONG_LETTERED_ID}`)).toBe(LONG_LETTERED_ID);
+    expect(canonicalPinUrl(`https://pinterest.de/pin/${LETTERED_ID}/?mt=login`)).toBe(
+      `https://www.pinterest.com/pin/${LETTERED_ID}/`
+    );
+  });
+
+  it("does not take a slug of words for a lettered id", () => {
+    expect(pinterestPinId("https://www.pinterest.com/pin/cozy-hallway-ideas-for-a-small-flat-in-autumn/")).toBeNull();
+    expect(pinterestPinId("https://www.pinterest.com/pin/Cozy-Hallway-Ideas-For-A-Small-Flat-In-Autumn/")).toBeNull();
+    expect(pinterestPinId(`https://www.pinterest.com/pin/${LETTERED_ID.slice(0, 20)}/`)).toBeNull();
   });
 
   it("knows the country subdomains and the regional storefronts", () => {
@@ -472,6 +490,23 @@ describe("parsePinPage", () => {
   it("reads the origin the page names", () => {
     expect(parsePinPage(pinPage({ source: REEL }), PIN_ID).origin).toBe(REEL);
     expect(parsePinPage(pinPage(), PIN_ID).origin).toBeUndefined();
+  });
+
+  it("keeps nothing of the front page Pinterest shows in place of a pin it will not show", () => {
+    const html =
+      `<!DOCTYPE html><html><head>` +
+      `<meta content="Best ideas on Pinterest" property="og:title"/>` +
+      `<meta content="Discover recipes, home ideas, style inspiration and more." property="og:description"/>` +
+      `<title>Best ideas on Pinterest</title></head><body></body></html>`;
+    const pin = parsePinPage(html, LETTERED_ID);
+    expect(pin).toEqual({
+      url: `https://www.pinterest.com/pin/${LETTERED_ID}/`,
+      title: "Pinterest pin",
+      description: "",
+      author: "",
+      published: "",
+      media: [],
+    });
   });
 });
 

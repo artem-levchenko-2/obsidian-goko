@@ -494,7 +494,13 @@ export class CaptureService {
     // into one tall picture and let that be the tile. Only as a fallback —
     // a page's own picture always wins, which is what the reverted
     // scan-by-default got backwards.
-    if (scanAvailable()) {
+    //
+    // Not a pin, though. A pin with nothing to show is one Pinterest keeps
+    // from a reader who is not signed in, and its page is then the site's
+    // front page or a sign-in form: a scan of that is a picture of
+    // Pinterest, not of the pin. The address alone is the honest clipping.
+    const pin = canonicalPinUrl(url) ?? (link ? canonicalPinUrl(link.url) : null);
+    if (scanAvailable() && !pin) {
       const outcome = await this.scanAndSave(url, grid, link?.article);
       if (outcome.ok) return;
       console.warn(`Goko: scan of ${url} failed (${outcome.reason})`);
