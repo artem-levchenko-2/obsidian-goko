@@ -253,7 +253,8 @@ function tagsWhy(shared: readonly string[]): string {
 export function scoreGrid(
   record: ClippingRecord,
   profile: GridProfile,
-  rules: readonly DomainRule[] = []
+  rules: readonly DomainRule[] = [],
+  ignore: ReadonlySet<string> = new Set()
 ): Score {
   const host = domainOf(record.source);
   const place = profile.folder ? "folder" : "grid";
@@ -265,7 +266,9 @@ export function scoreGrid(
     return { score: 1, why: `rule for ${host}` };
   }
 
-  const tags = tagsOf(record, profile.tagKeys);
+  const tags = tagsOf(record, profile.tagKeys).filter(
+    (tag) => !ignore.has(tag) && !NOT_A_SUBJECT.has(tag)
+  );
   let tagScore = 0;
   const shared: string[] = [];
   for (const tag of tags) {
@@ -313,6 +316,31 @@ export function scoreGrid(
   return { score, why: parts[0].value > 0 ? parts[0].why : "" };
 }
 
+/**
+ * The tags that characterise every grid, which therefore say nothing about
+ * which one a card belongs on.
+ *
+ * "clippings" is the one that made this necessary: the web clipper writes it
+ * on everything, and so does Goko, so every grid carried it on every card.
+ * Every inbox card then scored the same on every grid, the tie went to the
+ * smallest, and a whole inbox was proposed for a grid with one card on it.
+ * That tag is now named in NOT_A_SUBJECT, as it already was for proposing a
+ * new grid. This catches the ones nobody thought to name: a tag on at least
+ * half the cards of every grid, with two grids or more to compare, is left
+ * out of the score, from the card's side too, so it neither matches nor
+ * dilutes the tags that do mean something.
+ */
+export function tagsOfEveryGrid(grids: readonly GridProfile[]): Set<string> {
+  const filled = grids.filter((grid) => grid.size > 0);
+  if (filled.length < 2) return new Set();
+  const [first, ...rest] = filled;
+  const out = new Set<string>();
+  for (const [tag, share] of first.tags) {
+    if (share >= 0.5 && rest.every((grid) => (grid.tags.get(tag) ?? 0) >= 0.5)) out.add(tag);
+  }
+  return out;
+}
+
 export interface Proposal {
   grid: string;
   /** The folder on that grid, or "" for the grid itself. */
@@ -350,17 +378,18 @@ export function proposeGrids(
   const placed = new Map<string, Proposal>();
   const unsure: string[] = [];
   const grids = profiles.filter((profile) => !profile.folder);
+  const common = tagsOfEveryGrid(grids);
   const foldersOf = (grid: string): GridProfile[] =>
     profiles.filter((profile) => profile.folder && profile.grid === grid);
 
   for (const record of records) {
     let best: { grid: GridProfile; own: Score; top: Score; folder: GridProfile | null } | null = null;
     for (const grid of grids) {
-      const own = scoreGrid(record, grid, rules);
+      const own = scoreGrid(record, grid, rules, common);
       let top = own;
       let folder: GridProfile | null = null;
       for (const candidate of foldersOf(grid.name)) {
-        const scored = scoreGrid(record, candidate, rules);
+        const scored = scoreGrid(record, candidate, rules, common);
         if (scored.score > top.score) {
           top = scored;
           folder = candidate;

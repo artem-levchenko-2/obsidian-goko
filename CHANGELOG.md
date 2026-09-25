@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   restore them from after being closed.
 - Opening a grid or folder whose icon is not in the picker and pressing Save
   no longer resets its icon. The picker offers it under Current.
+- The inbox no longer proposes every card for the smallest grid. The
+  "clippings" tag the web clipper and Goko write on every card, and any tag
+  that every grid carries, no longer counts as a reason to file a card.
 
 ### Changed
 

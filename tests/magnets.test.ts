@@ -12,6 +12,7 @@ import {
   nameWords,
   proposeGrids,
   scoreGrid,
+  tagsOfEveryGrid,
 } from "../src/core/magnets";
 import { parseRules } from "../src/core/rules";
 import type { ClippingRecord } from "../src/core/scan";
@@ -229,9 +230,45 @@ describe("proposeGrids", () => {
   it("breaks a tie towards the smaller grid, where a card is one of a kind", () => {
     const small = gridProfile("Small", [tagged(["design"])], TAG_KEYS);
     const big = gridProfile("Big", Array.from({ length: 20 }, () => tagged(["design"])), TAG_KEYS);
+    // A third grid without the tag, or "design" would be every grid's and
+    // mean nothing; see the test below.
+    const other = gridProfile("Other", [tagged(["manga"])], TAG_KEYS);
     const card = tagged(["design"], { title: "c" });
-    expect(proposeGrids([card], [big, small]).placed.get(card.path)?.grid).toBe("Small");
-    expect(proposeGrids([card], [small, big]).placed.get(card.path)?.grid).toBe("Small");
+    expect(proposeGrids([card], [big, small, other]).placed.get(card.path)?.grid).toBe("Small");
+    expect(proposeGrids([card], [small, big, other]).placed.get(card.path)?.grid).toBe("Small");
+  });
+
+  it("ignores a tag every grid carries, rather than sending the inbox to the smallest grid", () => {
+    const withClip = (tags: string[], over: Partial<ClippingRecord> = {}): ClippingRecord =>
+      record({ ...over, properties: { tags: ["clippings"], categories: tags } });
+    const grids = [
+      gridProfile("Tiny", [withClip([])], TAG_KEYS),
+      gridProfile("Posters", [withClip(["poster"]), withClip(["poster"])], TAG_KEYS),
+      gridProfile("Manga", [withClip(["manga"]), withClip(["manga"]), withClip(["manga"])], TAG_KEYS),
+    ];
+    const plain = withClip([], { title: "plain" });
+    const poster = withClip(["poster"], { title: "poster" });
+    const out = proposeGrids([plain, poster], grids);
+    expect(out.unsure).toEqual([plain.path]);
+    const placed = out.placed.get(poster.path);
+    expect(placed?.grid).toBe("Posters");
+    // Scored on "poster" alone, not halved by the tag every card has.
+    expect(placed?.score).toBeGreaterThanOrEqual(STRONG);
+  });
+});
+
+describe("tagsOfEveryGrid", () => {
+  it("is the tags on at least half of every grid", () => {
+    const grids = [
+      gridProfile("A", [tagged(["clip", "a"]), tagged(["clip"])], TAG_KEYS),
+      gridProfile("B", [tagged(["clip", "b"]), tagged(["clip", "b"]), tagged(["b"])], TAG_KEYS),
+    ];
+    expect([...tagsOfEveryGrid(grids)]).toEqual(["clip"]);
+  });
+
+  it("is nothing with fewer than two grids to compare", () => {
+    expect(tagsOfEveryGrid([gridProfile("A", [tagged(["clip"])], TAG_KEYS)]).size).toBe(0);
+    expect(tagsOfEveryGrid([gridProfile("A", [tagged(["clip"])], TAG_KEYS), gridProfile("B", [], TAG_KEYS)]).size).toBe(0);
   });
 });
 
