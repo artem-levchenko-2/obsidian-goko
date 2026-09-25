@@ -167,7 +167,7 @@ media** fetches the images for every note at once.
 Goko fills one screen with three parts. The rail on the left holds your
 library, your inbox, and every grid with its folders and how much each holds.
 The wall in the middle shows each clipping as its own picture, at its own
-proportions. The panel on the right opens for whatever you pick: the picture
+proportions. The panel on the right opens for the card you pick: the picture
 and its palette, where it came from, its categories, the summary and your own
 note, all editable in place.
 
@@ -175,8 +175,8 @@ Hover a card for its name and tags, or sweep across one with several pictures
 to flip through them. Video plays in the panel with a timeline, and any frame
 can become the card's cover.
 
-Select several cards with a drag, or with a long press on a phone, and the
-panel shows the values they share, so one pick retags a dozen.
+Select several cards with a drag, or with a long press on a phone, and a bar
+rises beside the dock to retag, move, describe or delete them all at once.
 
 <img src="media/phone.png" align="right" width="260" alt="On a phone">
 

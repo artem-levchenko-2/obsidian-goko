@@ -1,6 +1,5 @@
 import { Notice, Platform, setIcon } from "obsidian";
-import { INTRINSIC, chipsField, paintCardMeta } from "./card-meta";
-import { facetLabel } from "./core/filter";
+import { paintCardMeta } from "./card-meta";
 import {
   INSPECTOR_MAX,
   INSPECTOR_MIN,
@@ -9,9 +8,7 @@ import {
   formatLabel,
   inspectorVisible,
   selectionLabel,
-  sharedValues,
 } from "./core/inspector";
-import { NOTE_KEY, SUMMARY_KEY } from "./core/scan";
 import { segmentIndex, stepIndex } from "./core/carousel";
 import { setGlyph } from "./glyph";
 import { paintSwatchStrip, readSwatches } from "./core/swatch-strip";
@@ -85,9 +82,6 @@ export interface InspectorHandlers {
  * asked to go, or it would slide out blank.
  */
 const SHUT_MS = 280;
-
-/** Keys the panel says in its own words, so no row repeats them. */
-const SPOKEN_FOR = new Set([...INTRINSIC, NOTE_KEY, SUMMARY_KEY]);
 
 export class Inspector {
   private root: HTMLElement;
@@ -166,16 +160,16 @@ export class Inspector {
 
   private apply(): void {
     const paneWidth = this.container.getBoundingClientRect().width;
-    // Nothing picked, nothing to say: the drawer stays shut. On a phone it
-    // opens for one card only — a tap picks one and raises the sheet, while a
-    // long press opens selection mode, where the bottom belongs to the
-    // selection bar and the question is what to do to a dozen things rather
-    // than what one of them is.
+    // One card picked, and only one: the drawer says what that card is. With
+    // two or more the question is what to do to all of them, and every answer
+    // to that is on the selection bar already. The drawer then only lies over
+    // the last column, where the cards someone is still sweeping into the
+    // selection are, so it stays shut.
     // The pane test is the desktop's alone: a phone is narrower than any
     // threshold a column would need, and the sheet is not a column.
-    const shown = Platform.isMobile
-      ? this.models.length === 1 && !this.hidden
-      : this.models.length > 0 && inspectorVisible(paneWidth, this.hidden);
+    const shown =
+      this.models.length === 1 &&
+      (Platform.isMobile ? !this.hidden : inspectorVisible(paneWidth, this.hidden));
     const changed = shown !== this.shown;
     this.shown = shown;
 
@@ -217,9 +211,7 @@ export class Inspector {
   private render(): void {
     if (this.isEditing()) return;
     this.body.empty();
-    if (this.models.length === 0) return;
     if (this.models.length === 1) this.renderOne(this.models[0]);
-    else this.renderMany(this.models);
   }
 
   private renderOne(model: TileModel): void {
@@ -240,41 +232,6 @@ export class Inspector {
 
     this.paintPlace(meta, [model]);
     this.paintFacts(meta, model);
-  }
-
-  /**
-   * Several cards at once: the values they all agree on, and the actions that
-   * mean the same thing done to each.
-   *
-   * There is no preview and no full screen here on purpose. A thumbnail of
-   * one of five is a lie about which one the rows describe, and the rows are
-   * the whole point of selecting five.
-   */
-  private renderMany(models: TileModel[]): void {
-    this.paintHead(models);
-    this.paintBar(models);
-
-    const meta = this.body.createDiv({ cls: "pg-inspector-meta" });
-    const ids = models.map((model) => model.id);
-    const records = models.map((model) => model.record);
-
-    for (const key of this.handlers.properties()) {
-      if (SPOKEN_FOR.has(key)) continue;
-      chipsField(
-        meta,
-        "",
-        key,
-        facetLabel(key),
-        sharedValues(records, key),
-        this.handlers.editable(key),
-        {
-          onEditProperty: (_id, k, x, y) => this.handlers.onEditProperty(ids, k, x, y),
-          onEditText: () => {},
-        }
-      );
-    }
-
-    this.paintPlace(meta, models);
   }
 
   /** The count, and a way out of the selection. */

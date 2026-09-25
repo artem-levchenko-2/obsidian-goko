@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The icon picker offers 288 icons in 24 groups, up from 120, adding style,
   home, tools, vehicles, fantasy, devices, drawing, food, feelings, the
   outdoors, science, reading, people and sport.
+- The panel of card details opens for one selected card only. With several
+  selected it only covered the wall's last column, where the cards still to
+  be added to the selection were, and every action for several cards is on
+  the selection bar.
 
 ## [1.0.3] - 2026-09-25
 

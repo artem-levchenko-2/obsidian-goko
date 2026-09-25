@@ -1,6 +1,5 @@
 import { extensionOf } from "./formats";
 import { humanBytes } from "./media-refs";
-import type { ClippingRecord } from "./scan";
 import type { TileModel } from "./tile";
 
 /**
@@ -75,26 +74,6 @@ export function fileFacts(model: TileModel, bytes: number): Fact[] {
 export function formatLabel(model: TileModel): string {
   const ext = extensionOf(model.filePath || model.record.cover || model.record.source);
   return ext ? ext.toUpperCase() : "";
-}
-
-/**
- * The values of a property that every selected clipping carries.
- *
- * A chip in a multiple selection stands for "all of these have this", so it
- * can only be one the whole selection agrees on. Removing it then means
- * something definite; showing a value two of five happen to have, and letting
- * it be unticked, would not.
- *
- * Order follows the first record, so the row does not reshuffle as the
- * selection grows.
- */
-export function sharedValues(records: readonly ClippingRecord[], key: string): string[] {
-  if (records.length === 0) return [];
-  const first = records[0].properties[key] ?? [];
-  if (records.length === 1) return [...first];
-
-  const rest = records.slice(1).map((record) => new Set(record.properties[key] ?? []));
-  return first.filter((value) => rest.every((held) => held.has(value)));
 }
 
 /**

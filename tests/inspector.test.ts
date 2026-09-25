@@ -9,7 +9,6 @@ import {
   formatLabel,
   inspectorVisible,
   selectionLabel,
-  sharedValues,
 } from "../src/core/inspector";
 import type { ClippingRecord } from "../src/core/scan";
 import type { TileModel } from "../src/core/tile";
@@ -82,35 +81,6 @@ describe("selectionLabel", () => {
   it("counts one card without pretending it is several", () => {
     expect(selectionLabel(1)).toBe("1 selected");
     expect(selectionLabel(4)).toBe("4 selected");
-  });
-});
-
-describe("sharedValues", () => {
-  it("returns one card's values whole", () => {
-    const held = [record({ properties: { tags: ["blue", "poster"] } })];
-    expect(sharedValues(held, "tags")).toEqual(["blue", "poster"]);
-  });
-
-  it("keeps only what every card agrees on", () => {
-    const held = [
-      record({ properties: { tags: ["blue", "poster", "type"] } }),
-      record({ properties: { tags: ["poster", "blue"] } }),
-      record({ properties: { tags: ["blue"] } }),
-    ];
-    expect(sharedValues(held, "tags")).toEqual(["blue"]);
-  });
-
-  it("follows the first card's order, so the row does not reshuffle", () => {
-    const held = [
-      record({ properties: { tags: ["poster", "blue"] } }),
-      record({ properties: { tags: ["blue", "poster"] } }),
-    ];
-    expect(sharedValues(held, "tags")).toEqual(["poster", "blue"]);
-  });
-
-  it("says nothing for a key nobody carries, and for no cards at all", () => {
-    expect(sharedValues([record()], "tags")).toEqual([]);
-    expect(sharedValues([], "tags")).toEqual([]);
   });
 });
 
