@@ -30,14 +30,22 @@ import { isStage } from "./core/density";
 import { settledRules } from "./core/rules";
 import { describesOnLanding, isArrivalMode } from "./core/arrivals";
 import {
+  PLAIN_FOLDER_ICON,
+  PLAIN_GRID_ICON,
   SHARED_FILE,
+  acceptsShared,
+  choosesLooks,
+  defaultShared,
   extractShared,
   publishesShared,
   parseShared,
+  rebaseShared,
+  revisionOf,
   serializeShared,
   sharedOf,
   withShared,
 } from "./core/shared-config";
+import type { SharedConfig } from "./core/shared-config";
 import { describeFiles } from "./core/media-refs";
 import { pdfReadReport } from "./core/pdf";
 import { installRepair } from "./repair";
@@ -62,6 +70,8 @@ export default class GokoPlugin extends Plugin {
   private arrivals!: ArrivalCheck;
   /** The last shared file this device wrote, to recognise its own echo. */
   private wroteShared = "";
+  /** The revision of the shared file this device last read or wrote. */
+  private sharedRevision = 0;
   private archiveTimer = 0;
   /**
    * Notes that appeared in the folder since the last archive pass and have
@@ -727,12 +737,12 @@ export default class GokoPlugin extends Plugin {
       this.settings.grids,
       // A grid's own default, not the inbox's: the inbox has an icon of its
       // own that a folder turned grid should not borrow.
-      (name) => ({ name, icon: "layout-grid" }),
+      (name) => ({ name, icon: PLAIN_GRID_ICON }),
       isSmartGrid
     );
     const folders = mergeFolders(tree.folders, this.settings.folders, (entry) => ({
       ...entry,
-      icon: "folder",
+      icon: PLAIN_FOLDER_ICON,
       width: 1 as const,
     }));
 
@@ -769,6 +779,7 @@ export default class GokoPlugin extends Plugin {
     // start, and getFileByPath answering null here once cost a device its
     // grids. The adapter reads the filesystem and is always ready.
     const adapter = this.app.vault.adapter;
+    const backup = this.backupShared();
 
     if (await adapter.exists(path)) {
       try {
@@ -776,7 +787,20 @@ export default class GokoPlugin extends Plugin {
         this.wroteShared = body;
         const raw = extractShared(body);
         if (raw !== null) {
-          this.settings = withShared(this.settings, parseShared(raw, sharedOf(this.settings)));
+          const found = parseShared(raw, sharedOf(this.settings));
+          const revision = revisionOf(raw);
+          this.sharedRevision = revision;
+          // Every grid plain, written by a device that had not seen this
+          // one's looks, while this one was closed: the looks come back from
+          // the copy and go out again, which is what mends the other device.
+          if (backup && !acceptsShared(found, revision, backup.shared, backup.revision)) {
+            this.settings = withShared(this.settings, rebaseShared(found, backup.shared));
+            this.sharedRevision = Math.max(revision, backup.revision);
+            await this.writeShared();
+            return;
+          }
+          this.settings = withShared(this.settings, found);
+          this.keepBackup(found, revision);
           return;
         }
       } catch {
@@ -784,27 +808,35 @@ export default class GokoPlugin extends Plugin {
       }
       // Unreadable, or half-written by a sync still in flight. What this
       // device already has beats nothing, and the next save republishes it.
+      // What it has is the copy, when there is one: the grids themselves are
+      // never in data.json.
+      if (backup) this.settings = withShared(this.settings, backup.shared);
       new Notice("Goko: could not read the shared grid configuration.");
       return;
     }
 
     // Nothing to read, so this device publishes what it has — or stays quiet,
     // if what it has is only the defaults. writeShared decides which.
+    if (backup) this.settings = withShared(this.settings, backup.shared);
     await this.writeShared();
   }
 
   private async writeShared(): Promise<void> {
-    const body = serializeShared(sharedOf(this.settings));
+    const shared = sharedOf(this.settings);
     // saveSettings also runs for the device's own half, the tile size among
     // them, and rewriting an identical file for those is sync churn on every
-    // device rather than a change to anything.
-    if (body === this.wroteShared) return;
+    // device rather than a change to anything. Compared at the revision it
+    // was read or written at, so the same config is the same file.
+    if (serializeShared(shared, this.sharedRevision || undefined) === this.wroteShared) return;
     // Both routes to a write come through here, and publishesShared is what
     // decides for both. See it for why a fresh vault stays quiet.
-    if (!publishesShared(this.wroteShared, sharedOf(this.settings))) return;
+    if (!publishesShared(this.wroteShared, shared)) return;
+    const revision = this.sharedRevision + 1;
+    const body = serializeShared(shared, revision);
     // Remembered so the modify event our own write raises can be told apart
     // from one that arrived by sync.
     this.wroteShared = body;
+    this.sharedRevision = revision;
     const path = this.sharedPath();
     const folder = normalizePath(this.settings.clippingsFolder);
     // A vault with nothing clipped yet has no clippings folder to keep the
@@ -817,6 +849,28 @@ export default class GokoPlugin extends Plugin {
       await this.app.vault.adapter.mkdir(folder);
     }
     await this.app.vault.adapter.write(path, body);
+    this.keepBackup(shared, revision);
+  }
+
+  /** This device's copy of the looks, when it has one worth having. */
+  private backupShared(): { shared: SharedConfig; revision: number } | null {
+    const raw = this.settings.sharedBackup;
+    if (!raw) return null;
+    const shared = parseShared(raw, defaultShared());
+    return choosesLooks(shared) ? { shared, revision: revisionOf(raw) } : null;
+  }
+
+  /**
+   * Keeps a config as this device's copy, if it says how anything looks.
+   * A plain one leaves the copy as it was: a plain config is the very thing
+   * the copy is there to answer.
+   */
+  private keepBackup(shared: SharedConfig, revision: number): void {
+    if (!choosesLooks(shared)) return;
+    const copy = { ...shared, revision };
+    if (JSON.stringify(copy) === JSON.stringify(this.settings.sharedBackup)) return;
+    this.settings.sharedBackup = copy;
+    void this.saveLocal();
   }
 
   /**
@@ -837,10 +891,24 @@ export default class GokoPlugin extends Plugin {
       if (body === this.wroteShared) return;
       const raw = extractShared(body);
       if (raw === null) return;
-      this.settings = withShared(this.settings, parseShared(raw, sharedOf(this.settings)));
+      const held = sharedOf(this.settings);
+      const read = parseShared(raw, held);
+      const revision = revisionOf(raw);
       // Now what is on disk, as far as this device knows, so the next save
       // does not write the same thing straight back at whoever sent it.
       this.wroteShared = body;
+      if (acceptsShared(read, revision, held, this.sharedRevision)) {
+        this.settings = withShared(this.settings, read);
+        this.sharedRevision = revision;
+        this.keepBackup(read, revision);
+      } else {
+        // Every grid plain, from a device that had not read this one's
+        // looks. Kept, with whatever grid it found that this device had not,
+        // and sent back out, so that device is put right too.
+        this.settings = withShared(this.settings, rebaseShared(read, held));
+        this.sharedRevision = Math.max(revision, this.sharedRevision);
+        await this.writeShared();
+      }
       for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_GRID)) {
         if (leaf.view instanceof GokoView) leaf.view.refreshGrids();
       }

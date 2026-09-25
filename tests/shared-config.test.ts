@@ -1,14 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  acceptsShared,
+  choosesLooks,
   defaultShared,
   extractShared,
   isDefaultShared,
   parseShared,
   publishesShared,
+  rebaseShared,
+  revisionOf,
   serializeShared,
   sharedOf,
   withShared,
 } from "../src/core/shared-config";
+import type { SharedConfig } from "../src/core/shared-config";
 import { DEFAULT_SETTINGS } from "../src/core/settings";
 
 const fallback = {
@@ -295,5 +300,126 @@ describe("publishesShared", () => {
   it("counts a folder as something to say, with no grids at all", () => {
     const folders = [{ name: "Film", icon: "folder", grid: "", width: 1 as const }];
     expect(publishesShared("", { ...defaultShared(), folders })).toBe(true);
+  });
+});
+
+describe("choosesLooks", () => {
+  const plain = (grids: SharedConfig["grids"], folders: SharedConfig["folders"] = []): SharedConfig => ({
+    ...defaultShared(),
+    grids,
+    folders,
+  });
+
+  it("is false for grids and folders exactly as the folder tree makes them", () => {
+    expect(
+      choosesLooks(
+        plain(
+          [{ name: "Posters", icon: "layout-grid" }, { name: "Tools", icon: "layout-grid" }],
+          [{ name: "Brass", icon: "folder", grid: "Tools", width: 1 }]
+        )
+      )
+    ).toBe(false);
+    expect(choosesLooks(defaultShared())).toBe(false);
+  });
+
+  it("is true once any grid has an icon, a colour, a description, rules or a look", () => {
+    expect(choosesLooks(plain([{ name: "Tools", icon: "hammer" }]))).toBe(true);
+    expect(choosesLooks(plain([{ name: "Tools", icon: "layout-grid", color: "orange" }]))).toBe(true);
+    expect(choosesLooks(plain([{ name: "Tools", icon: "layout-grid", description: "Workshop" }]))).toBe(true);
+    expect(choosesLooks(plain([{ name: "Unread", icon: "layout-grid", rules: {} }]))).toBe(true);
+    expect(choosesLooks(plain([{ name: "Tools", icon: "layout-grid", look: {} }]))).toBe(true);
+  });
+
+  it("is true once any folder has an icon or a width of its own", () => {
+    expect(choosesLooks(plain([], [{ name: "Brass", icon: "gem", grid: "Tools", width: 1 }]))).toBe(true);
+    expect(choosesLooks(plain([], [{ name: "Brass", icon: "folder", grid: "Tools", width: 2 }]))).toBe(true);
+  });
+});
+
+describe("acceptsShared", () => {
+  const held: SharedConfig = {
+    ...defaultShared(),
+    grids: [
+      { name: "Tools", icon: "hammer", color: "orange" },
+      { name: "Posters", icon: "image" },
+    ],
+  };
+  const plainRead: SharedConfig = {
+    ...defaultShared(),
+    grids: [
+      { name: "Posters", icon: "layout-grid" },
+      { name: "Tools", icon: "layout-grid" },
+    ],
+  };
+
+  it("refuses a plain config over a chosen one it was not written after", () => {
+    expect(acceptsShared(plainRead, 0, held, 12)).toBe(false);
+    expect(acceptsShared(plainRead, 12, held, 12)).toBe(false);
+  });
+
+  it("takes a plain config written after the one held, which is a look cleared on purpose", () => {
+    expect(acceptsShared(plainRead, 13, held, 12)).toBe(true);
+  });
+
+  it("takes anything that chooses looks, whatever its revision", () => {
+    const other = { ...held, grids: [{ name: "Tools", icon: "wrench" }] };
+    expect(acceptsShared(other, 0, held, 12)).toBe(true);
+  });
+
+  it("takes anything at all while this device holds nothing chosen", () => {
+    expect(acceptsShared(plainRead, 0, plainRead, 5)).toBe(true);
+  });
+});
+
+describe("rebaseShared", () => {
+  it("keeps the base's order and looks, and adds only what the other found", () => {
+    const base: SharedConfig = {
+      ...defaultShared(),
+      grids: [
+        { name: "Tools", icon: "hammer", color: "orange" },
+        { name: "Posters", icon: "image" },
+      ],
+      folders: [{ name: "Brass", icon: "folder", grid: "Tools", width: 1 }],
+    };
+    const extra: SharedConfig = {
+      ...defaultShared(),
+      homeGridIcon: "archive",
+      grids: [
+        { name: "Posters", icon: "layout-grid" },
+        { name: "Maps", icon: "layout-grid" },
+        { name: "Tools", icon: "layout-grid" },
+      ],
+      folders: [
+        { name: "Brass", icon: "folder", grid: "Tools", width: 1 },
+        { name: "Leather", icon: "folder", grid: "Tools", width: 1 },
+      ],
+    };
+    const out = rebaseShared(extra, base);
+    expect(out.grids).toEqual([
+      { name: "Tools", icon: "hammer", color: "orange" },
+      { name: "Posters", icon: "image" },
+      { name: "Maps", icon: "layout-grid" },
+    ]);
+    expect(out.folders.map((f) => f.name)).toEqual(["Brass", "Leather"]);
+    expect(out.homeGridIcon).toBe(base.homeGridIcon);
+  });
+});
+
+describe("revisionOf", () => {
+  it("reads the revision a file was written at", () => {
+    const shared = defaultShared();
+    expect(revisionOf(extractShared(serializeShared(shared, 7)))).toBe(7);
+  });
+
+  it("is zero for a file from before revisions, or one that says nonsense", () => {
+    expect(revisionOf(extractShared(serializeShared(defaultShared())))).toBe(0);
+    expect(revisionOf({ revision: "7" })).toBe(0);
+    expect(revisionOf({ revision: -2 })).toBe(0);
+    expect(revisionOf(null)).toBe(0);
+  });
+
+  it("stays out of the config a device takes into its settings", () => {
+    const raw = extractShared(serializeShared(defaultShared(), 7));
+    expect(Object.keys(parseShared(raw, defaultShared()))).not.toContain("revision");
   });
 });

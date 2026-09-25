@@ -5,6 +5,18 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- A device that had not yet read the vault's grids can no longer paint every
+  grid plain for every device. With grids following folders, such a device
+  built the list from the folders alone and published it, and the icons and
+  colours of every grid went in one sync. A plain list now only replaces one
+  with looks when it was written after it; otherwise the looks are kept and
+  sent back out, and each device keeps a copy of the last looks it saw to
+  restore them from after being closed.
+
 ## [1.0.3] - 2026-09-25
 
 ### Fixed

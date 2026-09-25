@@ -191,6 +191,15 @@ export interface GokoSettings {
    * with the grid, which is why renameGridDef has to move its key.
    */
   gridTileSizes: Record<string, DensityStage>;
+  /**
+   * The last shared configuration this device saw that said how anything
+   * looks, kept in the device's own settings as a copy the shared file
+   * cannot take with it. When the file arrives with every grid plain while
+   * this device was closed, this is what the looks are put back from; see
+   * choosesLooks. Read through parseShared, so a copy edited into nonsense
+   * is simply no copy.
+   */
+  sharedBackup?: unknown;
   /** Full path to yt-dlp, "" to discover it on PATH and in common installs. */
   ytdlpPath: string;
   /** Full path to ffmpeg, "" to discover it on PATH and in common installs. */
