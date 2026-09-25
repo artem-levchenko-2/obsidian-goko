@@ -1,7 +1,7 @@
 {
   "id": "goko",
   "name": "Goko",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "minAppVersion": "1.13.0",
   "description": "Collect links, images, videos and PDFs on one visual wall. Sort them into grids and folders, search all of it, and keep every picture and video in your vault.",
   "author": "Artem Levchenko",

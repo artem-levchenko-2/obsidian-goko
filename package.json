@@ -1,6 +1,6 @@
 {
   "name": "goko",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "A pannable, scalable wall of your web clippings, with local media archiving.",
   "main": "main.js",
   "type": "module",
