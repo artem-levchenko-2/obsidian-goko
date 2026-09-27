@@ -5,6 +5,19 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Everything in a card's sheet can be clicked: the band of wall above it
+  and its close shut it, and the bar's buttons, the picture and the details
+  answer the pointer with their hover and their tips. All of it was drawn
+  but let clicks through to the cards behind, so Select could open the next
+  card instead: the sheet shared its class name with the note card, whose
+  layer lets every click pass.
+- The full screen's bar is built to the dock's measure, the same height,
+  padding, spacing, border and hover, instead of a bar of its own.
+
 ## [1.0.8] - 2026-09-26
 
 ### Added

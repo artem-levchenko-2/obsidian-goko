@@ -3099,14 +3099,14 @@ export class GokoView extends ItemView {
    * detail view draws inside the panel exactly as it draws over the wall.
    */
   private buildSheet(): void {
-    const host = this.contentEl.createDiv({ cls: "pg-sheet" });
-    const backdrop = host.createDiv({ cls: "pg-sheet-backdrop" });
+    const host = this.contentEl.createDiv({ cls: "pg-cardsheet" });
+    const backdrop = host.createDiv({ cls: "pg-cardsheet-backdrop" });
     backdrop.onclick = () => this.detail?.close();
-    const close = host.createEl("button", { cls: "pg-sheet-close" });
+    const close = host.createEl("button", { cls: "pg-cardsheet-close" });
     setIcon(close, "x");
     attachTip(close, "Close", "\u238b");
     close.onclick = () => this.detail?.close();
-    this.sheetPanel = host.createDiv({ cls: "pg-sheet-panel" });
+    this.sheetPanel = host.createDiv({ cls: "pg-cardsheet-panel" });
     this.sheetHost = host;
     this.sheetBackdrop = backdrop;
   }

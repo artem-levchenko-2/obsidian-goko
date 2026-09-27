@@ -2448,24 +2448,24 @@ body.pg-resizing {
    stops short of the top so a band of the wall stays in sight above it, dimmed,
    with the close in that band; the detail view draws inside the panel as it
    draws over the wall, its ground the panel's own. */
-.goko-view .pg-sheet {
+.goko-view .pg-cardsheet {
   position: absolute;
   inset: 0;
   z-index: 50;
   display: none;
 }
 
-.goko-view .pg-sheet.is-open {
+.goko-view .pg-cardsheet.is-open {
   display: block;
 }
 
-.goko-view .pg-sheet-backdrop {
+.goko-view .pg-cardsheet-backdrop {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
 }
 
-.goko-view .pg-sheet-panel {
+.goko-view .pg-cardsheet-panel {
   position: absolute;
   top: 56px;
   right: 8px;
@@ -2477,7 +2477,7 @@ body.pg-resizing {
   box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.35);
 }
 
-.goko-view button.pg-sheet-close {
+.goko-view button.pg-cardsheet-close {
   position: absolute;
   top: 12px;
   right: 16px;
@@ -2491,7 +2491,7 @@ body.pg-resizing {
   color: rgba(255, 255, 255, 0.85);
 }
 
-.goko-view button.pg-sheet-close:hover {
+.goko-view button.pg-cardsheet-close:hover {
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
 }
@@ -2774,20 +2774,27 @@ body.pg-resizing {
   }
 }
 
+/* The same box as the dock's bars, measure for measure: the full screen's
+   bar is the dock of that screen, and two bars built to different sizes read
+   as two designs. */
 .pg-detail-actions {
   position: absolute;
-  bottom: calc(26px + var(--pg-bottom-inset, 0px));
+  bottom: calc(22px + var(--pg-bottom-inset, 0px));
   left: 50%;
   z-index: 2;
   display: flex;
-  gap: 2px;
-  padding: var(--pg-bar-pad) calc(var(--pg-bar-pad) + 8px);
+  align-items: center;
+  gap: var(--pg-bar-gap);
+  box-sizing: border-box;
+  height: var(--pg-bar-h);
+  padding: var(--pg-bar-pad);
+  border: 1px solid var(--pg-surface-ring-line);
   border-radius: var(--pg-bar-radius);
   background-color: var(--pg-surface);
   background-image: none;
   backdrop-filter: var(--pg-surface-blur);
   -webkit-backdrop-filter: var(--pg-surface-blur);
-  box-shadow: var(--pg-surface-ring), var(--pg-surface-lift);
+  box-shadow: var(--pg-surface-lift);
   transform: translate(-50%, 14px);
   opacity: 0;
   /* Exit: a quick drop away with no delay, short enough to be finished
@@ -2810,6 +2817,7 @@ body.pg-resizing {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   width: var(--pg-bar-btn);
   height: var(--pg-bar-btn);
   padding: 0;
@@ -2822,11 +2830,13 @@ body.pg-resizing {
   cursor: pointer;
   transition:
     background-color 120ms ease,
+    color 120ms ease,
     transform 180ms cubic-bezier(0.22, 0.9, 0.28, 1);
 }
 
 .pg-detail button.pg-detail-button:hover {
   background-color: var(--pg-inner-hover);
+  color: var(--pg-mark);
 }
 
 /* A button that is reporting rather than offering: this frame is already the
