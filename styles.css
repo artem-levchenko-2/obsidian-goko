@@ -389,6 +389,13 @@
   color: var(--text-normal);
 }
 
+/* A row with no matches while a search is up: still a place the search can
+   be narrowed to, so it stays, only quieter than the rows that hold some. */
+.pg-sidebar-row.is-none .pg-sidebar-glyph,
+.pg-sidebar-row.is-none .pg-sidebar-name {
+  opacity: 0.4;
+}
+
 /* A row being dragged to a new place, and where it would land: a line along
    the top or bottom edge of the row under the pointer. Inset shadows, so the
    rows do not move as the line crosses them. The selector carries the rail
@@ -5176,6 +5183,231 @@ button.pg-detail-chip.is-empty:hover {
   white-space: nowrap;
 }
 
+/* ── The search ─────────────────────────────────────────────────────────────
+   A button that grows into the field it opens, in its own place in the bar.
+   Folded it is one of the bar's buttons and draws as one. Open it is a well
+   sunk into the bar, the query on the left and what it found on the right,
+   so whatever is narrowing the wall stays in sight.
+
+   The dock is as wide as what it holds and never wider than the wall under
+   it. Without a width of its own, an absolutely placed box shrinks to the
+   room left of its left edge, which from the middle of the pane is half of
+   it, and the grown bar spilled out of the wall with the rail showing. */
+
+.goko-view {
+  --pg-search-w: 420px;
+  --pg-search-well: rgba(0, 0, 0, 0.32);
+}
+
+.theme-light .goko-view {
+  --pg-search-well: rgba(0, 0, 0, 0.06);
+}
+
+.pg-dock {
+  width: max-content;
+  max-width: calc(100% - var(--pg-sidebar-w, 0px) - var(--pg-inspector-w, 0px) - 32px);
+}
+
+/* The field gives way on a narrow wall; the buttons beside it do not. The
+   bar is let shrink below what it holds so that the field inside it can. */
+.pg-spacebar {
+  min-width: 0;
+}
+
+.pg-spacebar > button.pg-bar-button {
+  flex: none;
+}
+
+.pg-space-search {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  box-sizing: border-box;
+  width: var(--pg-bar-btn);
+  height: var(--pg-bar-btn);
+  border-radius: var(--pg-bar-btn-radius);
+}
+
+.pg-space-search.is-open {
+  flex: 0 1 auto;
+  width: var(--pg-search-w);
+  min-width: 160px;
+  background-color: var(--pg-search-well);
+}
+
+/* Beside the selection bar, on a wall too narrow for the two, a live search
+   folds back into its button until the selection goes. Lit, as the filter
+   is while it narrows, so the wall never looks whole while it is not. */
+.pg-spacebar.is-tight .pg-space-search.is-open {
+  flex: none;
+  width: var(--pg-bar-btn);
+  min-width: 0;
+  background-color: transparent;
+}
+
+.goko-view .pg-dock .pg-spacebar.is-tight .pg-space-search.is-open > :not(.pg-space-search-button) {
+  display: none;
+}
+
+.goko-view .pg-dock .pg-spacebar.is-tight .pg-space-search.is-open > button.pg-space-search-button {
+  color: var(--pg-accent);
+  cursor: pointer;
+}
+
+/* Clipped only while it moves, so what is inside is revealed rather than
+   squashed. Not otherwise: the tips of the buttons in it hang above the bar. */
+.pg-space-search.is-morphing {
+  overflow: hidden;
+  background-color: var(--pg-search-well);
+}
+
+.pg-space-search:not(.is-open) > :not(.pg-space-search-button) {
+  display: none;
+}
+
+/* Inside the open field the button is the field's magnifier rather than a
+   button of the bar: nothing to light up, and no tip to say what it is. */
+.goko-view .pg-dock .pg-space-search.is-open > button.pg-space-search-button,
+.goko-view .pg-dock .pg-space-search.is-open > button.pg-space-search-button:hover,
+.goko-view .pg-dock .pg-space-search.is-open > button.pg-space-search-button:active {
+  background-color: transparent;
+  color: var(--pg-surface-faint);
+  cursor: text;
+  transform: none;
+}
+
+.pg-space-search.is-open > .pg-space-search-button .pg-tip {
+  display: none;
+}
+
+/* Every state, for the reason the palette's field lists them: the host
+   paints a focused field's box back in behind the text otherwise. */
+.goko-view .pg-dock input.pg-space-search-input,
+.goko-view .pg-dock input.pg-space-search-input:hover,
+.goko-view .pg-dock input.pg-space-search-input:active,
+.goko-view .pg-dock input.pg-space-search-input:focus,
+.goko-view .pg-dock input.pg-space-search-input:focus-visible {
+  /* From nothing, so the field is what gives way when the bar is short and
+     the count keeps its words: a query you typed is on screen already, and
+     how many it found is not. */
+  flex: 1 1 0;
+  min-width: 48px;
+  height: 100%;
+  margin: 0;
+  padding: 0 4px 0 0;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  outline: none;
+  color: var(--pg-surface-text);
+  font-size: var(--font-ui-small);
+}
+
+.pg-space-search-input::placeholder {
+  color: var(--pg-surface-faint);
+}
+
+/* What was found and where. A button only when pressing it would search
+   somewhere else; otherwise it is words, and says nothing under the pointer. */
+.goko-view .pg-dock button.pg-space-search-scope {
+  position: relative;
+  display: none;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: 200px;
+  height: 22px;
+  margin: 0 2px 0 0;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--pg-surface-faint);
+  font-size: var(--font-ui-smaller);
+  white-space: nowrap;
+  cursor: default;
+}
+
+.pg-space-search-found {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.goko-view .pg-dock .pg-space-search.is-open.has-result > button.pg-space-search-scope {
+  display: flex;
+  animation: pg-search-in 160ms ease both;
+}
+
+.goko-view .pg-dock button.pg-space-search-scope.is-switch {
+  cursor: pointer;
+}
+
+.pg-space-search-scope:not(.is-switch) .pg-tip {
+  display: none;
+}
+
+.goko-view .pg-dock button.pg-space-search-clear {
+  position: relative;
+  display: none;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0 4px 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background-color: transparent;
+  background-image: none;
+  box-shadow: none;
+  color: var(--pg-surface-faint);
+  cursor: pointer;
+}
+
+.goko-view .pg-dock .pg-space-search.is-open.has-text > button.pg-space-search-clear {
+  display: flex;
+  animation: pg-search-in 160ms ease both;
+}
+
+@media (hover: hover) {
+  .goko-view .pg-dock button.pg-space-search-scope.is-switch:hover,
+  .goko-view .pg-dock button.pg-space-search-clear:hover {
+    background-color: var(--pg-inner-hover);
+    color: var(--pg-surface-text);
+  }
+}
+
+.pg-space-search-clear-glyph {
+  display: flex;
+}
+
+.pg-space-search-clear-glyph .svg-icon {
+  width: 14px;
+  height: 14px;
+}
+
+@keyframes pg-search-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .goko-view .pg-dock .pg-space-search.is-open.has-result > button.pg-space-search-scope,
+  .goko-view .pg-dock .pg-space-search.is-open.has-text > button.pg-space-search-clear {
+    animation: none;
+  }
+}
+
 /* ── A control that stands on its own ───────────────────────────────────────
    The way out of a folder, and the way out of the full screen. They used to
    be pills, sized with the bar's buttons by one shared rule; now that the
@@ -5235,7 +5467,32 @@ body.is-mobile .pg-dock {
   left: 10px;
   right: 10px;
   justify-content: flex-end;
+  width: auto;
+  max-width: none;
   transform: none;
+}
+
+/* The open field is the whole bar on a phone, until it is cleared: a query
+   squeezed between five buttons at the touch size would have no room to be
+   read. Kept to the desktop's measure on a tablet, where the foot is wide. */
+body.is-mobile .pg-spacebar.is-searching {
+  flex: 1 1 auto;
+  max-width: calc(var(--pg-search-w) + 2 * var(--pg-bar-pad) + 2px);
+}
+
+body.is-mobile .goko-view .pg-dock .pg-spacebar.is-searching > button.pg-bar-button,
+body.is-mobile .goko-view .pg-dock .pg-spacebar.is-searching > .pg-bar-divider {
+  display: none;
+}
+
+body.is-mobile .pg-space-search.is-open {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+/* 16px: anything smaller is what makes a mobile browser zoom on focus. */
+body.is-mobile .goko-view .pg-dock input.pg-space-search-input {
+  font-size: 16px;
 }
 
 /* Clipped while it grows, so the buttons are revealed rather than squashed.
@@ -5248,7 +5505,8 @@ body.is-mobile .pg-spacebar {
 /* Specific enough to outrank the shared button rule, which sets display on
    every button in the dock. */
 .goko-view .pg-dock .pg-spacebar.is-collapsed > button.pg-bar-button:not(.pg-space-more),
-.goko-view .pg-dock .pg-spacebar.is-collapsed > .pg-bar-divider {
+.goko-view .pg-dock .pg-spacebar.is-collapsed > .pg-bar-divider,
+.goko-view .pg-dock .pg-spacebar.is-collapsed:not(.is-searching) > .pg-space-search {
   display: none;
 }
 

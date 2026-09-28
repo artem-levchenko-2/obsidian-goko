@@ -1,5 +1,10 @@
 import { GOKO_ICON_ID } from "./core/icon";
-import { EMPTY_WALL_EYES_PATH, EMPTY_WALL_EYES_VIEWBOX, emptyWallCopy } from "./core/empty-wall";
+import {
+  EMPTY_WALL_EYES_PATH,
+  EMPTY_WALL_EYES_VIEWBOX,
+  emptyWallCopy,
+  searchEmptyCopy,
+} from "./core/empty-wall";
 import { keyIs } from "./core/keys";
 import {
   ItemView,
@@ -50,6 +55,9 @@ import type { GridLook, ResolvedLook } from "./core/look";
 import { History } from "./core/history";
 import type { FolderSpace, FolderTileModel, FolderWidth } from "./core/folders";
 import { GridRenderer } from "./grid";
+import type { Camera } from "./core/camera";
+import { matchesSearch, narrowToHits, searchHits, searchTerms } from "./core/wall-search";
+import type { SearchTerm, SearchTier } from "./core/wall-search";
 import { groupedMenu } from "./core/layout";
 import type GokoPlugin from "./main";
 import { Palette } from "./palette";
@@ -161,6 +169,11 @@ const TAG_PROPERTIES = ["categories", "tags"] as const;
 
 const PALETTE_CLIPPINGS = 8;
 
+/** A query's words, for telling whether a new query asks anything new. */
+function termsKey(terms: readonly SearchTerm[]): string {
+  return terms.map((term) => term.text).join(" ");
+}
+
 /**
  * How long a just-clipped note stays worth flying to.
  *
@@ -173,6 +186,33 @@ const PALETTE_CLIPPINGS = 8;
 const REVEAL_WINDOW_MS = 20000;
 /** How long the pane has to hold still before the wall is laid out for it. */
 const RESIZE_SETTLE_MS = 120;
+
+/** Where the wall is: the whole library, or a grid and a folder on it. */
+interface WallPlace {
+  all: boolean;
+  grid: string;
+  folder: string | null;
+}
+
+/** A search narrowing the wall, and what it needs to give the wall back. */
+interface WallSearch {
+  /** As typed, for the wall to quote back when nothing matches. */
+  query: string;
+  terms: SearchTerm[];
+  /** Where the wall was when the search began, narrowed and framed as it was. */
+  origin: WallPlace & { filter: FilterState; camera: Camera | null };
+  /**
+   * The place the count offers besides the whole library: where the search
+   * began, or where it was last narrowed to. Null when that was the library.
+   */
+  lastPlace: WallPlace | null;
+  /**
+   * Whether the wall was moved by hand while searching. Clearing the search
+   * then leaves it where it was taken, rather than taking it back: going
+   * somewhere is a decision, and the clear button should not undo it.
+   */
+  moved: boolean;
+}
 
 export class GokoView extends ItemView {
   private grid: GridRenderer | null = null;
@@ -242,7 +282,7 @@ export class GokoView extends ItemView {
   private showAll = true;
   private palette: Palette | null = null;
   /** A clipping just made here, to fly to as soon as it has a tile. */
-  private pendingReveal: { path: string; until: number } | null = null;
+  private pendingReveal: { path: string; until: number; told?: boolean } | null = null;
   private onGridKey: ((event: KeyboardEvent) => void) | null = null;
   private refreshFrame = 0;
   /** A refresh that arrived while a menu, sheet or selection was up. */
@@ -259,6 +299,35 @@ export class GokoView extends ItemView {
    * beside the filter: never saved, dropped on a grid switch.
    */
   private openFolder: string | null = null;
+  /**
+   * The search narrowing the wall, or null. Session state beside the filter
+   * and never saved, for the filter's reason: a wall that came back narrowed
+   * after a restart would look emptier than it is for a reason nobody
+   * remembers. Where the wall is while it searches is the ordinary state,
+   * showAll, the grid and openFolder; this holds only what a search adds.
+   */
+  private search: WallSearch | null = null;
+  /**
+   * The tiles in scope before the search narrowed them. The facets are
+   * typed from these, since a date property sampled only among the matches
+   * can read as text and quietly stop filtering, and a new query narrows
+   * these, since a letter added can find more than the last query did.
+   */
+  private searchBase: TileModel[] = [];
+  /** Every tile the last paint built, before folders and the search. */
+  private paintedTiles: TileModel[] = [];
+  /**
+   * The library's matches for the query, kept while the index and the query
+   * stay the same: the wall repaints every frame while media downloads, and
+   * a word that is in nothing reads every haystack to the end to say so.
+   */
+  private searchCache: {
+    records: readonly ClippingRecord[];
+    key: string;
+    hits: Map<string, SearchTier>;
+  } | null = null;
+  /** What the wall says when a search leaves nothing on it. */
+  private searchEmpty: HTMLElement | null = null;
   /** The grid's folder tiles before filtering, beside `facets`. */
   private folderTiles: FolderTileModel[] = [];
   /**
@@ -405,6 +474,19 @@ export class GokoView extends ItemView {
     const guide = actions.createEl("button", { cls: "pg-wall-empty-guide", text: "Open guide" });
     guide.onclick = () => void this.plugin.openGuide();
 
+    // The same face for a search that found nothing, with words of its own
+    // and, when there is one, the way to the matches it is not showing.
+    this.searchEmpty = this.contentEl.createDiv({ cls: "pg-wall-empty pg-search-empty" });
+    const lookingEyes = this.searchEmpty.createSvg("svg", {
+      cls: "pg-wall-empty-eyes",
+      attr: { viewBox: EMPTY_WALL_EYES_VIEWBOX, "aria-hidden": "true" },
+    });
+    lookingEyes.createSvg("path", { attr: { d: EMPTY_WALL_EYES_PATH, fill: "currentColor" } });
+    const lookingWords = this.searchEmpty.createDiv({ cls: "pg-wall-empty-words" });
+    lookingWords.createDiv({ cls: "pg-wall-empty-title" });
+    lookingWords.createDiv({ cls: "pg-wall-empty-hint" });
+    this.searchEmpty.createDiv({ cls: "pg-wall-empty-actions" });
+
     this.grid.onRendered = () => {
       this.playback?.prune();
       for (const media of this.grid?.mountedMedia() ?? []) {
@@ -484,6 +566,7 @@ export class GokoView extends ItemView {
       // The wall's own controls give up the bottom to the selection bar,
       // there being room for only one of them across a phone.
       if (Platform.isMobile) this.spaceBar?.setHidden(ids.length > 0);
+      else this.spaceBar?.fitDock();
       // And the selection bar gives the bottom up to the panel when there is
       // one card, which says everything the bar does and more.
       if (Platform.isMobile) this.actionBar?.setSuppressed(ids.length === 1);
@@ -512,7 +595,9 @@ export class GokoView extends ItemView {
     const back = this.contentEl.createEl("button", { cls: "pg-detail-back pg-folder-back" });
 
     this.spaceBar = new SpaceBar(this.dock, back, {
-      onSearch: () => this.togglePalette(),
+      onQuery: (text) => this.onQuery(text),
+      onSearchScope: () => this.switchSearchScope(),
+      onEndSearch: () => this.endSearch(),
       onCreate: (x, y) => this.openCreate(x, y),
       onSettings: (x, y) => this.openSettings(x, y),
       onFilter: (x, y) => this.openFilter(x, y),
@@ -538,6 +623,9 @@ export class GokoView extends ItemView {
           if (folder) this.enterFolder(folder);
           else if (staying && this.openFolder) this.leaveFolder();
           else if (staying) this.refresh({ replace: true });
+          // A search narrowed from the library onto the grid it started on
+          // is a different set of cards, and starts from the top of it.
+          if (staying && !folder && this.search) this.grid?.resetView(false);
         },
         onPickAll: () => this.showLibrary(),
         onGridMenu: (grid, x, y) => this.openRailGridMenu(grid, x, y),
@@ -679,6 +767,15 @@ export class GokoView extends ItemView {
           else this.dismissSuggestions(suggested);
           return;
         }
+      }
+
+      // Escape ends a search once nothing else is up to close, and before it
+      // backs out of a folder: the search is the layer on top of the place.
+      if (event.key === "Escape" && !event.isComposing && this.escapeEndsSearch(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        this.endSearch();
+        return;
       }
 
       // Escape backs out of a folder once nothing else is up to close: the
@@ -886,6 +983,7 @@ export class GokoView extends ItemView {
       // than only when the setting changes.
       this.sidebar?.measure();
       this.inspector?.measure();
+      this.spaceBar?.fitDock();
       relayoutSettled.call();
       this.detail?.relayout();
     });
@@ -1333,6 +1431,8 @@ export class GokoView extends ItemView {
 
   async onClose(): Promise<void> {
     this.cancelRefresh();
+    this.search = null;
+    this.searchCache = null;
     if (this.onGridKey) this.contentEl.doc.removeEventListener("keydown", this.onGridKey, true);
     this.onGridKey = null;
     this.palette?.close();
@@ -1950,7 +2050,10 @@ export class GokoView extends ItemView {
     if (!this.grid) return;
 
     const space = this.activeGrid();
-    const smart = isSmartGrid(space);
+    // The library is everything even when the grid it was opened from is a
+    // smart one: that grid's rules narrowed the library to its own members,
+    // under a rail that said Library, and a search from there did too.
+    const smart = !this.showAll && isSmartGrid(space);
 
     // A smart grid's rules run over the whole vault rather than over one
     // wall's slice, because home stays everything: a clipping filed in Manga
@@ -2000,8 +2103,8 @@ export class GokoView extends ItemView {
     }
 
     const tiles = buildTiles(this.ordered(due), this.plugin.archiver.cache, this.unloadable);
+    this.paintedTiles = tiles;
 
-    this.paintSidebar(tiles);
     this.paintHeader();
     // Applied here rather than only when something is toggled: grouping is
     // remembered between sessions, so the wall can arrive already grouped,
@@ -2025,7 +2128,13 @@ export class GokoView extends ItemView {
     // you used one, leaving no way back. For a smart grid the whole grid is
     // what its rules admitted, so its counts are counts within the rule.
     if (smart) {
-      this.facets = space.rules ? smartMembers(tiles, space.rules, this.allDefs(tiles)) : tiles;
+      this.searchBase = space.rules ? smartMembers(tiles, space.rules, this.allDefs(tiles)) : tiles;
+      this.folderTiles = [];
+    } else if (this.search && !this.openFolder) {
+      // A search looks inside the folders too, and every match is a card of
+      // its own: a folder standing in for three matches is three matches you
+      // cannot see, and cannot step through from the one you opened.
+      this.searchBase = tiles;
       this.folderTiles = [];
     } else {
       // A folder tile stands in for its members, so the wall is the loose
@@ -2040,9 +2149,12 @@ export class GokoView extends ItemView {
         this.openFolder = null;
         this.spaceBar?.setFolder(null);
       }
-      this.facets = open ? open.members : parts.loose;
+      this.searchBase = open ? open.members : parts.loose;
       this.folderTiles = open ? [] : parts.folders;
     }
+    this.facets = this.searched(this.searchBase);
+    // After the facets, which a search in the library already counts from.
+    this.paintSidebar(tiles);
     this.applyFilter(options);
     this.flyToPending();
   }
@@ -2099,7 +2211,17 @@ export class GokoView extends ItemView {
 
     // A filter can hide what was just clipped. Nothing is cleared for it:
     // clipping something is not a request to undo the narrowing you set.
-    if (!this.grid?.reveal(pending.path, { fit: false, select: false })) return;
+    if (!this.grid?.reveal(pending.path, { fit: false, select: false })) {
+      // A search hides it the same way, and says so once, since a card that
+      // went in and never showed up reads as a clip that failed. The flight
+      // stays armed for when the search is cleared.
+      const record = this.search && !pending.told ? this.plugin.index.get(pending.path) : undefined;
+      if (record && this.search && !matchesSearch(record, this.search.terms)) {
+        pending.told = true;
+        new Notice("Goko: clipped, and hidden by the search");
+      }
+      return;
+    }
     this.pendingReveal = null;
   }
 
@@ -2138,12 +2260,14 @@ export class GokoView extends ItemView {
     // be wrong about why it looks bare.
     this.emptyWall?.toggleClass(
       "is-showing",
-      shown.length === 0 &&
+      !this.search &&
+        shown.length === 0 &&
         folders.length === 0 &&
         isFilterEmpty(filter) &&
         this.snoozedCount === 0
     );
     this.shownTiles = shown;
+    this.paintSearchState();
     this.grid?.setIslands(grouped ? this.islandModels(shown) : null);
     this.grid?.setSuggestions(this.isInbox() ? this.suggestionsFor(shown) : new Map());
     // Everywhere now, but not saying the same thing everywhere: the library
@@ -2191,7 +2315,7 @@ export class GokoView extends ItemView {
   private defs(): FacetDef[] {
     return typedFacets(
       facetDefs(this.look().filterProperties, this.gridRegistry()),
-      this.facets,
+      this.search ? this.searchBase : this.facets,
       Date.now()
     );
   }
@@ -2440,6 +2564,15 @@ export class GokoView extends ItemView {
     const record = this.plugin.index.get(path);
     if (!record) return;
 
+    // Picking a row means that one card, not the narrowing, so a search
+    // ends where it stands rather than going back. Repainted before the
+    // grid switch below, which returns early when the grid is the one
+    // already showing and would leave the reveal aimed at the results.
+    if (this.search) {
+      this.dropSearch();
+      this.refresh({ replace: true });
+    }
+
     const grid = effectiveGrid(record, this.plugin.settings.homeGridName, this.registered());
     this.activate(grid);
     if (this.grid?.reveal(path)) return;
@@ -2454,6 +2587,280 @@ export class GokoView extends ItemView {
 
     new Notice("Goko: nothing to show on the wall, opening the note");
     this.openNote(path);
+  }
+
+  // ---- Search ------------------------------------------------------------
+
+  /** What the search field holds, once typing pauses. */
+  private onQuery(text: string): void {
+    const terms = searchTerms(text);
+    if (terms.length === 0) {
+      // Emptied rather than cleared: the wall goes back to how it was, and
+      // the field stays open for the next word.
+      if (this.search) this.endSearch(true);
+      return;
+    }
+    const search = this.search;
+    if (!search) {
+      this.beginSearch(text, terms);
+      return;
+    }
+    search.query = text;
+    if (termsKey(terms) === termsKey(search.terms)) {
+      // The same words respelled, or a space added: nothing to narrow, but
+      // an empty wall quotes the query as it now stands.
+      this.paintSearchState();
+      return;
+    }
+    search.terms = terms;
+    // The selection is of cards the query may be about to hide, and a card
+    // nobody can see must not be what Delete deletes.
+    this.grid?.clearSelection();
+    this.narrowSearch();
+  }
+
+  /**
+   * Starts a search from wherever the wall is and takes it to the whole
+   * library: the card you are looking for is usually not on the wall you
+   * happen to be standing in, and a search that stayed there by default
+   * would quietly miss it. Where it started is kept, to go back to.
+   */
+  private beginSearch(query: string, terms: SearchTerm[]): void {
+    const here = this.currentPlace();
+    this.search = {
+      query,
+      terms,
+      origin: { ...here, filter: this.filter, camera: this.grid?.getCamera() ?? null },
+      lastPlace: here.all ? null : here,
+      moved: false,
+    };
+    this.goTo({ all: true, grid: here.grid, folder: null }, emptyFilter());
+  }
+
+  /**
+   * The cheap half of a repaint, for a changed query: the tiles in scope are
+   * built already, so they are only narrowed again. Nothing is redrawn when
+   * the new words find the same cards, because a replace restages every
+   * tile on screen and the wall would flicker as each word was finished.
+   */
+  private narrowSearch(): void {
+    const next = this.searched(this.searchBase);
+    const same =
+      next.length === this.facets.length && next.every((tile, i) => tile.id === this.facets[i].id);
+    this.facets = next;
+    this.paintSidebar(this.paintedTiles);
+    if (same) {
+      this.paintSearchState();
+      return;
+    }
+    this.applyFilter({ replace: true });
+    this.grid?.resetView(false);
+  }
+
+  /**
+   * The base narrowed to the query, best matches first. The card open in
+   * full screen or the sheet stays, even when an edit made there took it
+   * out of the query: stepping on from it needs its tile, and so does the
+   * flight back to the wall when it closes.
+   */
+  private searched(base: TileModel[]): TileModel[] {
+    if (!this.search) return base;
+    const found = narrowToHits(base, this.searchHitsNow());
+    const open = this.detail?.isOpen ? this.detail.currentId : null;
+    if (open && !found.some((tile) => tile.id === open)) {
+      const tile = base.find((candidate) => candidate.id === open);
+      if (tile) {
+        const was = this.shownTiles.findIndex((shown) => shown.id === open);
+        found.splice(was < 0 ? found.length : Math.min(was, found.length), 0, tile);
+      }
+    }
+    return found;
+  }
+
+  /** The library's matches for the query, from the cache while it holds. */
+  private searchHitsNow(): Map<string, SearchTier> {
+    const search = this.search;
+    if (!search) return new Map();
+    const records = this.plugin.index.records();
+    const key = termsKey(search.terms);
+    const cached = this.searchCache;
+    if (cached && cached.records === records && cached.key === key) return cached.hits;
+    const hits = searchHits(records, search.terms);
+    this.searchCache = { records, key, hits };
+    return hits;
+  }
+
+  /**
+   * The library's matches as tiles, for counting. In the library they are
+   * the wall's own tiles already; anywhere else they are built, from the
+   * matches alone.
+   */
+  private libraryMatchTiles(): TileModel[] {
+    if (this.showAll) return this.facets;
+    const hits = this.searchHitsNow();
+    const records = this.plugin.index.records().filter((record) => hits.has(record.path));
+    return buildTiles(records, this.plugin.archiver.cache, this.unloadable);
+  }
+
+  private currentPlace(): WallPlace {
+    return { all: this.showAll, grid: this.activeGrid().name, folder: this.openFolder };
+  }
+
+  /** A place as the wall's header names it. */
+  private placeName(place: WallPlace): string {
+    if (place.all) return "Library";
+    return place.folder ? `${place.grid} / ${place.folder}` : place.grid;
+  }
+
+  /**
+   * Puts the wall where a search takes it, or back where it was, in one
+   * repaint.
+   *
+   * Not activate or showLibrary: both return early when the wall is already
+   * where they would take it and leave it unpainted, both drop the filter
+   * that going back has to restore, and both count as moving the wall by
+   * hand. The place is checked on the way, because a grid or a folder can
+   * be renamed, removed or undone while a search is up.
+   */
+  private goTo(place: WallPlace, filter: FilterState, camera: Camera | null = null): void {
+    const grid = this.allGrids().find((candidate) => candidate.name === place.grid) ?? this.homeGrid();
+    // Only when it changes. Every open wall reads this one setting, so
+    // writing it back unchanged would still pull the others along.
+    if (this.plugin.settings.activeGrid !== grid.name) {
+      this.plugin.settings.activeGrid = grid.name;
+      this.spaceBar?.setActive(grid);
+      void this.plugin.saveSettings();
+    }
+    this.showAll = place.all;
+    const folder =
+      !place.all && place.folder && this.foldersHere().some((f) => f.name === place.folder)
+        ? place.folder
+        : null;
+    this.openFolder = folder;
+    this.spaceBar?.setFolder(folder);
+    this.filter = filter;
+    this.grid?.clearSelection();
+    this.applyLook();
+    this.refresh({ replace: true });
+    // The camera last, once the wall it frames has been laid out. A flight
+    // waiting for a card just clipped wins over it: that card is the news.
+    if (camera && !this.pendingReveal) this.grid?.setCamera(camera);
+    else this.grid?.resetView(false);
+  }
+
+  /** The count beside the query was pressed: the whole library, or back to the place. */
+  private switchSearchScope(): void {
+    const search = this.search;
+    if (!search) return;
+    if (!this.showAll) {
+      this.goTo({ all: true, grid: this.activeGrid().name, folder: null }, emptyFilter());
+    } else if (search.lastPlace) {
+      this.goTo(search.lastPlace, emptyFilter());
+    }
+  }
+
+  /**
+   * Ends the search. The wall goes back to where the search began, framed
+   * as it was there, unless it was moved by hand in the meantime: then it
+   * stays where it was taken, only no longer narrowed.
+   *
+   * @param keepField the field was emptied rather than cleared, and stays
+   * open for the next word.
+   */
+  private endSearch(keepField = false): void {
+    const search = this.search;
+    if (!search) {
+      if (!keepField) this.spaceBar?.closeSearch();
+      return;
+    }
+    this.dropSearch(!keepField);
+    if (search.moved) {
+      this.refresh({ replace: true });
+      this.grid?.resetView(false);
+    } else {
+      this.goTo(search.origin, search.origin.filter, search.origin.camera);
+    }
+  }
+
+  /** Lets go of the search without moving the wall. */
+  private dropSearch(closeField = true): void {
+    this.search = null;
+    this.searchCache = null;
+    this.grid?.clearSelection();
+    if (closeField) this.spaceBar?.closeSearch();
+    this.spaceBar?.setSearchResult(null);
+  }
+
+  /** A move made by hand while searching; see WallSearch.moved. */
+  private noteMoved(): void {
+    if (this.search) this.search.moved = true;
+  }
+
+  /**
+   * The count in the field and, when nothing matches, what the wall says
+   * about it. After every narrowing, since both follow what is on the wall.
+   */
+  private paintSearchState(): void {
+    const search = this.search;
+    const empty = this.searchEmpty;
+    if (!search) {
+      this.spaceBar?.setSearchResult(null);
+      empty?.removeClass("is-showing");
+      return;
+    }
+    // Wherever the wall stands while searching is where the count offers to
+    // come back to from the library.
+    if (!this.showAll) search.lastPlace = this.currentPlace();
+    const here = this.currentPlace();
+    const other = this.showAll ? search.lastPlace : null;
+    this.spaceBar?.setSearchResult({
+      count: this.shownTiles.length,
+      place: this.placeName(here),
+      switchTo: this.showAll
+        ? other
+          ? `Search only ${this.placeName(other)}`
+          : null
+        : "Search the whole library",
+    });
+
+    if (!empty) return;
+    const nothing = this.shownTiles.length === 0;
+    empty.toggleClass("is-showing", nothing);
+    if (!nothing) return;
+    const hidden = isFilterEmpty(this.activeFilter()) ? 0 : this.facets.length;
+    const elsewhere = this.showAll || hidden > 0 ? 0 : this.libraryMatchTiles().length;
+    const copy = searchEmptyCopy(search.query, hidden, elsewhere);
+    empty.querySelector(".pg-wall-empty-title")?.setText(copy.title);
+    empty.querySelector(".pg-wall-empty-hint")?.setText(copy.hint);
+    const actions = empty.querySelector<HTMLElement>(".pg-wall-empty-actions");
+    actions?.empty();
+    const action = copy.action;
+    if (actions && action) {
+      const button = actions.createEl("button", { cls: "pg-wall-empty-guide", text: action.label });
+      button.onclick = () => {
+        if (action.kind === "filter") this.setFilter(emptyFilter());
+        else this.goTo({ all: true, grid: this.activeGrid().name, folder: null }, emptyFilter());
+      };
+    }
+  }
+
+  /**
+   * Whether an Escape is the search's to take: the search is up, nothing
+   * above it is open to close, and it was not pressed in some other field.
+   * In the search field itself it is, whatever is selected on the wall.
+   */
+  private escapeEndsSearch(event: KeyboardEvent): boolean {
+    const bar = this.spaceBar;
+    if (!bar?.isSearching) return false;
+    const target = event.target as HTMLElement | null;
+    const inField = target === bar.searchField;
+    if (!inField && target?.closest("input, textarea, [contenteditable='true']")) return false;
+    if (this.palette?.isOpen || this.sheet?.isOpen || this.menu?.isOpen || bar.panelOpen) return false;
+    // The rail's icon and description panels close on Escape themselves.
+    if (this.contentEl.doc.body.querySelector(".pg-popover")) return false;
+    // The selection takes it first, as it does from a folder.
+    if (!inField && (this.grid?.selectedIds().length ?? 0) > 0) return false;
+    return true;
   }
 
   // ---- Grids -------------------------------------------------------------
@@ -2495,6 +2902,7 @@ export class GokoView extends ItemView {
   }
 
   private activate(name: string): void {
+    this.noteMoved();
     this.showAll = false;
     if (this.plugin.settings.activeGrid === name) return;
     this.plugin.settings.activeGrid = name;
@@ -2968,15 +3376,21 @@ export class GokoView extends ItemView {
    */
   private paintSidebar(tiles: TileModel[]): void {
     if (!this.sidebar) return;
+    // While searching, every count is a count of matches, so the rail says
+    // where in the library they are. Counted from tiles rather than records,
+    // so a count never includes a card whose cover cannot be drawn. A phone
+    // has no rail to show them on.
+    const matched = this.search && !Platform.isMobile ? this.libraryMatchTiles() : null;
     const model = sidebarModel({
-      records: this.plugin.index.records(),
+      records: matched ? matched.map((tile) => tile.record) : this.plugin.index.records(),
       grids: this.plugin.settings.grids,
       folders: this.plugin.settings.folders,
       home: this.homeGrid(),
-      tiles,
+      tiles: matched ?? tiles,
+      // Typed from everything in scope, never from the matches alone.
       defs: this.allDefs(tiles),
     });
-    this.sidebar.paint(model, this.activeGrid().name, this.openFolder, this.showAll);
+    this.sidebar.paint(model, this.activeGrid().name, this.openFolder, this.showAll, this.search !== null);
   }
 
   /**
@@ -3062,6 +3476,7 @@ export class GokoView extends ItemView {
    */
   private showLibrary(): void {
     if (this.showAll) return;
+    this.noteMoved();
     this.showAll = true;
     this.grid?.clearSelection();
     this.filter = emptyFilter();
@@ -4129,9 +4544,20 @@ export class GokoView extends ItemView {
     return this.activeGrid().name === this.plugin.settings.homeGridName;
   }
 
-  /** The inbox proper: home, whole, not the library. The one wall that suggests. */
+  /**
+   * The inbox proper: home, whole, not the library. The one wall that
+   * suggests. Not while a search is up, even on home: the matches are what
+   * was asked for, so nothing is held back until its date, grouped into
+   * islands or offered a grid to go to.
+   */
   private isInbox(): boolean {
-    return this.isHomeGrid() && !this.showAll && !this.openFolder && !isSmartGrid(this.activeGrid());
+    return (
+      !this.search &&
+      this.isHomeGrid() &&
+      !this.showAll &&
+      !this.openFolder &&
+      !isSmartGrid(this.activeGrid())
+    );
   }
 
   // ---- Suggestions -------------------------------------------------------
@@ -4633,6 +5059,7 @@ export class GokoView extends ItemView {
   private enterFolder(name: string): void {
     if (!this.foldersHere().some((folder) => folder.name === name)) return;
     if (this.openFolder === name) return;
+    this.noteMoved();
     this.openFolder = name;
     this.grid?.clearSelection();
     this.refresh({ replace: true });
@@ -4642,6 +5069,7 @@ export class GokoView extends ItemView {
 
   private leaveFolder(): void {
     if (this.openFolder === null) return;
+    this.noteMoved();
     this.openFolder = null;
     this.grid?.clearSelection();
     this.refresh({ replace: true });

@@ -47,3 +47,49 @@ export function emptyWallCopy(mobile: boolean): EmptyWallCopy {
       : "Paste a link or drop a file to clip it",
   };
 }
+
+/** What the wall says when a search leaves nothing on it. */
+export interface SearchEmptyCopy {
+  title: string;
+  hint: string;
+  /** The one thing that would put matches back, when there is one. */
+  action?: { kind: "filter" | "library"; label: string };
+}
+
+/** Longest query quoted back whole; a pasted paragraph is cut short. */
+const QUOTED_QUERY = 40;
+
+/**
+ * The empty search, said so that it points somewhere.
+ *
+ * A search that finds nothing is either about the words or about where it
+ * looked, and the two call for different things: a filter on the wall can
+ * hide every match, and a search narrowed to one grid can miss the matches
+ * sitting on the others. When either is true the wall says so and offers the
+ * way back, because "nothing" is not the whole truth there. Only when the
+ * library itself holds no match is the answer to try other words.
+ *
+ * @param hidden matches on this wall that the filter is hiding
+ * @param elsewhere matches in the library outside where the search looks
+ */
+export function searchEmptyCopy(query: string, hidden: number, elsewhere: number): SearchEmptyCopy {
+  const said = query.trim().replace(/\s+/g, " ");
+  const quoted = said.length > QUOTED_QUERY ? `${said.slice(0, QUOTED_QUERY - 1)}…` : said;
+  const title = `Nothing matches “${quoted}”`;
+  const matches = (n: number): string => (n === 1 ? "1 match" : `${n} matches`);
+  if (hidden > 0) {
+    return {
+      title,
+      hint: `The filter hides ${hidden === 1 ? "the only match" : `all ${matches(hidden)}`}`,
+      action: { kind: "filter", label: "Clear filter" },
+    };
+  }
+  if (elsewhere > 0) {
+    return {
+      title,
+      hint: `${matches(elsewhere)} in the rest of the library`,
+      action: { kind: "library", label: "Search the whole library" },
+    };
+  }
+  return { title, hint: "Try another word, or fewer of them" };
+}

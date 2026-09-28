@@ -5,6 +5,26 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Search narrows the wall instead of opening a list. The search button grows
+  into a field in the bar, and as you type the wall keeps the cards that
+  match, from the whole library and from inside folders. The rail counts the
+  matches on each grid and folder, and a click on one searches only there. A
+  match opens like any card, the arrows step through the matches, and the
+  search stays until you clear it, which takes you back to where you were.
+  The list showed eight clippings at most, and a card picked from it that sat
+  inside a folder opened as a note.
+- A word of four letters or fewer matches only at the start of a word, so
+  `cat` no longer finds modification or scattered.
+
+### Fixed
+
+- The library showed only a smart view's cards when it was opened from that
+  view.
+
 ## [1.0.9] - 2026-09-27
 
 ### Fixed

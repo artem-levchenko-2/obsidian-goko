@@ -815,7 +815,20 @@ export class GridRenderer {
     this.schedule();
   }
 
+  /** Where the wall is looking, for setCamera to put it back there later. */
+  getCamera(): Camera {
+    // A phone scrolls natively, and mid-fling the scroller is ahead of the
+    // last position it reported.
+    if (this.nativeScroll) this.readScroll();
+    return { ...this.camera };
+  }
+
   setCamera(camera: Camera): void {
+    // A camera put back is the camera from now on. A tween still running
+    // toward somewhere else would carry the wall off it on its next frame,
+    // and a wall not yet placed would jump to the top on its next layout.
+    this.cancelTween();
+    this.placed = true;
     this.camera = camera;
     this.applyCamera();
   }

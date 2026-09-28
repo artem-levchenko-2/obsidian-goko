@@ -66,6 +66,13 @@ export class Sidebar {
   private activeFolder: string | null = null;
   /** Whether the wall is showing the whole library rather than one grid. */
   private showingAll = false;
+  /**
+   * Whether a search is narrowing the wall. The counts are then counts of
+   * matches, and a row with none is dimmed rather than dropped: it is still
+   * somewhere the search can be narrowed to, and a list that changed shape
+   * with every letter typed would be no way to find anything.
+   */
+  private searching = false;
   private width = 0;
   private hidden = false;
   private shown = false;
@@ -127,11 +134,18 @@ export class Sidebar {
    * rebuilds rather than diffs: a dozen rows of text is nothing to paint, and
    * a diff of a list that changes shape is where stale counts come from.
    */
-  paint(model: SidebarModel, active: string, folder: string | null, all: boolean): void {
+  paint(
+    model: SidebarModel,
+    active: string,
+    folder: string | null,
+    all: boolean,
+    searching = false
+  ): void {
     this.model = model;
     this.active = active;
     this.activeFolder = folder;
     this.showingAll = all;
+    this.searching = searching;
     this.apply();
   }
 
@@ -310,6 +324,7 @@ export class Sidebar {
     setIcon(glyph, "book-open");
     row.createSpan({ cls: "pg-sidebar-name", text: "Library" });
     row.createSpan({ cls: "pg-sidebar-count", text: count > 0 ? String(count) : "" });
+    if (this.searching && count === 0) row.addClass("is-none");
     row.onclick = (event) => {
       event.stopPropagation();
       this.handlers.onPickAll();
@@ -340,6 +355,7 @@ export class Sidebar {
     if (this.renaming && this.renaming.grid === name && this.renaming.folder === null) this.nameField(row);
     else row.createSpan({ cls: "pg-sidebar-name", text: name });
     row.createSpan({ cls: "pg-sidebar-count", text: entry.count > 0 ? String(entry.count) : "" });
+    if (this.searching && entry.count === 0) row.addClass("is-none");
     // What the grid is for, under the pointer: the one place it is shown
     // outside the grid's own sheet, now that the wall carries no band for it.
     const about = entry.grid.description?.trim();
@@ -407,6 +423,7 @@ export class Sidebar {
         cls: "pg-sidebar-count",
         text: held.count > 0 ? String(held.count) : "",
       });
+      if (this.searching && held.count === 0) sub.addClass("is-none");
       sub.onclick = (event) => {
         event.stopPropagation();
         this.handlers.onPick(name, held.folder.name);

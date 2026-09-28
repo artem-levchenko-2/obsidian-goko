@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_WALL_EYES_PATH, EMPTY_WALL_EYES_VIEWBOX, emptyWallCopy } from "../src/core/empty-wall";
+import {
+  EMPTY_WALL_EYES_PATH,
+  EMPTY_WALL_EYES_VIEWBOX,
+  emptyWallCopy,
+  searchEmptyCopy,
+} from "../src/core/empty-wall";
 
 describe("emptyWallCopy", () => {
   it("says the same first line on every device", () => {
@@ -39,5 +44,39 @@ describe("the empty wall's eyes", () => {
       expect(n).toBeGreaterThanOrEqual(0);
       expect(n).toBeLessThanOrEqual(60);
     }
+  });
+});
+
+describe("searchEmptyCopy", () => {
+  it("quotes the query back, cut short when it is long", () => {
+    expect(searchEmptyCopy("  red   boots ", 0, 0).title).toBe("Nothing matches “red boots”");
+    const long = searchEmptyCopy("x".repeat(80), 0, 0).title;
+    expect(long.endsWith("…”")).toBe(true);
+    expect(long.length).toBeLessThan(60);
+  });
+
+  it("points at the filter when it is the filter hiding the matches", () => {
+    expect(searchEmptyCopy("boots", 3, 9)).toEqual({
+      title: "Nothing matches “boots”",
+      hint: "The filter hides all 3 matches",
+      action: { kind: "filter", label: "Clear filter" },
+    });
+    expect(searchEmptyCopy("boots", 1, 0).hint).toBe("The filter hides the only match");
+  });
+
+  it("points at the rest of the library when the matches are elsewhere", () => {
+    expect(searchEmptyCopy("boots", 0, 31)).toEqual({
+      title: "Nothing matches “boots”",
+      hint: "31 matches in the rest of the library",
+      action: { kind: "library", label: "Search the whole library" },
+    });
+    expect(searchEmptyCopy("boots", 0, 1).hint).toBe("1 match in the rest of the library");
+  });
+
+  it("offers nothing to press when the library holds no match at all", () => {
+    expect(searchEmptyCopy("boots", 0, 0)).toEqual({
+      title: "Nothing matches “boots”",
+      hint: "Try another word, or fewer of them",
+    });
   });
 });

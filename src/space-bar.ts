@@ -1,17 +1,37 @@
 import { Platform, setIcon } from "obsidian";
+import { settled } from "./core/settle";
 import type { GridSpace } from "./core/spaces";
 import { setGlyph } from "./glyph";
-import { attachTip } from "./core/tip";
+import { attachTip, retip } from "./core/tip";
 import { NotificationPanel } from "./notifications";
 import type { NotificationCenter } from "./notifications";
 
 /** Space left between a control and the menu it launches. */
 const LAUNCH_GAP = 10;
 
+/**
+ * How long typing has to pause before the wall follows it. Long enough that
+ * a word typed at speed redraws the wall once rather than once a letter, and
+ * short enough that stopping to look reads as the wall answering.
+ */
+const QUERY_SETTLE_MS = 150;
+
+/** The field's growth, on the easing every other move in the dock uses. */
+const MORPH_MS = 240;
+const MORPH_EASING = "cubic-bezier(0.22, 0.9, 0.28, 1)";
+
 export interface SpaceBarHandlers {
-  /** Open the search palette. A button, because a shortcut is not a UI: it is
-      not on a phone, it is not discoverable, and it is the first thing to fail. */
-  onSearch: () => void;
+  /**
+   * What the search field holds, once typing pauses, or at once on Enter.
+   * The field is in the bar rather than behind a shortcut, because a
+   * shortcut is not a UI: it is not on a phone, it is not discoverable, and
+   * it is the first thing to fail.
+   */
+  onQuery: (text: string) => void;
+  /** The count beside the query was pressed: search somewhere else. */
+  onSearchScope: () => void;
+  /** The clear button was pressed: the search is over. */
+  onEndSearch: () => void;
   /** Open the create menu, anchored at the given point. */
   onCreate: (x: number, y: number) => void;
   /** Open the settings menu for the grid on screen, anchored at a point. */
@@ -47,6 +67,20 @@ export class SpaceBar {
   private filter: HTMLElement;
   private filterCount: HTMLElement;
   private shownCount = -1;
+  /**
+   * The search: a button that grows into the field it opens, in its own
+   * place in the bar, so the query stays in sight for as long as it is
+   * narrowing the wall. Open is its own state rather than the phone bar's
+   * `expanded`, since the bar folding away for a selection or a tap
+   * elsewhere must not take a live search with it.
+   */
+  private search: HTMLElement;
+  private searchInput: HTMLInputElement;
+  private searchFound: HTMLElement;
+  private searchScope: HTMLElement;
+  private searchOpen = false;
+  private querySettle: { call: () => void; cancel: () => void };
+  private fitFrame = 0;
   /** Where a menu about grids opens from when nothing was clicked. */
   switcherAnchor: () => { x: number; y: number } = () => ({ x: 0, y: 0 });
   private back: HTMLElement;
@@ -110,11 +144,71 @@ export class SpaceBar {
       handlers.onCreate(rect.right, rect.top - LAUNCH_GAP);
     };
 
-    const search = button("search", "Search", "⌘K", ["search"]);
-    search.onclick = (event: MouseEvent) => {
+    this.search = this.root.createDiv({ cls: "pg-space-search" });
+    const open = this.search.createEl("button", { cls: "pg-bar-button pg-space-search-button" });
+    setGlyph(open.createSpan({ cls: "pg-bar-glyph" }), "search");
+    attachTip(open, "Search", "");
+    open.onclick = (event: MouseEvent) => {
       event.stopPropagation();
-      handlers.onSearch();
+      this.openSearch();
     };
+
+    const input = this.search.createEl("input", { cls: "pg-space-search-input", type: "text" });
+    input.placeholder = "Search the library";
+    input.spellcheck = false;
+    input.autocomplete = "off";
+    input.setAttribute("enterkeyhint", "search");
+    this.searchInput = input;
+    this.querySettle = settled(() => handlers.onQuery(input.value), QUERY_SETTLE_MS, window);
+    input.oninput = () => {
+      this.search.toggleClass("has-text", input.value.trim().length > 0);
+      this.querySettle.call();
+    };
+    input.onkeydown = (event: KeyboardEvent) => {
+      // Not while an input method is still composing: that Enter picks a
+      // character, it does not ask for the search.
+      if (event.key !== "Enter" || event.isComposing) return;
+      event.preventDefault();
+      this.querySettle.cancel();
+      handlers.onQuery(input.value);
+      // The keyboard goes back to the wall, where the arrows and Space act
+      // on the cards the query left.
+      input.blur();
+    };
+    // An empty field folds away when you leave it. One with a query in it
+    // stays, because it is still deciding what the wall shows.
+    input.onblur = () => {
+      if (!this.searchOpen || input.value.trim()) return;
+      this.querySettle.cancel();
+      handlers.onQuery("");
+      this.closeSearch();
+    };
+
+    // What was found and where, which is also the way to look somewhere else.
+    this.searchScope = this.search.createEl("button", { cls: "pg-space-search-scope" });
+    this.searchFound = this.searchScope.createSpan({ cls: "pg-space-search-found" });
+    attachTip(this.searchScope, "Search the whole library", "");
+    this.searchScope.onclick = (event: MouseEvent) => {
+      event.stopPropagation();
+      if (this.searchScope.hasClass("is-switch")) handlers.onSearchScope();
+    };
+
+    const clear = this.search.createEl("button", { cls: "pg-space-search-clear" });
+    setIcon(clear.createSpan({ cls: "pg-space-search-clear-glyph" }), "x");
+    attachTip(clear, "Clear search", "");
+    clear.onclick = (event: MouseEvent) => {
+      event.stopPropagation();
+      handlers.onEndSearch();
+    };
+
+    // Pressing a control inside the field would blur the input before the
+    // click lands, and an empty field folds on blur: the button would be gone
+    // from under the pointer before it was clicked.
+    for (const inside of [open, this.searchScope, clear]) {
+      inside.addEventListener("pointerdown", (event) => {
+        if (this.searchOpen) event.preventDefault();
+      });
+    }
 
     // Then the two that change how the wall is shown rather than what is on
     // it, behind a rule that says as much.
@@ -219,6 +313,8 @@ export class SpaceBar {
   /** Folds the phone's bar out of its button, or back into it. */
   private setExpanded(expanded: boolean, animate = true): void {
     if (!this.more || !this.moreGlyph || expanded === this.expanded) return;
+    // A live search holds the bar open: the field is the bar while it is.
+    if (!expanded && this.searchOpen) return;
     const before = this.root.getBoundingClientRect().width;
     this.expanded = expanded;
     this.root.toggleClass("is-collapsed", !expanded);
@@ -234,6 +330,123 @@ export class SpaceBar {
   /** Folds it away when a tap lands anywhere else. */
   collapse(): void {
     this.setExpanded(false);
+  }
+
+  /** Whether the bell's panel is open, for an Escape that would close it. */
+  get panelOpen(): boolean {
+    return this.notifications?.isOpen ?? false;
+  }
+
+  /** Whether the search field is open, with or without a query in it. */
+  get isSearching(): boolean {
+    return this.searchOpen;
+  }
+
+  /**
+   * Folds a live search into its button while the dock cannot hold it and
+   * the selection bar side by side, and opens it out again once it can.
+   * Asked after the selection changes and when the pane is resized, which
+   * are the two things that decide whether the pair fits.
+   */
+  fitDock(): void {
+    // A frame later: the details panel takes its width off the wall on the
+    // next frame, and the dock's room is measured against the wall after.
+    if (this.fitFrame) window.cancelAnimationFrame(this.fitFrame);
+    this.fitFrame = window.requestAnimationFrame(() => {
+      this.fitFrame = 0;
+      this.fitNow();
+    });
+  }
+
+  private fitNow(): void {
+    const dock = this.root.parentElement;
+    this.root.removeClass("is-tight");
+    if (!dock || !this.searchOpen) return;
+    // Measured by where the last thing in each box ends rather than by
+    // scrollWidth, which counts the tips too: they hang out past the bar's
+    // edge, unseen until a button is pointed at.
+    const spills = (box: HTMLElement): boolean => {
+      const edge = box.getBoundingClientRect().right + 0.5;
+      return Array.from(box.children).some(
+        (child) =>
+          child.instanceOf(HTMLElement) &&
+          child.offsetParent !== null &&
+          child.getBoundingClientRect().right > edge
+      );
+    };
+    if (spills(this.root) || spills(dock)) this.root.addClass("is-tight");
+  }
+
+  /** Grows the field out of its button and puts the cursor in it. */
+  openSearch(): void {
+    // Asked for by hand, so shown even where it does not fit beside the
+    // selection bar: typing is about to clear the selection anyway.
+    this.root.removeClass("is-tight");
+    if (!this.searchOpen) {
+      const before = this.search.getBoundingClientRect().width;
+      this.searchOpen = true;
+      this.search.addClass("is-open");
+      this.root.addClass("is-searching");
+      this.morph(before, this.search.getBoundingClientRect().width);
+    }
+    this.searchInput.focus();
+  }
+
+  /**
+   * Folds the field back into its button, emptied. Called once the view has
+   * let go of the search, or never had one, so nothing here asks it to.
+   */
+  closeSearch(): void {
+    if (!this.searchOpen) return;
+    this.querySettle.cancel();
+    const before = this.search.getBoundingClientRect().width;
+    this.searchOpen = false;
+    this.searchInput.value = "";
+    this.search.removeClass("is-open", "has-text", "has-result");
+    this.root.removeClass("is-searching", "is-tight");
+    if (this.searchInput.doc.activeElement === this.searchInput) this.searchInput.blur();
+    this.morph(before, this.search.getBoundingClientRect().width);
+    // The phone's bar folds back into its button, as it does after any
+    // other errand run from it.
+    this.setExpanded(false);
+  }
+
+  /** The field itself, for the view to tell a keystroke meant for it. */
+  get searchField(): HTMLElement {
+    return this.searchInput;
+  }
+
+  /**
+   * What the search found and where it looked, or null while it has found
+   * nothing to count. `switchTo` names the other place the count would
+   * search if pressed, and is null when there is nowhere else to go: then
+   * the count is only words.
+   */
+  setSearchResult(result: { count: number; place: string; switchTo: string | null } | null): void {
+    this.search.toggleClass("has-result", result !== null);
+    if (!result) return;
+    this.searchFound.setText(`${result.count} in ${result.place}`);
+    this.searchScope.toggleClass("is-switch", result.switchTo !== null);
+    if (result.switchTo) retip(this.searchScope, result.switchTo, "");
+  }
+
+  /**
+   * Eases the field from one width to another. The field clips while it
+   * moves, so what is inside is revealed rather than squashed, and it does
+   * not move at all for someone who has asked the system for less motion.
+   */
+  private morph(before: number, after: number): void {
+    const win = this.root.doc.defaultView;
+    if (!win || Math.abs(before - after) < 1) return;
+    if (win.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    this.search.addClass("is-morphing");
+    const motion = this.search.animate(
+      [{ width: `${before}px` }, { width: `${after}px` }],
+      { duration: MORPH_MS, easing: MORPH_EASING }
+    );
+    const done = (): void => this.search.removeClass("is-morphing");
+    motion.onfinish = done;
+    motion.oncancel = done;
   }
 
   setActive(grid: GridSpace): void {
@@ -267,6 +480,8 @@ export class SpaceBar {
   }
 
   destroy(): void {
+    this.querySettle.cancel();
+    if (this.fitFrame) window.cancelAnimationFrame(this.fitFrame);
     this.stopNotifications?.();
     this.notifications?.close(true);
     this.root.remove();

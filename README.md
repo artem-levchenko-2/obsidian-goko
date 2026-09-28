@@ -202,7 +202,6 @@ bottom.
 | | |
 | :-- | :-- |
 | `⌘V` | Clip the link, picture or file on the clipboard |
-| `⌘K` | Search |
 | `⌘Z` `⌘⇧Z` | Undo and redo a move, an edit, a grid change |
 | `⌘1` to `⌘9` | Switch grids in their stored order |
 | `←` `→` `↑` `↓` | Move between tiles |
@@ -287,12 +286,23 @@ so.
 
 ## Search
 
-One input over the dimmed wall finds clippings and the things you can do to
-them: actions, grids, filter values, and every clipping in the vault by name,
-each with a preview.
+The search button in the bar grows into a field. As you type, the wall keeps
+only the cards that match, from the whole library and from inside folders,
+each labelled with where it is filed. The rail counts the matches on every
+grid and folder and dims the ones that have none.
 
-Type `@` for grids and folders, or `#` for the tags your vault uses. Either one
-settles into a chip that narrows what is left.
+Click a grid or a folder in the rail to search only there. The count in the
+field switches between the whole library and the place you narrowed to.
+
+A match opens as any card does, and the arrows step through the matches. The
+search stays until you clear it with × or `Esc`, and clearing it takes you
+back to where you were.
+
+Every word has to match. A word of four letters or fewer counts only at the
+start of a word, so `cat` does not find modification. A longer one counts
+anywhere, so `tattoo` finds #darktattoo. The search reads the title, the tags,
+the description, your note, the summary, the site's name, and the text of an
+article or a PDF. It does not read the names of grids and folders.
 
 ---
 
