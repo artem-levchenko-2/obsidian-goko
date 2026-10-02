@@ -72,6 +72,48 @@ the repository, commit messages included.
 addresses or anyone's personal data in fixtures. Keep the shape — same length,
 same character classes — and invent the values.
 
+## Gotchas
+
+**Lint disables.** An inline disable of any `obsidianmd/*` rule (or
+`no-console`) is itself an error under the directory's config — fix the code.
+Any other disable needs a `-- reason`.
+
+**New parts get new class names.** Reusing an existing class inherits its
+rules: a card sheet once shared one with the note card, whose layer lets every
+click through, and nothing inside the sheet could be clicked.
+
+**Vault events at start-up.** While Obsidian lists the vault it reports every
+folder and file as created, one at a time. Anything that rebuilds state from
+the folder tree starts in `workspace.onLayoutReady`, or it saves a half-seen
+vault — that is how grids once lost their icons and order on every launch.
+
+**`minAppVersion` stays at 1.13.0** or above: the settings tab uses
+`SettingDefinition`, which first appears there.
+
+**A second Obsidian for testing** (macOS) runs with its own `HOME`, its own
+`--user-data-dir` and `--use-mock-keychain`, opened in the background
+(`open -g`). Obsidian rebinds `~/.obsidian-cli.sock` under `HOME` at start-up
+and would take it from the instance already running; an empty `HOME` without
+the mock keychain makes Electron ask to reset the login keychain; a focused
+window catches whatever is being typed or dictated.
+
+**Phone checks.** To see what the phone clips on its own, keep the desktop app
+closed — otherwise the desktop finishes the downloads and hides the gap.
+
+## Releasing
+
+1. Changes collect under `## [Unreleased]` in `CHANGELOG.md` as they land.
+2. Bump `version` in `manifest.json` and `package.json`, add
+   `"X.Y.Z": "<minAppVersion>"` to `versions.json`, rename the heading to
+   `## [X.Y.Z] - YYYY-MM-DD`, and commit as `Goko X.Y.Z`.
+3. The tag is the bare version (`1.0.10`, no `v`): the directory matches it
+   against `manifest.json`.
+4. `gh release create X.Y.Z dist/main.js dist/manifest.json dist/styles.css
+   --target main --title "Goko X.Y.Z" --notes-file <that CHANGELOG section>`.
+5. `.github/workflows/attest.yml` rebuilds from the tag, checks that the
+   uploaded `main.js` and `styles.css` match byte for byte, and attests them.
+   A red run means the assets are not what the tag builds.
+
 ## Style
 
 Comments explain *why*, in full sentences, and match the density of the code
