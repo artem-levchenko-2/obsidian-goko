@@ -1,12 +1,6 @@
 <div align="center">
 
-```
- ██████     ██████    ██   ██   ██████
-██        ██  ██  ██  ██  ██   ██    ██
-██  ███  ██  ████  ██ █████    ██    ██
-██   ██   ██  ██  ██  ██  ██   ██    ██
- ██████     ██████    ██   ██   ██████
-```
+<img src="media/banner.svg" alt="Goko">
 
 # Goko
 
@@ -112,6 +106,12 @@ Then turn it on under **Settings → Community plugins → Goko**.
 Paste a link anywhere on the wall, or run **Clip from clipboard** from the
 command palette. Goko reads the page, downloads what it finds, and writes a
 note into your clippings folder.
+
+That folder is `Clippings`, and the media goes into `Attachments/Clippings`.
+To use folders you already have, change both under **Settings → Goko →
+Clippings**. Every note in the clippings folder is a card on the wall,
+including notes Goko did not write. Changing the folder does not move what
+you have already clipped: move those notes yourself and the wall follows them.
 
 | You paste | You get |
 | :-- | :-- |

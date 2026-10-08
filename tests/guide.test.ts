@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { GUIDE_BANNER, GUIDE_PATH, guideMarkdown, guideOwed, guideStep } from "../src/core/guide";
 import type { GuideSettings } from "../src/core/guide";
@@ -113,14 +112,6 @@ describe("guideMarkdown", () => {
     expect(text.startsWith(["```", ...GUIDE_BANNER, "```", ""].join("\n"))).toBe(true);
     const prose = text.split("\n").slice(GUIDE_BANNER.length + 2).find((line) => line !== "");
     expect(prose?.startsWith("Goko is a wall")).toBe(true);
-  });
-
-  it("carries the banner exactly as the README draws it", () => {
-    // The README's first fenced block is the banner; the guide's has to be
-    // the same five lines, down to the leading spaces that line the O up.
-    const readme = readFileSync(new URL("../README.md", import.meta.url), "utf8");
-    const fenced = /```\n([\s\S]*?)\n```/.exec(readme)?.[1] ?? "";
-    expect(fenced.split("\n")).toEqual(GUIDE_BANNER);
   });
 
   it("says where the name comes from", () => {

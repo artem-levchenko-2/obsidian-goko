@@ -64,8 +64,9 @@ function sharedTarget(target: SharedClipTarget, home: string): string {
 }
 
 /**
- * The banner the README opens with, line for line. The O is an eye, which is
- * what the name means.
+ * The banner the guide opens with. The O is an eye, which is what the name
+ * means. The README opens on a drawing of the word instead, media/banner.svg:
+ * a note in the vault cannot show a picture from the repository.
  */
 export const GUIDE_BANNER = [
   " ██████     ██████    ██   ██   ██████",
