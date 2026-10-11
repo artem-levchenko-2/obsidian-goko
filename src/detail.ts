@@ -363,9 +363,9 @@ export class DetailView {
       height: model.height,
     });
 
-    this.root = this.container.createDiv({ cls: "pg-detail" });
+    this.root = this.container.createDiv({ cls: "goko-detail" });
     this.root.toggleClass("is-sheet", this.sheet);
-    const backdrop = this.root.createDiv({ cls: "pg-detail-backdrop" });
+    const backdrop = this.root.createDiv({ cls: "goko-detail-backdrop" });
     // In a sheet this is the sheet's own ground, where a click is a click
     // inside it; the band of wall above the sheet is what closes it.
     backdrop.onclick = () => {
@@ -378,19 +378,19 @@ export class DetailView {
     // of the wall's chrome moved into the dock — so it keeps the rules that
     // set had rather than imitating the dock. A sheet has its close above it.
     if (!this.sheet) {
-      const back = this.root.createEl("button", { cls: "pg-detail-back" });
+      const back = this.root.createEl("button", { cls: "goko-detail-back" });
       setIcon(back, "arrow-left");
       attachTip(back, "Back", "\u238b");
       back.onclick = () => this.close();
     }
 
-    this.stage = this.root.createDiv({ cls: "pg-detail-stage" });
+    this.stage = this.root.createDiv({ cls: "goko-detail-stage" });
     this.stage.addEventListener("contextmenu", (event: MouseEvent) => {
       event.preventDefault();
       event.stopPropagation();
       if (this.current) this.actions.onMediaMenu(this.current, event.clientX, event.clientY);
     });
-    this.layer = this.stage.createDiv({ cls: "pg-detail-zoom" });
+    this.layer = this.stage.createDiv({ cls: "goko-detail-zoom" });
     this.view = { ...FIT };
     this.dragging = false;
 
@@ -429,7 +429,7 @@ export class DetailView {
       // A focused swatch handles its own Enter and Space. Without it here,
       // the view's own Enter binding would close the overlay and open the note
       // rather than copying the colour the swatch is showing.
-      if (target?.closest("input, textarea, [contenteditable='true'], .pg-swatch")) {
+      if (target?.closest("input, textarea, [contenteditable='true'], .goko-swatch")) {
         return;
       }
 
@@ -528,12 +528,12 @@ export class DetailView {
   private placeChrome(layout: DetailLayout): void {
     if (!this.root) return;
     const centre = layout.stage.x + layout.stage.w / 2;
-    const strip = this.root.querySelector<HTMLElement>(".pg-reel-strip");
+    const strip = this.root.querySelector<HTMLElement>(".goko-reel-strip");
     if (strip) {
       strip.style.left = `${centre}px`;
       strip.style.maxWidth = `${Math.max(200, layout.stage.w - 24)}px`;
     }
-    const bar = this.root.querySelector<HTMLElement>(".pg-detail-actions");
+    const bar = this.root.querySelector<HTMLElement>(".goko-detail-actions");
     if (bar) bar.style.left = `${centre}px`;
   }
 
@@ -549,9 +549,9 @@ export class DetailView {
   private paintReel(): void {
     if (!this.root || this.reel.length < 2) return;
 
-    const strip = this.root.createDiv({ cls: "pg-reel-strip" });
+    const strip = this.root.createDiv({ cls: "goko-reel-strip" });
     strip.createDiv({
-      cls: "pg-reel-count",
+      cls: "goko-reel-count",
       text: reelLabel(this.reelIndex, this.reel.length),
     });
 
@@ -559,11 +559,11 @@ export class DetailView {
     // wall wears; the thumbnails unfold from it while the pointer is over
     // it. Twelve thumbnails standing open under the picture were a second
     // picture, and the dots say as much — how many, which one — in a line.
-    const box = strip.createDiv({ cls: "pg-reel-box" });
-    box.style.setProperty("--pg-reel-n", String(this.reel.length));
-    const dots = box.createDiv({ cls: "pg-reel-dots" });
+    const box = strip.createDiv({ cls: "goko-reel-box" });
+    box.style.setProperty("--goko-reel-n", String(this.reel.length));
+    const dots = box.createDiv({ cls: "goko-reel-dots" });
     this.reel.forEach((_tile, index) => {
-      dots.createSpan({ cls: index === this.reelIndex ? "pg-reel-dot is-on" : "pg-reel-dot" });
+      dots.createSpan({ cls: index === this.reelIndex ? "goko-reel-dot is-on" : "goko-reel-dot" });
     });
     // A phone has no hover: the pill itself is the handle. Open, the click
     // lands on a thumbnail instead, which stops it before it gets here.
@@ -582,10 +582,10 @@ export class DetailView {
     };
     strip.toggleClass("is-expanded", this.reelPinned || this.reelHover);
 
-    const rail = box.createDiv({ cls: "pg-reel-rail" });
+    const rail = box.createDiv({ cls: "goko-reel-rail" });
     this.reel.forEach((tile, index) => {
       const thumb = rail.createEl("button", {
-        cls: index === this.reelIndex ? "pg-reel-thumb is-on" : "pg-reel-thumb",
+        cls: index === this.reelIndex ? "goko-reel-thumb is-on" : "goko-reel-thumb",
       });
       const preview = previewOf(tile);
       if (preview) {
@@ -632,7 +632,7 @@ export class DetailView {
     if (!host) return null;
 
     if (model.kind === "video") {
-      const video = host.createEl("video", { cls: "pg-detail-media" });
+      const video = host.createEl("video", { cls: "goko-detail-media" });
       video.src = model.remote ? model.filePath : this.resource(model.filePath);
       // Desktop only fades Chromium's control bar in on hover, but iOS
       // parks its overlay on top of the video from the first frame. So on
@@ -650,7 +650,7 @@ export class DetailView {
       return null;
     }
 
-    const image = host.createEl("img", { cls: "pg-detail-media" });
+    const image = host.createEl("img", { cls: "goko-detail-media" });
     image.src = model.remote ? model.filePath : this.resource(model.filePath);
     image.decoding = "async";
     return image;
@@ -749,8 +749,8 @@ export class DetailView {
 
     this.layer.empty();
     this.meta?.remove();
-    this.root.querySelector(".pg-detail-actions")?.remove();
-    this.root.querySelector(".pg-reel-strip")?.remove();
+    this.root.querySelector(".goko-detail-actions")?.remove();
+    this.root.querySelector(".goko-reel-strip")?.remove();
     this.hotkeys = [];
 
     this.place(layout, bounds);
@@ -842,7 +842,7 @@ export class DetailView {
     animate = true
   ): HTMLElement | null {
     if (!this.root) return null;
-    const panel = this.root.createDiv({ cls: "pg-detail-meta" });
+    const panel = this.root.createDiv({ cls: "goko-detail-meta" });
     // The entrance belongs to the opening flight. An arrow-key swap rebuilds
     // this panel in place, where replaying the slide reads as a stutter.
     this.reveal = animate ? DetailView.slideIn(panel, META_DELAY_MS, META_MS) : null;
@@ -895,7 +895,7 @@ export class DetailView {
 
   private paintActions(model: TileModel): void {
     if (!this.root) return;
-    const bar = this.root.createDiv({ cls: "pg-detail-actions" });
+    const bar = this.root.createDiv({ cls: "goko-detail-actions" });
 
     // Every tip advertises a key, so every key is bound below. A label
     // promising a shortcut that does nothing is worse than no label.
@@ -906,7 +906,7 @@ export class DetailView {
       match: (event: KeyboardEvent) => boolean,
       run: () => void
     ): HTMLElement => {
-      const button = bar.createEl("button", { cls: "pg-detail-button" });
+      const button = bar.createEl("button", { cls: "goko-detail-button" });
       setIcon(button, icon);
       attachTip(button, label, shortcut);
       button.onclick = (event: MouseEvent) => {
@@ -920,7 +920,7 @@ export class DetailView {
     /* Groups the bar by what a button acts on, matching the rules in the
        wall's context menu so the two surfaces read the same way round. */
     const rule = (): void => {
-      bar.createDiv({ cls: "pg-bar-divider" });
+      bar.createDiv({ cls: "goko-bar-divider" });
     };
 
     const mod = (event: KeyboardEvent): boolean => event.metaKey || event.ctrlKey;

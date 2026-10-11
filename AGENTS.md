@@ -51,6 +51,10 @@ it on the same document object. The lint rule enforces this.
 **DOM.** `createEl` / `createDiv`, never `innerHTML`. UI text in sentence case.
 
 **CSS stays scoped.** No bare element selectors, nothing declared on `:root`.
+Every class, custom property and animation name starts with `goko-`. A
+shorter prefix is one other plugins use too, and two plugins that share a
+class restyle each other in the same vault; animation names are global, so
+the later stylesheet also replaces the other's animations.
 
 **Network.** Requests go to the service being read, under the plugin's own
 User-Agent — never one pretending to be another client. The one third party is

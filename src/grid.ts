@@ -45,7 +45,7 @@ import { domainOf } from "./core/scan";
 import { extensionOf } from "./core/formats";
 import { segmentIndex } from "./core/carousel";
 
-/** The side of the small card a drag carries, matching .pg-drag-ghost. */
+/** The side of the small card a drag carries, matching .goko-drag-ghost. */
 /**
  * How much bigger a card gets when the cursor rests on it at the tightest
  * stage. Twice over is enough to read a card without turning the wall into
@@ -154,10 +154,10 @@ function hitToOver(hit: IslandHit | null): { key: string; pocket: string | null 
 const SELECT_LIFT = 4;
 
 /** Must match the leave animation in styles.css. */
-/* Must outlast the pg-vanish keyframes, or the element returns to the pool
+/* Must outlast the goko-vanish keyframes, or the element returns to the pool
    mid-animation and the departure is cut off. */
 const LEAVE_MS = 260;
-/* Matches the pg-pop keyframes. */
+/* Matches the goko-pop keyframes. */
 const ENTER_MS = 460;
 /** Per-tile delay when several enter at once, capped so a big batch is not slow. */
 const ENTER_STAGGER_MS = 28;
@@ -399,7 +399,7 @@ export class GridRenderer {
   private density: DensityStage = DEFAULT_STAGE;
 
   constructor(private app: App, container: HTMLElement) {
-    this.viewport = container.createDiv({ cls: "pg-viewport" });
+    this.viewport = container.createDiv({ cls: "goko-viewport" });
     this.viewport.dataset.density = DEFAULT_STAGE;
 
     /*
@@ -418,17 +418,17 @@ export class GridRenderer {
     this.nativeScroll = Platform.isMobile;
     if (this.nativeScroll) {
       this.viewport.addClass("is-native-scroll");
-      this.scroller = this.viewport.createDiv({ cls: "pg-scroll" });
-      this.canvas = this.scroller.createDiv({ cls: "pg-canvas" });
+      this.scroller = this.viewport.createDiv({ cls: "goko-scroll" });
+      this.canvas = this.scroller.createDiv({ cls: "goko-canvas" });
       this.onScroll = () => this.readScroll();
       this.viewport.addEventListener("scroll", this.onScroll, { passive: true });
     } else {
-      this.canvas = this.viewport.createDiv({ cls: "pg-canvas" });
+      this.canvas = this.viewport.createDiv({ cls: "goko-canvas" });
     }
 
-    this.coverLayer = container.createDiv({ cls: "pg-cover-layer" });
+    this.coverLayer = container.createDiv({ cls: "goko-cover-layer" });
     this.coverBandEl = this.coverLayer.createDiv({
-      cls: "pg-cover-band",
+      cls: "goko-cover-band",
       text: "Drop to set as cover",
     });
 
@@ -439,7 +439,7 @@ export class GridRenderer {
     window.addEventListener("dragend", this.onWindowDragEnd);
     window.addEventListener("drop", this.onWindowDragEnd);
 
-    this.marquee = this.viewport.createDiv({ cls: "pg-marquee" });
+    this.marquee = this.viewport.createDiv({ cls: "goko-marquee" });
     this.installGestures();
     this.installSelection();
     this.installIslandDrops();
@@ -519,18 +519,18 @@ export class GridRenderer {
    * inside a target is how you open the wrong thing.
    */
   private paintPlace(element: TileElement, id: string): void {
-    const frame = element.root.querySelector<HTMLElement>(".pg-frame");
+    const frame = element.root.querySelector<HTMLElement>(".goko-frame");
     if (!frame) return;
-    frame.querySelector(".pg-place")?.remove();
+    frame.querySelector(".goko-place")?.remove();
     const place = this.places.get(id);
     if (!place) return;
 
-    const chip = frame.createDiv({ cls: "pg-place" });
+    const chip = frame.createDiv({ cls: "goko-place" });
     chip.toggleClass("is-loose", !place.filed);
-    const glyph = chip.createSpan({ cls: "pg-place-icon" });
+    const glyph = chip.createSpan({ cls: "goko-place-icon" });
     setIcon(glyph, place.icon);
     if (place.color) glyph.style.color = place.color;
-    chip.createSpan({ cls: "pg-place-name", text: place.label });
+    chip.createSpan({ cls: "goko-place-name", text: place.label });
   }
 
   /**
@@ -542,24 +542,24 @@ export class GridRenderer {
    * it is the thing to tap.
    */
   private paintSuggestion(element: TileElement, id: string): void {
-    const frame = element.root.querySelector<HTMLElement>(".pg-frame");
+    const frame = element.root.querySelector<HTMLElement>(".goko-frame");
     if (!frame) return;
-    frame.querySelector(".pg-suggest")?.remove();
+    frame.querySelector(".goko-suggest")?.remove();
     const suggestion = this.suggestions.get(id);
-    // Said on the tile for the caption's sake (see .pg-tile.has-suggestion),
+    // Said on the tile for the caption's sake (see .goko-tile.has-suggestion),
     // rather than asked of it with :has().
     element.root.toggleClass("has-suggestion", suggestion !== undefined);
     if (!suggestion) return;
     // Two segments, one yes and one no, so agreeing and disagreeing cost the
     // same single tap. A no that took a menu was a no nobody gave.
-    const chip = frame.createDiv({ cls: "pg-suggest" });
+    const chip = frame.createDiv({ cls: "goko-suggest" });
     chip.toggleClass("is-strong", suggestion.strength === "strong");
-    const yes = chip.createDiv({ cls: "pg-suggest-yes", attr: { "aria-label": suggestion.why } });
-    setIcon(yes.createSpan({ cls: "pg-suggest-icon" }), suggestion.icon);
+    const yes = chip.createDiv({ cls: "goko-suggest-yes", attr: { "aria-label": suggestion.why } });
+    setIcon(yes.createSpan({ cls: "goko-suggest-icon" }), suggestion.icon);
     // A fair suggestion says so in the plainest way there is: a question
     // mark. Colour alone was read as inconsistency, not as confidence.
     yes.createSpan({
-      cls: "pg-suggest-name",
+      cls: "goko-suggest-name",
       text: suggestion.strength === "fair" ? `${suggestion.label}?` : suggestion.label,
     });
     yes.onclick = (event: MouseEvent) => {
@@ -567,7 +567,7 @@ export class GridRenderer {
       event.stopPropagation();
       this.onSuggestionTap?.(element.root.dataset.tileId ?? id);
     };
-    const no = chip.createDiv({ cls: "pg-suggest-no", attr: { "aria-label": "Not there" } });
+    const no = chip.createDiv({ cls: "goko-suggest-no", attr: { "aria-label": "Not there" } });
     setIcon(no, "x");
     no.onclick = (event: MouseEvent) => {
       event.stopPropagation();
@@ -643,7 +643,7 @@ export class GridRenderer {
   private repaintMetas(): void {
     for (const [id, element] of this.mounted) {
       const model = this.byId.get(id);
-      const meta = element.root.querySelector<HTMLElement>(".pg-meta");
+      const meta = element.root.querySelector<HTMLElement>(".goko-meta");
       if (!model || !meta) continue;
       meta.empty();
       this.paintBadges(meta, model);
@@ -671,7 +671,7 @@ export class GridRenderer {
     else properties[key] = [...values];
     model.record = { ...model.record, properties };
 
-    const meta = this.mounted.get(id)?.root.querySelector<HTMLElement>(".pg-meta");
+    const meta = this.mounted.get(id)?.root.querySelector<HTMLElement>(".goko-meta");
     if (!meta) return;
     meta.empty();
     this.paintBadges(meta, model);
@@ -713,17 +713,17 @@ export class GridRenderer {
     // One block in one corner, tags above the name. They were in two places
     // with the tile's whole height between them, which on a card that is
     // mostly picture read as two unrelated things rather than as one label.
-    const block = meta.createDiv({ cls: "pg-caption" });
+    const block = meta.createDiv({ cls: "goko-caption" });
     for (const badge of badges) {
       // A pill per value, wrapping, the tail folded into a count. Each one
       // clips with an ellipsis on its own if a single value is wider than
       // the tile; nothing moves.
-      const pills = block.createDiv({ cls: "pg-badges" });
+      const pills = block.createDiv({ cls: "goko-badges" });
       const { shown, more } = tilePills(badge.values);
-      for (const value of shown) pills.createSpan({ cls: "pg-badge", text: value });
-      if (more > 0) pills.createSpan({ cls: "pg-badge is-more", text: `+${more}` });
+      for (const value of shown) pills.createSpan({ cls: "goko-badge", text: value });
+      if (more > 0) pills.createSpan({ cls: "goko-badge is-more", text: `+${more}` });
     }
-    if (titled) block.createDiv({ cls: "pg-title", text: model.record.title });
+    if (titled) block.createDiv({ cls: "goko-title", text: model.record.title });
   }
 
   /**
@@ -976,7 +976,7 @@ export class GridRenderer {
   private playEnter(element: TileElement, id: string, order: number): void {
     this.entering.delete(id);
     const delay = Math.min(order, ENTER_STAGGER_CAP) * ENTER_STAGGER_MS;
-    element.root.style.setProperty("--pg-enter-delay", `${delay}ms`);
+    element.root.style.setProperty("--goko-enter-delay", `${delay}ms`);
     element.root.addClass("is-entering");
     window.setTimeout(() => element.root.removeClass("is-entering"), delay + ENTER_MS + 60);
   }
@@ -1186,7 +1186,7 @@ export class GridRenderer {
       // stands on it.
       let band = this.islandBands.get(header.key);
       if (!band) {
-        band = this.canvas.createDiv({ cls: "pg-island-band" });
+        band = this.canvas.createDiv({ cls: "goko-island-band" });
         this.islandBands.set(header.key, band);
       }
       band.style.transform = `translate3d(0px, ${header.y}px, 0)`;
@@ -1197,7 +1197,7 @@ export class GridRenderer {
 
       let element = this.islandEls.get(header.key);
       if (!element) {
-        element = this.canvas.createDiv({ cls: "pg-island" });
+        element = this.canvas.createDiv({ cls: "goko-island" });
         this.installIsland(element, header.key);
         this.islandEls.set(header.key, element);
       }
@@ -1212,34 +1212,34 @@ export class GridRenderer {
       // The pile nothing spoke for cannot be folded or accepted: it is the
       // work, not one of the answers, so it carries neither control.
       if (!unsure) {
-        const fold = element.createDiv({ cls: "pg-island-fold" });
+        const fold = element.createDiv({ cls: "goko-island-fold" });
         setIcon(fold, header.collapsed ? "chevron-right" : "chevron-down");
       }
-      const icon = element.createDiv({ cls: "pg-island-icon" });
+      const icon = element.createDiv({ cls: "goko-island-icon" });
       setIcon(icon, model?.icon ?? "layout-grid");
       element.createDiv({
-        cls: "pg-island-name",
+        cls: "goko-island-name",
         text: model?.label ?? (header.key || "Undecided"),
       });
       if (header.count > 0) {
-        element.createDiv({ cls: "pg-island-count", text: String(header.count) });
+        element.createDiv({ cls: "goko-island-count", text: String(header.count) });
       }
       const why = model?.why?.trim();
-      if (why) element.createDiv({ cls: "pg-island-why", text: why });
+      if (why) element.createDiv({ cls: "goko-island-why", text: why });
 
       if (!unsure) {
         // A button with a word on it rather than a bare circle: the island is
         // a proposal, and a proposal needs the thing that says yes to it to
         // look like one. Pressing it files every card in the island.
-        const accept = element.createEl("button", { cls: "pg-island-accept" });
+        const accept = element.createEl("button", { cls: "goko-island-accept" });
         accept.createSpan({ text: header.count === 1 ? "Accept" : `Accept ${header.count}` });
         accept.onclick = (event: MouseEvent) => {
           event.stopPropagation();
           this.onIslandAccepted?.(header.key);
         };
       } else if (model?.offer) {
-        const offer = element.createEl("button", { cls: "pg-island-accept pg-island-offer" });
-        setIcon(offer.createSpan({ cls: "pg-island-offer-icon" }), "plus");
+        const offer = element.createEl("button", { cls: "goko-island-accept goko-island-offer" });
+        setIcon(offer.createSpan({ cls: "goko-island-offer-icon" }), "plus");
         offer.createSpan({ text: model.offer.label });
         offer.onclick = (event: MouseEvent) => {
           event.stopPropagation();
@@ -1254,7 +1254,7 @@ export class GridRenderer {
 
         let pocketBand = this.pocketBands.get(id);
         if (!pocketBand) {
-          pocketBand = this.canvas.createDiv({ cls: "pg-pocket-band" });
+          pocketBand = this.canvas.createDiv({ cls: "goko-pocket-band" });
           this.pocketBands.set(id, pocketBand);
         }
         pocketBand.style.transform = `translate3d(${ISLAND_INSET}px, ${pocket.y}px, 0)`;
@@ -1264,7 +1264,7 @@ export class GridRenderer {
 
         let heading = this.pocketEls.get(id);
         if (!heading) {
-          heading = this.canvas.createDiv({ cls: "pg-pocket" });
+          heading = this.canvas.createDiv({ cls: "goko-pocket" });
           this.pocketEls.set(id, heading);
         }
         heading.style.transform = `translate3d(${ISLAND_INSET}px, ${pocket.y}px, 0)`;
@@ -1272,11 +1272,11 @@ export class GridRenderer {
         heading.style.height = `${pocket.height}px`;
         heading.toggleClass("is-drop-into", over);
         heading.empty();
-        setIcon(heading.createDiv({ cls: "pg-pocket-icon" }), pm?.icon ?? "folder");
-        heading.createDiv({ cls: "pg-pocket-name", text: pm?.label ?? pocket.key });
-        heading.createDiv({ cls: "pg-pocket-count", text: String(pocket.count) });
+        setIcon(heading.createDiv({ cls: "goko-pocket-icon" }), pm?.icon ?? "folder");
+        heading.createDiv({ cls: "goko-pocket-name", text: pm?.label ?? pocket.key });
+        heading.createDiv({ cls: "goko-pocket-count", text: String(pocket.count) });
         const pocketWhy = pm?.why?.trim();
-        if (pocketWhy) heading.createDiv({ cls: "pg-pocket-why", text: pocketWhy });
+        if (pocketWhy) heading.createDiv({ cls: "goko-pocket-why", text: pocketWhy });
       }
     }
   }
@@ -1580,7 +1580,7 @@ export class GridRenderer {
       // A heading owns its click as a tile does. Capturing the pointer here
       // would redirect the click that follows to the viewport, and the
       // heading would look like a button that does nothing.
-      if ((event.target as HTMLElement | null)?.closest(".pg-tile, .pg-island")) return;
+      if ((event.target as HTMLElement | null)?.closest(".goko-tile, .goko-island")) return;
 
       this.selecting = true;
       this.marqueeMoved = false;
@@ -1646,7 +1646,7 @@ export class GridRenderer {
       // empty space on it: a menu offering to make something there would be
       // answering a click that was aimed at the group under it.
       const target = event.target as HTMLElement | null;
-      if (target?.closest(".pg-tile, .pg-island, .pg-pocket")) return;
+      if (target?.closest(".goko-tile, .goko-island, .goko-pocket")) return;
       event.preventDefault();
       this.onSpaceContextRequested(event.clientX, event.clientY);
     });
@@ -1938,7 +1938,7 @@ export class GridRenderer {
       // A pan or a two-finger touch that ends over empty space is not a tap,
       // and the cards answer their own.
       if (this.panMoved) return;
-      if ((event.target as HTMLElement | null)?.closest(".pg-tile")) return;
+      if ((event.target as HTMLElement | null)?.closest(".goko-tile")) return;
       this.clearSelection();
     });
   }
@@ -2117,23 +2117,23 @@ export class GridRenderer {
    * between rebuilt pairs.
    */
   private buildTrack(element: TileElement): void {
-    const frame = element.root.querySelector<HTMLElement>(".pg-frame");
+    const frame = element.root.querySelector<HTMLElement>(".goko-frame");
     if (!frame || element.track) return;
 
     // A leftover strip from a card the pointer left and came straight back
     // to: resetScrub clears the reference but the element outlives the slide
     // home, so without this a quick return leaves two stacked.
-    frame.querySelectorAll(".pg-reel-clip").forEach((old) => old.remove());
+    frame.querySelectorAll(".goko-reel-clip").forEach((old) => old.remove());
 
     // Two elements, because the one that clips cannot be the one that moves:
     // overflow clips to an element's own box, and a box that has slid a frame
     // to the left takes its clip region with it, hiding the very picture it
     // slid to. The clip stays put; the strip inside it travels.
-    const clip = frame.createDiv({ cls: "pg-reel-clip" });
-    const track = clip.createDiv({ cls: "pg-reel-track" });
+    const clip = frame.createDiv({ cls: "goko-reel-clip" });
+    const track = clip.createDiv({ cls: "goko-reel-track" });
     for (const tile of element.reel) {
       const preview = previewOf(tile);
-      const image = track.createEl("img", { cls: "pg-reel-frame" });
+      const image = track.createEl("img", { cls: "goko-reel-frame" });
       image.decoding = "async";
       image.alt = "";
       if (preview) image.src = this.sourceFor(preview.path, preview.remote);
@@ -2188,7 +2188,7 @@ export class GridRenderer {
     // Outlives the slide home, then goes. A card the pointer returns to builds
     // a fresh strip, which is cheaper than keeping one per mounted card alive.
     const clip = track.parentElement;
-    window.setTimeout(() => (clip?.hasClass("pg-reel-clip") ? clip : track).remove(), TRACK_SLIDE_MS);
+    window.setTimeout(() => (clip?.hasClass("goko-reel-clip") ? clip : track).remove(), TRACK_SLIDE_MS);
   }
 
   /**
@@ -2276,7 +2276,7 @@ export class GridRenderer {
   private acquire(): TileElement {
     const recycled = this.pool.pop();
     if (recycled) return recycled;
-    const root = this.canvas.createDiv({ cls: "pg-tile" });
+    const root = this.canvas.createDiv({ cls: "goko-tile" });
     // Wired once, on the pooled element rather than per paint: a tile is
     // recycled for card after card, and a listener added on each would stack
     // up one per repaint. The id is read at drag time for the same reason.
@@ -2380,7 +2380,7 @@ export class GridRenderer {
   }
 
   private coverFrameOf(root: HTMLElement): HTMLElement {
-    return root.querySelector<HTMLElement>(".pg-frame") ?? root;
+    return root.querySelector<HTMLElement>(".goko-frame") ?? root;
   }
 
   /**
@@ -2415,11 +2415,11 @@ export class GridRenderer {
     const band = coverBand(card);
     const scale = frame.offsetHeight > 0 ? card.height / frame.offsetHeight : 1;
     const style = this.coverBandEl.style;
-    style.setProperty("--pg-band-x", `${band.left - layer.left}px`);
-    style.setProperty("--pg-band-y", `${band.top - layer.top}px`);
-    style.setProperty("--pg-band-w", `${band.width}px`);
-    style.setProperty("--pg-band-h", `${band.height}px`);
-    style.setProperty("--pg-band-scale", scale.toFixed(4));
+    style.setProperty("--goko-band-x", `${band.left - layer.left}px`);
+    style.setProperty("--goko-band-y", `${band.top - layer.top}px`);
+    style.setProperty("--goko-band-w", `${band.width}px`);
+    style.setProperty("--goko-band-h", `${band.height}px`);
+    style.setProperty("--goko-band-scale", scale.toFixed(4));
   }
 
   /**
@@ -2435,7 +2435,7 @@ export class GridRenderer {
    * usual bargain, and the browser has taken its snapshot by then.
    */
   private setDragImage(event: DragEvent, grabbed: string, ids: readonly string[]): void {
-    const ghost = this.viewport.doc.body.createDiv({ cls: "pg-drag-ghost" });
+    const ghost = this.viewport.doc.body.createDiv({ cls: "goko-drag-ghost" });
 
     // The card actually grabbed goes in front; the others fan out behind it,
     // which is what a handful of pictures looks like when you pick them up.
@@ -2460,15 +2460,15 @@ export class GridRenderer {
     // Behind to in front, so the front card is last in paint order and the
     // one under the cursor.
     for (const [index, face] of [...faces].reverse().entries()) {
-      const card = ghost.createDiv({ cls: "pg-drag-card" });
+      const card = ghost.createDiv({ cls: "goko-drag-card" });
       card.dataset.slot = String(faces.length - 1 - index);
       if (face.src) card.createEl("img").src = face.src;
-      else card.createDiv({ cls: "pg-drag-note", text: face.letter });
+      else card.createDiv({ cls: "goko-drag-note", text: face.letter });
     }
-    if (faces.length === 0) ghost.createDiv({ cls: "pg-drag-card" });
+    if (faces.length === 0) ghost.createDiv({ cls: "goko-drag-card" });
 
     // Says how many are travelling, which three thumbnails cannot.
-    if (ids.length > 1) ghost.createSpan({ cls: "pg-drag-ghost-count", text: String(ids.length) });
+    if (ids.length > 1) ghost.createSpan({ cls: "goko-drag-ghost-count", text: String(ids.length) });
 
     // Measured rather than assumed: the box is CSS's business, and a constant
     // repeated here would be one to keep in step with it.
@@ -2546,7 +2546,7 @@ export class GridRenderer {
    * Substack without reading either.
    */
   private paintSheet(frame: HTMLElement, model: TileModel): void {
-    const sheet = frame.createDiv({ cls: "pg-sheet" });
+    const sheet = frame.createDiv({ cls: "goko-sheet" });
     const host = domainOf(model.record.source);
     const text = noteText(model.record);
 
@@ -2554,22 +2554,22 @@ export class GridRenderer {
     // site's own mark and name; a note that came from a file has no site, so
     // it says what kind of file it was, the way a PDF card does. A grey box
     // with a dash in it, which is what stood here, said neither.
-    const head = sheet.createDiv({ cls: "pg-sheet-head" });
+    const head = sheet.createDiv({ cls: "goko-sheet-head" });
     if (host) {
       this.paintFavicon(head, host);
-      head.createSpan({ cls: "pg-sheet-host", text: host });
+      head.createSpan({ cls: "goko-sheet-host", text: host });
     } else {
       head.createDiv({
-        cls: "pg-format pg-sheet-format",
+        cls: "goko-format goko-sheet-format",
         text: extensionOf(model.record.path).toUpperCase() || "NOTE",
       });
     }
 
     if (model.record.title) {
-      sheet.createDiv({ cls: "pg-sheet-title", text: model.record.title });
+      sheet.createDiv({ cls: "goko-sheet-title", text: model.record.title });
     }
     if (text) {
-      sheet.createDiv({ cls: "pg-sheet-text", text });
+      sheet.createDiv({ cls: "goko-sheet-text", text });
     } else {
       // Nothing to read: the mark stands in for it, the way an app icon does
       // on a card that is only ever a link to the app. With no name either,
@@ -2590,9 +2590,9 @@ export class GridRenderer {
    * the letter takes over without a gap.
    */
   private paintFavicon(head: HTMLElement, host: string): void {
-    const mark = head.createDiv({ cls: "pg-sheet-mark" });
+    const mark = head.createDiv({ cls: "goko-sheet-mark" });
     mark.setText(host[0].toUpperCase());
-    const icon = mark.createEl("img", { cls: "pg-sheet-icon" });
+    const icon = mark.createEl("img", { cls: "goko-sheet-icon" });
     icon.addEventListener("load", () => mark.addClass("has-icon"), { once: true });
     icon.addEventListener("error", () => icon.remove(), { once: true });
     icon.src = `https://${host}/favicon.ico`;
@@ -2646,10 +2646,10 @@ export class GridRenderer {
       wantY
     );
     const style = element.root.style;
-    style.setProperty("--pg-grow-l", `${Math.round(l)}px`);
-    style.setProperty("--pg-grow-r", `${Math.round(r)}px`);
-    style.setProperty("--pg-grow-t", `${Math.round(t)}px`);
-    style.setProperty("--pg-grow-b", `${Math.round(b)}px`);
+    style.setProperty("--goko-grow-l", `${Math.round(l)}px`);
+    style.setProperty("--goko-grow-r", `${Math.round(r)}px`);
+    style.setProperty("--goko-grow-t", `${Math.round(t)}px`);
+    style.setProperty("--goko-grow-b", `${Math.round(b)}px`);
   }
 
   /**
@@ -2720,8 +2720,8 @@ export class GridRenderer {
     // one; the anisotropy here is under 2% and invisible.
     const sx = position.w > SELECT_LIFT * 2 ? position.w / (position.w - SELECT_LIFT * 2) : 1;
     const sy = position.h > SELECT_LIFT * 2 ? position.h / (position.h - SELECT_LIFT * 2) : 1;
-    element.root.style.setProperty("--pg-sx", sx.toFixed(4));
-    element.root.style.setProperty("--pg-sy", sy.toFixed(4));
+    element.root.style.setProperty("--goko-sx", sx.toFixed(4));
+    element.root.style.setProperty("--goko-sy", sy.toFixed(4));
     this.setMagnify(element, position);
 
     // Ahead of the early returns below. A pooled element can come back
@@ -2784,7 +2784,7 @@ export class GridRenderer {
     element.dots = null;
     element.track = null;
 
-    const frame = element.root.createDiv({ cls: "pg-frame" });
+    const frame = element.root.createDiv({ cls: "goko-frame" });
 
     // A card with no picture is finished here: its own words are what it
     // shows, and everything below this paints a cover it does not have.
@@ -2808,14 +2808,14 @@ export class GridRenderer {
     // simply a picture, the right says how many pictures are inside.
     const held = mediaCount(model.record);
     if (model.isDocument || showsPlayMark(model)) {
-      const marks = frame.createDiv({ cls: "pg-marks" });
+      const marks = frame.createDiv({ cls: "goko-marks" });
       // The only document format so far, and naming it is the point: PDF is
       // a word everyone reads at a glance, "document" is not. A clip has no
       // such word — it has a shape everyone already knows.
-      if (model.isDocument) marks.createDiv({ cls: "pg-format", text: "PDF" });
-      else setGlyph(marks.createDiv({ cls: "pg-kind" }), "play");
+      if (model.isDocument) marks.createDiv({ cls: "goko-format", text: "PDF" });
+      else setGlyph(marks.createDiv({ cls: "goko-kind" }), "play");
     }
-    if (held) frame.createDiv({ cls: "pg-count", text: String(held) });
+    if (held) frame.createDiv({ cls: "goko-count", text: String(held) });
 
     if (held) {
       // Only frames with something to paint. A reel whose every entry can be
@@ -2823,16 +2823,16 @@ export class GridRenderer {
       const reel = (this.reelFor?.(model) ?? []).filter((tile) => previewOf(tile) !== null);
       if (reel.length > 1) {
         element.reel = reel;
-        const dots = frame.createDiv({ cls: "pg-dots" });
+        const dots = frame.createDiv({ cls: "goko-dots" });
         for (let i = 0; i < reel.length; i++) {
-          dots.createSpan({ cls: i === 0 ? "pg-dot-step is-on" : "pg-dot-step" });
+          dots.createSpan({ cls: i === 0 ? "goko-dot-step is-on" : "goko-dot-step" });
         }
         element.dots = dots;
       }
     }
 
     if (model.kind === "video") {
-      const video = frame.createEl("video", { cls: "pg-media" });
+      const video = frame.createEl("video", { cls: "goko-media" });
       video.muted = true;
       video.loop = true;
       video.playsInline = true;
@@ -2858,7 +2858,7 @@ export class GridRenderer {
       else video.addEventListener("loadeddata", () => video.addClass("is-loaded"), { once: true });
       element.media = video;
     } else {
-      const image = frame.createEl("img", { cls: "pg-media" });
+      const image = frame.createEl("img", { cls: "goko-media" });
       // Deliberately not loading="lazy". The grid decides for itself what is
       // worth mounting, and the browser's own heuristic measures intersection
       // against a canvas sitting under a transform, so it holds the fetch back
@@ -2908,7 +2908,7 @@ export class GridRenderer {
    * only difference between them stays what is drawn inside.
    */
   private installTile(element: TileElement, frame: HTMLElement, model: TileModel): void {
-    this.paintBadges(frame.createDiv({ cls: "pg-meta" }), model);
+    this.paintBadges(frame.createDiv({ cls: "goko-meta" }), model);
     this.paintSuggestion(element, model.id);
     this.paintPlace(element, model.id);
     this.paintDragState(element, model.id);
@@ -3040,7 +3040,7 @@ export class GridRenderer {
   private paintFolder(model: FolderTileModel, position: Position, order: number): void {
     let root = this.mountedFolders.get(model.id);
     if (!root) {
-      root = this.canvas.createDiv({ cls: "pg-tile pg-folder-tile" });
+      root = this.canvas.createDiv({ cls: "goko-tile goko-folder-tile" });
       this.mountedFolders.set(model.id, root);
       this.installFolder(root, model.id);
       const spotlit = model.id === this.spotlightId;
@@ -3048,7 +3048,7 @@ export class GridRenderer {
       if (!this.knownFolders.has(model.id) || this.restaging || spotlit) {
         // The spotlit card leads: no stagger, it is the one thing arriving.
         const delay = spotlit ? 0 : Math.min(order, ENTER_STAGGER_CAP) * ENTER_STAGGER_MS;
-        root.style.setProperty("--pg-enter-delay", `${delay}ms`);
+        root.style.setProperty("--goko-enter-delay", `${delay}ms`);
         root.addClass("is-entering");
         const el = root;
         window.setTimeout(() => el.removeClass("is-entering"), delay + ENTER_MS + 60);
@@ -3088,21 +3088,21 @@ export class GridRenderer {
     // in installFolder and survive every repaint: a drag reflows the wall on
     // each step, and rebuilding the handle mid-drag took the pointer capture
     // with it, ending the drag at the first width it reached.
-    const frame = root.querySelector<HTMLElement>(".pg-frame") ?? root.createDiv();
-    frame.querySelectorAll(".pg-folder-collage, .pg-folder-head").forEach((el) => el.remove());
-    const handles = frame.querySelector(".pg-folder-handle");
-    const collage = createDiv({ cls: "pg-folder-collage" });
+    const frame = root.querySelector<HTMLElement>(".goko-frame") ?? root.createDiv();
+    frame.querySelectorAll(".goko-folder-collage, .goko-folder-head").forEach((el) => el.remove());
+    const handles = frame.querySelector(".goko-folder-handle");
+    const collage = createDiv({ cls: "goko-folder-collage" });
     frame.insertBefore(collage, handles);
     collage.dataset.count = String(covers.length);
     if (covers.length === 0) {
-      setIcon(collage.createDiv({ cls: "pg-folder-empty" }), model.folder.icon);
+      setIcon(collage.createDiv({ cls: "goko-folder-empty" }), model.folder.icon);
     }
     const plan = collagePlan(covers.length, model.folder.width);
     covers.forEach((member, index) => {
       // Each cover is built the way its tile's media is, still and all, so
       // the playback controller can drive it the same way: a video sits on
       // its poster until played, and a GIF on its still frame.
-      const slot = collage.createDiv({ cls: "pg-folder-cover" });
+      const slot = collage.createDiv({ cls: "goko-folder-cover" });
       const span = plan[index];
       if (span) slot.dataset.span = `${span.columns}x${span.rows}`;
       if (member.kind === "note") {
@@ -3110,8 +3110,8 @@ export class GridRenderer {
         // clipping's name on it. No favicon and no body — at a quarter of a
         // folder card neither is legible, and a name is what tells two
         // pages apart.
-        const page = slot.createDiv({ cls: "pg-folder-page" });
-        page.createDiv({ cls: "pg-folder-page-title", text: member.record.title });
+        const page = slot.createDiv({ cls: "goko-folder-page" });
+        page.createDiv({ cls: "goko-folder-page-title", text: member.record.title });
         return;
       }
 
@@ -3143,11 +3143,11 @@ export class GridRenderer {
     });
 
     // The same pills a tile shows on hover, kept on: the name is the point.
-    const head = createDiv({ cls: "pg-folder-head" });
-    const name = head.createDiv({ cls: "pg-folder-name" });
-    setIcon(name.createDiv({ cls: "pg-folder-icon" }), model.folder.icon);
+    const head = createDiv({ cls: "goko-folder-head" });
+    const name = head.createDiv({ cls: "goko-folder-name" });
+    setIcon(name.createDiv({ cls: "goko-folder-icon" }), model.folder.icon);
     name.createSpan({ text: model.folder.name });
-    head.createDiv({ cls: "pg-folder-count", text: String(model.members.length) });
+    head.createDiv({ cls: "goko-folder-count", text: String(model.members.length) });
     frame.insertBefore(head, handles);
   }
 
@@ -3179,7 +3179,7 @@ export class GridRenderer {
       if (ids.length > 0 && folder) this.onDropIntoFolder?.(ids, folder);
     });
 
-    const frame = root.createDiv({ cls: "pg-frame pg-folder" });
+    const frame = root.createDiv({ cls: "goko-frame goko-folder" });
     // The hover loop, which is what plays a tile's media, walks the tile
     // pool and never sees a folder, so the card reports its own hover: every
     // cover that can move, together.
@@ -3192,7 +3192,7 @@ export class GridRenderer {
       this.onHoverMedia?.(this.hoveredMedia);
     });
     for (const corner of ["tl", "tr", "bl", "br"]) {
-      const handle = frame.createDiv({ cls: `pg-folder-handle is-${corner}` });
+      const handle = frame.createDiv({ cls: `goko-folder-handle is-${corner}` });
       this.installHandle(handle, root, id, corner.endsWith("l") ? -1 : 1);
     }
 
@@ -3312,7 +3312,7 @@ export class GridRenderer {
   private folderMedia(root: HTMLElement): Array<HTMLVideoElement | HTMLImageElement> {
     return Array.from(
       root.querySelectorAll<HTMLVideoElement | HTMLImageElement>(
-        ".pg-folder-cover video, .pg-folder-cover img[data-animated-src]"
+        ".goko-folder-cover video, .goko-folder-cover img[data-animated-src]"
       )
     );
   }

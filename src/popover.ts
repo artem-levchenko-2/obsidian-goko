@@ -18,7 +18,7 @@ interface Popover {
 const MARGIN = 8;
 
 function openPopover(doc: Document, anchor: DOMRect, cls: string, onEscape?: () => void): Popover {
-  const root = doc.body.createDiv({ cls: `pg-popover ${cls}` });
+  const root = doc.body.createDiv({ cls: `goko-popover ${cls}` });
   let closed = false;
 
   const onPointer = (event: PointerEvent): void => {
@@ -68,9 +68,9 @@ export function openIconPopover(
   current: string,
   onPick: (icon: string) => void
 ): void {
-  const { root, close } = openPopover(doc, anchor, "pg-icon-popover");
+  const { root, close } = openPopover(doc, anchor, "goko-icon-popover");
   const input = root.createEl("input", { type: "search", placeholder: "Search icons…" });
-  const grid = root.createDiv({ cls: "pg-popover-icons" });
+  const grid = root.createDiv({ cls: "goko-popover-icons" });
 
   const paint = (): void => {
     grid.empty();
@@ -82,9 +82,9 @@ export function openIconPopover(
     for (const group of groups) {
       const icons = query ? group.icons.filter((name) => matching.has(name)) : group.icons;
       if (icons.length === 0) continue;
-      if (!query) grid.createDiv({ cls: "pg-popover-caption", text: group.title });
+      if (!query) grid.createDiv({ cls: "goko-popover-caption", text: group.title });
       for (const name of icons) {
-        const button = grid.createEl("button", { cls: "pg-popover-icon" });
+        const button = grid.createEl("button", { cls: "goko-popover-icon" });
         if (name === current) button.addClass("is-on");
         button.setAttribute("aria-label", name.replace(/-/g, " "));
         setIcon(button, name);
@@ -94,7 +94,7 @@ export function openIconPopover(
         };
       }
     }
-    if (grid.childElementCount === 0) grid.createDiv({ cls: "pg-popover-empty", text: "No icon by that name" });
+    if (grid.childElementCount === 0) grid.createDiv({ cls: "goko-popover-empty", text: "No icon by that name" });
   };
 
   input.oninput = paint;
@@ -102,7 +102,7 @@ export function openIconPopover(
     // Enter takes the first match, which is what typing a name and pressing
     // Enter means.
     if (event.key !== "Enter") return;
-    const first = grid.querySelector<HTMLButtonElement>(".pg-popover-icon");
+    const first = grid.querySelector<HTMLButtonElement>(".goko-popover-icon");
     first?.click();
   };
   paint();
@@ -121,7 +121,7 @@ export function openTextPopover(
   // Escape leaves the text as it was: marked done before the field is
   // removed, since removing it is a blur and a blur saves.
   let done = false;
-  const { root, close } = openPopover(doc, anchor, "pg-text-popover", () => {
+  const { root, close } = openPopover(doc, anchor, "goko-text-popover", () => {
     done = true;
   });
   const input = root.createEl("input", { type: "text", placeholder: options.placeholder });

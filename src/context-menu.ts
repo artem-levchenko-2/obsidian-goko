@@ -159,8 +159,8 @@ export class ContextMenu {
     this.elevated = elevated;
     this.onDismiss = onDismiss ?? null;
 
-    this.backdrop = this.container.createDiv({ cls: "pg-menu-backdrop" });
-    this.panel = this.container.createDiv({ cls: "pg-menu" });
+    this.backdrop = this.container.createDiv({ cls: "goko-menu-backdrop" });
+    this.panel = this.container.createDiv({ cls: "goko-menu" });
     if (elevated) {
       this.backdrop.addClass("is-elevated");
       this.panel.addClass("is-elevated");
@@ -279,18 +279,18 @@ export class ContextMenu {
       // standing alone, which is exactly what the create row does when a
       // search matches none of the values above it.
       if (item.divider && records.length > 0) {
-        panel.createDiv({ cls: "pg-menu-divider" });
+        panel.createDiv({ cls: "goko-menu-divider" });
       }
 
       if (item.heading) {
-        panel.createDiv({ cls: "pg-menu-section", text: item.heading });
+        panel.createDiv({ cls: "goko-menu-section", text: item.heading });
       }
 
-      const row = panel.createDiv({ cls: "pg-menu-item" });
+      const row = panel.createDiv({ cls: "goko-menu-item" });
       if (item.destructive) row.addClass("is-destructive");
       if (item.disabled) row.addClass("is-disabled");
 
-      const icon = row.createDiv({ cls: "pg-menu-icon" });
+      const icon = row.createDiv({ cls: "goko-menu-icon" });
       // Blank is meaningful in a panel that has icons: an unticked row still
       // needs the gutter, or the labels jump sideways as things are selected.
       // A panel where no row has one drops it instead, see below.
@@ -300,20 +300,20 @@ export class ContextMenu {
         icon.style.color = item.tint;
       }
       row.createDiv({
-        cls: "pg-menu-label",
+        cls: "goko-menu-label",
         text: item.labelFor?.(this.query) ?? item.label,
       });
 
       // Always made, even when empty: patching a row in place needs somewhere
       // to write, and :empty hides it until there is something to say.
-      const detail = row.createDiv({ cls: "pg-menu-detail" });
+      const detail = row.createDiv({ cls: "goko-menu-detail" });
       this.writeDetail(detail, item);
 
       // A parent row can carry both. A facet showing how many of its values
       // are picked still needs the arrow saying there is more inside.
       if (item.submenu) {
         row.addClass("is-parent");
-        const arrow = row.createDiv({ cls: "pg-menu-arrow" });
+        const arrow = row.createDiv({ cls: "goko-menu-arrow" });
         setIcon(arrow, "arrow-right");
       }
 
@@ -502,11 +502,11 @@ export class ContextMenu {
     this.closeSub();
     if (!this.panel || items.length === 0) return;
 
-    this.openLabel = label ?? row.find(".pg-menu-label")?.textContent ?? null;
+    this.openLabel = label ?? row.find(".goko-menu-label")?.textContent ?? null;
     row.addClass("is-open-parent");
     this.subSource = items;
     this.subAnchor = row;
-    this.sub = this.container.createDiv({ cls: "pg-menu pg-menu-sub" });
+    this.sub = this.container.createDiv({ cls: "goko-menu goko-menu-sub" });
     if (this.elevated) this.sub.addClass("is-elevated");
 
     // A real input, not a key handler writing into a div. Every global
@@ -514,11 +514,11 @@ export class ContextMenu {
     // typing here suspends the wall's own keys for free, and the text
     // shortcuts that belong to a field, ⌘A above all, work because they are
     // being handled by a field.
-    this.queryEl = this.sub.createEl("input", { cls: "pg-menu-query", type: "text" });
+    this.queryEl = this.sub.createEl("input", { cls: "goko-menu-query", type: "text" });
     this.queryEl.placeholder = "Search…";
     this.queryEl.oninput = () => this.paintSub();
 
-    this.subRowsEl = this.sub.createDiv({ cls: "pg-menu-rows" });
+    this.subRowsEl = this.sub.createDiv({ cls: "goko-menu-rows" });
     this.subRows = this.fill(this.subRowsEl, items);
     this.subActive = -1;
     this.syncQuery();
@@ -568,8 +568,8 @@ export class ContextMenu {
     // what was typed already reports the miss, and reports it better, so
     // printing both states the failure twice and buries the way out under it.
     if (this.query && rows.length === 0 && items.length === 0) {
-      panel.createDiv({ cls: "pg-menu-item is-disabled" }).createDiv({
-        cls: "pg-menu-label",
+      panel.createDiv({ cls: "goko-menu-item is-disabled" }).createDiv({
+        cls: "goko-menu-label",
         text: "No matches",
       });
     }

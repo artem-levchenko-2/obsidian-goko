@@ -11,15 +11,15 @@
 export function attachTip(button: HTMLElement, label: string, shortcut?: string): void {
   // Not in the accessibility tree: the hidden name below already says this,
   // and a label that is both drawn and read gets announced twice.
-  const tip = button.createDiv({ cls: "pg-tip", attr: { "aria-hidden": "true" } });
+  const tip = button.createDiv({ cls: "goko-tip", attr: { "aria-hidden": "true" } });
   tip.createSpan({ text: label });
-  if (shortcut) tip.createSpan({ cls: "pg-tip-key", text: shortcut });
+  if (shortcut) tip.createSpan({ cls: "goko-tip-key", text: shortcut });
 
   // The accessible name, carried as hidden text rather than as an aria-label.
   // Obsidian draws a tooltip of its own for any element with an aria-label, so
   // a button with both showed two labels at once, in two different styles, in
   // two different places. Every caller used to set one.
-  button.createSpan({ cls: "pg-sr-only", text: tipLabel(label, shortcut) });
+  button.createSpan({ cls: "goko-sr-only", text: tipLabel(label, shortcut) });
 }
 
 /** The accessible name for a button whose visible label lives in its tip. */
@@ -36,12 +36,12 @@ export function tipLabel(label: string, shortcut?: string): string {
  * the stale half is the bug this avoids.
  */
 export function retip(button: HTMLElement, label: string, shortcut?: string): void {
-  const tip = button.querySelector<HTMLElement>(".pg-tip");
+  const tip = button.querySelector<HTMLElement>(".goko-tip");
   if (tip) {
     tip.empty();
     tip.createSpan({ text: label });
-    if (shortcut) tip.createSpan({ cls: "pg-tip-key", text: shortcut });
+    if (shortcut) tip.createSpan({ cls: "goko-tip-key", text: shortcut });
   }
-  const name = button.querySelector<HTMLElement>(".pg-sr-only");
+  const name = button.querySelector<HTMLElement>(".goko-sr-only");
   if (name) name.setText(tipLabel(label, shortcut));
 }

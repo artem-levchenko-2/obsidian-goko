@@ -100,9 +100,9 @@ export class Sidebar {
     width: number
   ) {
     this.width = clampSidebarWidth(width);
-    this.root = container.createDiv({ cls: "pg-sidebar" });
-    this.list = this.root.createDiv({ cls: "pg-sidebar-list" });
-    this.handle = this.root.createDiv({ cls: "pg-sidebar-handle" });
+    this.root = container.createDiv({ cls: "goko-sidebar" });
+    this.list = this.root.createDiv({ cls: "goko-sidebar-list" });
+    this.handle = this.root.createDiv({ cls: "goko-sidebar-handle" });
     this.handle.setAttribute("aria-hidden", "true");
     this.installResize();
     this.apply();
@@ -166,13 +166,13 @@ export class Sidebar {
     if (folder) this.folded.delete(grid);
     this.renaming = { grid, folder, value: folder ?? grid, commit };
     this.render();
-    return this.list.querySelector(".pg-sidebar-rename") !== null;
+    return this.list.querySelector(".goko-sidebar-rename") !== null;
   }
 
   /** Where a row is on screen, for a panel opened beside it. */
   rowRect(grid: string, folder: string | null = null): DOMRect | null {
     if (!this.shown) return null;
-    const rows = this.list.querySelectorAll<HTMLElement>(".pg-sidebar-row");
+    const rows = this.list.querySelectorAll<HTMLElement>(".goko-sidebar-row");
     for (const row of Array.from(rows)) {
       if (row.dataset.grid === grid && (row.dataset.folder ?? null) === folder) return row.getBoundingClientRect();
     }
@@ -183,7 +183,7 @@ export class Sidebar {
   private nameField(host: HTMLElement): void {
     const state = this.renaming;
     if (!state) return;
-    const input = host.createEl("input", { cls: "pg-sidebar-rename", type: "text" });
+    const input = host.createEl("input", { cls: "goko-sidebar-rename", type: "text" });
     input.value = state.value;
     let settled = false;
     const finish = async (keep: boolean): Promise<void> => {
@@ -229,7 +229,7 @@ export class Sidebar {
     this.root.style.width = `${this.width}px`;
     // What the wall is inset by. Zero when the rail is away, so the wall keeps
     // the whole pane rather than a gap where a rail used to be.
-    this.container.style.setProperty("--pg-sidebar-w", shown ? `${this.width}px` : "0px");
+    this.container.style.setProperty("--goko-sidebar-w", shown ? `${this.width}px` : "0px");
     if (shown) this.render();
     else this.list.empty();
     if (changed) this.handlers.onLayout();
@@ -252,7 +252,7 @@ export class Sidebar {
     this.libraryRow(model.all.count);
     this.row(model.home, { home: true });
 
-    this.list.createDiv({ cls: "pg-sidebar-rule" });
+    this.list.createDiv({ cls: "goko-sidebar-rule" });
 
     if (model.grids.length > 0) this.caption("Grids");
     for (const grid of model.grids) this.row(grid, {});
@@ -274,11 +274,11 @@ export class Sidebar {
    * are the row's own menu afterwards.
    */
   private addRow(): void {
-    const add = this.list.createEl("button", { cls: "pg-sidebar-add" });
-    const glyph = add.createSpan({ cls: "pg-sidebar-glyph" });
+    const add = this.list.createEl("button", { cls: "goko-sidebar-add" });
+    const glyph = add.createSpan({ cls: "goko-sidebar-glyph" });
     setIcon(glyph, "plus");
     if (!this.creating) {
-      add.createSpan({ cls: "pg-sidebar-name", text: "New grid" });
+      add.createSpan({ cls: "goko-sidebar-name", text: "New grid" });
       add.onclick = (event) => {
         event.stopPropagation();
         this.creating = { value: "" };
@@ -288,7 +288,7 @@ export class Sidebar {
     }
 
     const state = this.creating;
-    const input = add.createEl("input", { cls: "pg-sidebar-rename", type: "text", placeholder: "Grid name" });
+    const input = add.createEl("input", { cls: "goko-sidebar-rename", type: "text", placeholder: "Grid name" });
     input.value = state.value;
     let settled = false;
     const finish = async (keep: boolean): Promise<void> => {
@@ -318,12 +318,12 @@ export class Sidebar {
 
   /** Every clipping in the vault. Not a grid: nothing is filed into it. */
   private libraryRow(count: number): void {
-    const row = this.list.createEl("button", { cls: "pg-sidebar-row is-system" });
+    const row = this.list.createEl("button", { cls: "goko-sidebar-row is-system" });
     if (this.showingAll) row.addClass("is-on");
-    const glyph = row.createSpan({ cls: "pg-sidebar-glyph" });
+    const glyph = row.createSpan({ cls: "goko-sidebar-glyph" });
     setIcon(glyph, "book-open");
-    row.createSpan({ cls: "pg-sidebar-name", text: "Library" });
-    row.createSpan({ cls: "pg-sidebar-count", text: count > 0 ? String(count) : "" });
+    row.createSpan({ cls: "goko-sidebar-name", text: "Library" });
+    row.createSpan({ cls: "goko-sidebar-count", text: count > 0 ? String(count) : "" });
     if (this.searching && count === 0) row.addClass("is-none");
     row.onclick = (event) => {
       event.stopPropagation();
@@ -332,18 +332,18 @@ export class Sidebar {
   }
 
   private caption(text: string): void {
-    this.list.createDiv({ cls: "pg-sidebar-caption", text });
+    this.list.createDiv({ cls: "goko-sidebar-caption", text });
   }
 
   private row(entry: SidebarGrid, options: { home?: boolean }): void {
     const name = entry.grid.name;
-    const row = this.list.createEl("button", { cls: "pg-sidebar-row" });
+    const row = this.list.createEl("button", { cls: "goko-sidebar-row" });
     row.dataset.grid = name;
     if (name === this.active && !this.activeFolder && !this.showingAll) row.addClass("is-on");
     if (entry.smart) row.addClass("is-smart");
     if (options.home) row.addClass("is-system");
 
-    const glyph = row.createSpan({ cls: "pg-sidebar-glyph" });
+    const glyph = row.createSpan({ cls: "goko-sidebar-glyph" });
     setIcon(glyph, entry.grid.icon || "layout-grid");
     // Every grid has a colour, chosen or derived, so the rail and the chips
     // on the wall name the same board in the same hue. A folder takes its
@@ -353,8 +353,8 @@ export class Sidebar {
     glyph.style.color = color;
 
     if (this.renaming && this.renaming.grid === name && this.renaming.folder === null) this.nameField(row);
-    else row.createSpan({ cls: "pg-sidebar-name", text: name });
-    row.createSpan({ cls: "pg-sidebar-count", text: entry.count > 0 ? String(entry.count) : "" });
+    else row.createSpan({ cls: "goko-sidebar-name", text: name });
+    row.createSpan({ cls: "goko-sidebar-count", text: entry.count > 0 ? String(entry.count) : "" });
     if (this.searching && entry.count === 0) row.addClass("is-none");
     // What the grid is for, under the pointer: the one place it is shown
     // outside the grid's own sheet, now that the wall carries no band for it.
@@ -371,7 +371,7 @@ export class Sidebar {
     if (folders.length > 0) {
       row.addClass("is-foldable");
       if (this.folded.has(name)) row.addClass("is-folded");
-      const twist = row.createSpan({ cls: "pg-sidebar-twist" });
+      const twist = row.createSpan({ cls: "goko-sidebar-twist" });
       setIcon(twist, this.folded.has(name) ? "chevron-right" : "chevron-down");
       twist.onclick = (event) => {
         event.stopPropagation();
@@ -401,7 +401,7 @@ export class Sidebar {
 
     if (this.folded.has(name)) return;
     for (const held of folders) {
-      const sub = this.list.createEl("button", { cls: "pg-sidebar-row is-folder" });
+      const sub = this.list.createEl("button", { cls: "goko-sidebar-row is-folder" });
       sub.dataset.grid = name;
       sub.dataset.folder = held.folder.name;
       if (name === this.active && held.folder.name === this.activeFolder && !this.showingAll) {
@@ -410,17 +410,17 @@ export class Sidebar {
       // The elbow that says this row belongs to the one above it. A span
       // rather than a border on the row, so it can be an L rather than a
       // straight line down the side of every child.
-      sub.createSpan({ cls: "pg-sidebar-elbow" });
-      const folderGlyph = sub.createSpan({ cls: "pg-sidebar-glyph" });
+      sub.createSpan({ cls: "goko-sidebar-elbow" });
+      const folderGlyph = sub.createSpan({ cls: "goko-sidebar-glyph" });
       setIcon(folderGlyph, held.folder.icon || "folder");
       folderGlyph.style.color = color;
       if (this.renaming && this.renaming.grid === name && this.renaming.folder === held.folder.name) {
         this.nameField(sub);
       } else {
-        sub.createSpan({ cls: "pg-sidebar-name", text: held.folder.name });
+        sub.createSpan({ cls: "goko-sidebar-name", text: held.folder.name });
       }
       sub.createSpan({
-        cls: "pg-sidebar-count",
+        cls: "goko-sidebar-count",
         text: held.count > 0 ? String(held.count) : "",
       });
       if (this.searching && held.count === 0) sub.addClass("is-none");
@@ -451,7 +451,7 @@ export class Sidebar {
    */
   private makeMovable(row: HTMLElement, item: RailItem): void {
     // Not while its name is being typed over; see nameField.
-    row.draggable = !row.querySelector(".pg-sidebar-rename");
+    row.draggable = !row.querySelector(".goko-sidebar-rename");
     const unmark = (): void => {
       row.removeClass("is-drop-before");
       row.removeClass("is-drop-after");
@@ -549,13 +549,13 @@ export class Sidebar {
       const next = clampSidebarWidth(start + (event.clientX - from));
       this.width = next;
       this.root.style.width = `${next}px`;
-      this.container.style.setProperty("--pg-sidebar-w", `${next}px`);
+      this.container.style.setProperty("--goko-sidebar-w", `${next}px`);
       this.handlers.onLayout();
     };
     const up = (): void => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      this.container.doc.body.removeClass("pg-resizing");
+      this.container.doc.body.removeClass("goko-resizing");
       this.handlers.onResize(this.width);
     };
 
@@ -564,7 +564,7 @@ export class Sidebar {
       event.stopPropagation();
       from = event.clientX;
       start = this.width;
-      this.container.doc.body.addClass("pg-resizing");
+      this.container.doc.body.addClass("goko-resizing");
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     });

@@ -16,7 +16,7 @@ import type { TileModel } from "./core/tile";
  *
  * Draws into a host and does nothing else: where the panel sits, how wide it
  * is and whether it animates in are the caller's business. The class names
- * stay `pg-detail-*` so both hosts inherit one stylesheet rather than two
+ * stay `goko-detail-*` so both hosts inherit one stylesheet rather than two
  * that have to be kept in step.
  */
 
@@ -57,9 +57,9 @@ export interface MetaSource {
 /** A label and a value, or nothing at all when there is no value. */
 function field(host: HTMLElement, label: string, value: string): void {
   if (!value) return;
-  const block = host.createDiv({ cls: "pg-detail-field" });
-  block.createDiv({ cls: "pg-detail-label", text: label });
-  block.createDiv({ cls: "pg-detail-value", text: value });
+  const block = host.createDiv({ cls: "goko-detail-field" });
+  block.createDiv({ cls: "goko-detail-label", text: label });
+  block.createDiv({ cls: "goko-detail-value", text: value });
 }
 
 /**
@@ -87,10 +87,10 @@ export function chipsField(
 ): void {
   if (!editable && values.length === 0) return;
   const block = host.createDiv({
-    cls: editable ? "pg-detail-field is-editable" : "pg-detail-field",
+    cls: editable ? "goko-detail-field is-editable" : "goko-detail-field",
   });
-  block.createDiv({ cls: "pg-detail-label", text: label });
-  const chips = block.createDiv({ cls: "pg-detail-chips" });
+  block.createDiv({ cls: "goko-detail-label", text: label });
+  const chips = block.createDiv({ cls: "goko-detail-chips" });
 
   const pick = (anchor: HTMLElement): void => {
     const rect = anchor.getBoundingClientRect();
@@ -99,16 +99,16 @@ export function chipsField(
 
   for (const value of values) {
     if (!editable) {
-      chips.createSpan({ cls: "pg-detail-chip", text: value });
+      chips.createSpan({ cls: "goko-detail-chip", text: value });
       continue;
     }
-    const chip = chips.createEl("button", { cls: "pg-detail-chip", text: value });
+    const chip = chips.createEl("button", { cls: "goko-detail-chip", text: value });
     chip.onclick = () => pick(chip);
   }
   if (!editable) return;
 
   const add = chips.createEl("button", {
-    cls: values.length ? "pg-detail-chip is-add" : "pg-detail-chip is-empty",
+    cls: values.length ? "goko-detail-chip is-add" : "goko-detail-chip is-empty",
     text: values.length ? "+" : "Add…",
   });
   if (values.length) attachTip(add, `Add ${label.toLowerCase()}`);
@@ -129,17 +129,17 @@ export function sourceField(host: HTMLElement, source: string): void {
     return;
   }
 
-  const block = host.createDiv({ cls: "pg-detail-field" });
-  block.createDiv({ cls: "pg-detail-label", text: "Source" });
-  const value = block.createDiv({ cls: "pg-detail-value" });
-  value.createEl("a", { cls: "pg-detail-link", text: source, href: source });
+  const block = host.createDiv({ cls: "goko-detail-field" });
+  block.createDiv({ cls: "goko-detail-label", text: "Source" });
+  const value = block.createDiv({ cls: "goko-detail-value" });
+  value.createEl("a", { cls: "goko-detail-link", text: source, href: source });
 
-  const copy = value.createEl("button", { cls: "pg-detail-copy" });
+  const copy = value.createEl("button", { cls: "goko-detail-copy" });
   // The glyph lives in a holder of its own. setIcon appends rather than
   // replaces, and the button also carries its tip and its hidden name, so
   // neither emptying the button nor calling setIcon twice on it works: the
   // first destroys the label, the second leaves both glyphs stacked.
-  const glyph = copy.createSpan({ cls: "pg-detail-copy-glyph" });
+  const glyph = copy.createSpan({ cls: "goko-detail-copy-glyph" });
   setIcon(glyph, "copy");
   attachTip(copy, "Copy link");
 
@@ -193,17 +193,17 @@ export function noteField(
   if (!source.editable(NOTE_KEY)) return;
   const held = (model.record.properties[NOTE_KEY] ?? []).join(" ");
 
-  const block = host.createDiv({ cls: "pg-detail-field is-editable is-note" });
-  block.createDiv({ cls: "pg-detail-label", text: "Note" });
+  const block = host.createDiv({ cls: "goko-detail-field is-editable is-note" });
+  block.createDiv({ cls: "goko-detail-label", text: "Note" });
 
   const show = block.createEl("button", {
-    cls: "pg-detail-value pg-detail-edit",
+    cls: "goko-detail-value goko-detail-edit",
     text: held || NOTE_PROMPT,
   });
   if (!held) show.addClass("is-empty");
 
   show.onclick = () => {
-    const area = block.createEl("textarea", { cls: "pg-detail-note" });
+    const area = block.createEl("textarea", { cls: "goko-detail-note" });
     area.value = held;
     area.rows = Math.min(8, Math.max(2, held.split("\n").length + 1));
     show.hide();

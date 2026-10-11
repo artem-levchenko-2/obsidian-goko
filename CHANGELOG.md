@@ -5,6 +5,15 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Goko and another plugin that used the same class names no longer restyle
+  each other when both are on in one vault. With both on, Goko's bar shrank
+  to an empty strip and card captions moved to the top. If you style Goko
+  with a CSS snippet, its classes now start with `goko-` instead of `pg-`.
+
 ## [1.0.10] - 2026-09-28
 
 ### Changed

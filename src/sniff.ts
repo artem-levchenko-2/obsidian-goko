@@ -44,10 +44,10 @@ export async function sniffVideoUrl(pageUrl: string, timeoutMs = 20000): Promise
 
   const view = createEl("webview" as keyof HTMLElementTagNameMap) as WebviewLike;
   view.setAttribute("src", pageUrl);
-  // Rendered but out of sight (see .pg-sniff-frame): display:none or a
+  // Rendered but out of sight (see .goko-sniff-frame): display:none or a
   // zero-size frame may never lay the player out, and a player that never
   // mounts never fetches.
-  view.classList.add("pg-sniff-frame");
+  view.classList.add("goko-sniff-frame");
   // The main window: a popout closing mid-sniff would take this with it.
   window.document.body.appendChild(view);
 
@@ -175,7 +175,7 @@ export async function sniffThreadsImages(
 
   const view = createEl("webview" as keyof HTMLElementTagNameMap) as WebviewLike;
   view.setAttribute("src", pageUrl);
-  view.classList.add("pg-sniff-frame");
+  view.classList.add("goko-sniff-frame");
   // The main window: a popout closing mid-sniff would take this with it.
   window.document.body.appendChild(view);
   const probe = imageProbe(code, text);

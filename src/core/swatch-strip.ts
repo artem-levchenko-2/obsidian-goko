@@ -85,14 +85,14 @@ export async function readSwatches(image: HTMLImageElement): Promise<string[]> {
 export function paintSwatchStrip(host: HTMLElement, swatches: string[]): void {
   if (swatches.length === 0) return;
 
-  const block = host.createDiv({ cls: "pg-detail-field pg-swatches" });
-  block.createDiv({ cls: "pg-detail-label", text: "Palette" });
-  const row = block.createDiv({ cls: "pg-swatches-row" });
+  const block = host.createDiv({ cls: "goko-detail-field goko-swatches" });
+  block.createDiv({ cls: "goko-detail-label", text: "Palette" });
+  const row = block.createDiv({ cls: "goko-swatches-row" });
   // Present from the start, so showing a value cannot reflow the panel, and
   // hidden from screen readers because each swatch already carries its hex
   // in an aria-label; announcing it twice says nothing new.
   const readout = block.createDiv({
-    cls: "pg-swatches-readout",
+    cls: "goko-swatches-readout",
     text: swatches[0],
     attr: { "aria-hidden": "true" },
   });
@@ -120,7 +120,7 @@ export function paintSwatchStrip(host: HTMLElement, swatches: string[]): void {
       rowBox.width,
       readout.getBoundingClientRect().width
     );
-    readout.style.setProperty("--pg-readout-x", `${Math.round(dx)}px`);
+    readout.style.setProperty("--goko-readout-x", `${Math.round(dx)}px`);
   };
 
   const show = (text: string): void => {
@@ -149,7 +149,7 @@ export function paintSwatchStrip(host: HTMLElement, swatches: string[]): void {
 
   swatches.forEach((hex, index) => {
     const swatch = row.createEl("button", {
-      cls: "pg-swatch",
+      cls: "goko-swatch",
       attr: { type: "button", "aria-label": `Copy ${hex}` },
     });
     swatch.style.backgroundColor = hex;

@@ -32,14 +32,14 @@ export class ProgressBar {
   private hideTimer = 0;
 
   constructor(container: HTMLElement) {
-    this.root = container.createDiv({ cls: "pg-progress" });
-    this.fill = this.root.createDiv({ cls: "pg-progress-fill" });
-    this.text = this.root.createDiv({ cls: "pg-progress-label" });
-    this.count = this.root.createDiv({ cls: "pg-progress-count" });
+    this.root = container.createDiv({ cls: "goko-progress" });
+    this.fill = this.root.createDiv({ cls: "goko-progress-fill" });
+    this.text = this.root.createDiv({ cls: "goko-progress-label" });
+    this.count = this.root.createDiv({ cls: "goko-progress-count" });
     // Made once and hidden, rather than built when a job needs one: a job
     // long enough to want stopping is long enough that the button has to be
     // there the moment the reader looks for it.
-    this.stop = this.root.createEl("button", { cls: "pg-progress-stop", text: "Stop" });
+    this.stop = this.root.createEl("button", { cls: "goko-progress-stop", text: "Stop" });
     this.stop.hide();
   }
 

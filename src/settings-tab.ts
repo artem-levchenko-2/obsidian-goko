@@ -47,10 +47,10 @@ function describe(copy: SettingCopy): string | DocumentFragment | undefined {
   const lines = copy.lines ?? [];
   if (lines.length === 0) return copy.desc;
   return createFragment((fragment) => {
-    if (copy.desc) fragment.createDiv({ cls: "pg-setting-lead", text: copy.desc });
+    if (copy.desc) fragment.createDiv({ cls: "goko-setting-lead", text: copy.desc });
     for (const line of lines) {
-      const row = fragment.createDiv({ cls: "pg-setting-line" });
-      row.createSpan({ cls: "pg-setting-line-label", text: `${line.label}:` });
+      const row = fragment.createDiv({ cls: "goko-setting-line" });
+      row.createSpan({ cls: "goko-setting-line-label", text: `${line.label}:` });
       row.appendText(` ${line.text}`);
     }
   });
@@ -175,8 +175,8 @@ export class GokoSettingTab extends PluginSettingTab {
       ...words(copy),
       render: (setting) => {
         setting.addButton((button) => {
-          button.setClass("pg-setting-button").onClick(() => void this.runAction(id, work));
-          setIcon(button.buttonEl.createSpan({ cls: "pg-setting-button-glyph" }), icon);
+          button.setClass("goko-setting-button").onClick(() => void this.runAction(id, work));
+          setIcon(button.buttonEl.createSpan({ cls: "goko-setting-button-glyph" }), icon);
           button.buttonEl.createSpan({ text: copy.button });
           // Drawn again mid-run, the new button starts off as well.
           button.setDisabled(this.running.has(id));
@@ -219,10 +219,10 @@ export class GokoSettingTab extends PluginSettingTab {
    * other lines with it.
    */
   private paintRuleErrors(host: HTMLElement, text: string): void {
-    host.querySelector(".pg-rules-errors")?.remove();
+    host.querySelector(".goko-rules-errors")?.remove();
     const { errors } = parseRules(text);
     if (errors.length === 0) return;
-    const list = host.createDiv({ cls: "pg-rules-errors" });
+    const list = host.createDiv({ cls: "goko-rules-errors" });
     for (const error of errors) {
       list.createDiv({ text: `Line ${error.line}: ${error.reason} — "${error.text}"` });
     }
@@ -237,7 +237,7 @@ export class GokoSettingTab extends PluginSettingTab {
   private toolDesc(tool: VideoTool, desc: string): DocumentFragment {
     return createFragment((fragment) => {
       fragment.appendText(desc);
-      const status = fragment.createDiv({ cls: "pg-tool-status", attr: { "data-tool": tool } });
+      const status = fragment.createDiv({ cls: "goko-tool-status", attr: { "data-tool": tool } });
       this.paintToolStatus(status, tool);
     });
   }
@@ -290,7 +290,7 @@ export class GokoSettingTab extends PluginSettingTab {
 
   /** Every status line on the page, again, after a path was typed. */
   private repaintToolStatus(): void {
-    this.containerEl.querySelectorAll<HTMLElement>(".pg-tool-status").forEach((el) => {
+    this.containerEl.querySelectorAll<HTMLElement>(".goko-tool-status").forEach((el) => {
       const tool = el.getAttribute("data-tool");
       if (tool === "yt-dlp" || tool === "ffmpeg") this.paintToolStatus(el, tool);
     });
@@ -316,21 +316,21 @@ export class GokoSettingTab extends PluginSettingTab {
     }
   ): () => void {
     const enabled = spec.enabled;
-    const body = containerEl.createDiv({ cls: "pg-props-body" });
+    const body = containerEl.createDiv({ cls: "goko-props-body" });
 
     // Chips rather than a settings row each. One row per property put a
     // full-height card on screen for every key in the vault, which is a wall
     // of thirteen cards to express a list of two words.
-    const chips = body.createDiv({ cls: "pg-props" });
+    const chips = body.createDiv({ cls: "goko-props" });
     for (const key of enabled) {
-      const chip = chips.createSpan({ cls: "pg-prop" });
+      const chip = chips.createSpan({ cls: "goko-prop" });
       chip.createSpan({ text: facetLabel(key) });
-      const remove = chip.createEl("button", { cls: "pg-prop-remove", text: "×" });
+      const remove = chip.createEl("button", { cls: "goko-prop-remove", text: "×" });
       remove.setAttribute("aria-label", `Remove ${facetLabel(key)}`);
       remove.onclick = () => void spec.commit(enabled.filter((k) => k !== key));
     }
     if (enabled.length === 0) {
-      chips.createSpan({ cls: "pg-props-empty", text: spec.empty });
+      chips.createSpan({ cls: "goko-props-empty", text: spec.empty });
     }
 
     // Suggested first, so type-ahead puts the properties worth filtering by at
@@ -552,7 +552,7 @@ export class GokoSettingTab extends PluginSettingTab {
           {
             ...words(COPY.filterProperties),
             render: (setting) => {
-              setting.settingEl.addClass("pg-props-setting");
+              setting.settingEl.addClass("goko-props-setting");
               return this.paintPropertyList(setting.settingEl, {
                 enabled: settings.filterProperties,
                 empty: PROPERTY_LIST_EMPTY.filter,
@@ -563,7 +563,7 @@ export class GokoSettingTab extends PluginSettingTab {
           {
             ...words(COPY.cardProperties),
             render: (setting) => {
-              setting.settingEl.addClass("pg-props-setting");
+              setting.settingEl.addClass("goko-props-setting");
               return this.paintPropertyList(setting.settingEl, {
                 enabled: settings.cardProperties,
                 empty: PROPERTY_LIST_EMPTY.card,
@@ -580,13 +580,13 @@ export class GokoSettingTab extends PluginSettingTab {
           {
             ...words(COPY.domainRules),
             render: (setting) => {
-              setting.settingEl.addClass("pg-rules-setting");
+              setting.settingEl.addClass("goko-rules-setting");
               setting.addTextArea((area) => {
                 area.setPlaceholder(RULES_PLACEHOLDER);
                 area.setValue(settings.domainRules);
                 area.inputEl.rows = 8;
                 area.inputEl.spellcheck = false;
-                area.inputEl.addClass("pg-rules-input");
+                area.inputEl.addClass("goko-rules-input");
                 area.onChange((value) => {
                   settings.domainRules = value;
                   void this.plugin.saveSettings();

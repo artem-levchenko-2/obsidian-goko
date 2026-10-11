@@ -67,7 +67,7 @@ export class ActionBar {
   }
 
   constructor(container: HTMLElement, handlers: ActionBarHandlers) {
-    this.root = container.createDiv({ cls: "pg-actionbar" });
+    this.root = container.createDiv({ cls: "goko-actionbar" });
 
     /*
      * A visible way out, ahead of the count.
@@ -83,10 +83,10 @@ export class ActionBar {
     // The count and the rules either side of it, as one piece: a phone has no
     // room for it beside seven actions at Obsidian's own touch size, and two
     // rules with nothing between them would be what hiding it alone left.
-    const head = this.root.createDiv({ cls: "pg-actionbar-head" });
-    head.createDiv({ cls: "pg-bar-divider" });
-    this.count = head.createDiv({ cls: "pg-actionbar-count" });
-    head.createDiv({ cls: "pg-bar-divider" });
+    const head = this.root.createDiv({ cls: "goko-actionbar-head" });
+    head.createDiv({ cls: "goko-bar-divider" });
+    this.count = head.createDiv({ cls: "goko-actionbar-count" });
+    head.createDiv({ cls: "goko-bar-divider" });
 
     // Same icon, label and key as the detail view's, since it is the same
     // menu: what one clipping is, asked of several at once.
@@ -115,7 +115,7 @@ export class ActionBar {
     // filing gesture the rail cannot make, since a drag has one destination.
     this.suggest = this.button("list-checks", "File as suggested", "\u21b5", handlers.onFileSuggested);
 
-    this.root.createDiv({ cls: "pg-bar-divider" });
+    this.root.createDiv({ cls: "goko-bar-divider" });
 
     this.trash = this.button("trash-2", "Delete", "⌫", handlers.onDelete);
   }
@@ -165,8 +165,8 @@ export class ActionBar {
     shortcut: string,
     onClick: () => void
   ): HTMLElement {
-    const button = this.root.createEl("button", { cls: "pg-bar-button pg-actionbar-button" });
-    setGlyph(button.createSpan({ cls: "pg-bar-glyph" }), icon);
+    const button = this.root.createEl("button", { cls: "goko-bar-button goko-actionbar-button" });
+    setGlyph(button.createSpan({ cls: "goko-bar-glyph" }), icon);
     attachTip(button, label, shortcut);
     button.setAttribute("aria-label", label);
 

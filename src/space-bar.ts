@@ -121,11 +121,11 @@ export class SpaceBar {
     handlers: SpaceBarHandlers,
     notifications?: { center: NotificationCenter; host: HTMLElement }
   ) {
-    this.root = container.createDiv({ cls: "pg-spacebar" });
+    this.root = container.createDiv({ cls: "goko-spacebar" });
 
     const button = (name: string, tip: string, key: string, glyphs: string[]): HTMLElement => {
-      const el = this.root.createEl("button", { cls: "pg-bar-button pg-space-" + name });
-      const glyph = el.createSpan({ cls: "pg-bar-glyph" });
+      const el = this.root.createEl("button", { cls: "goko-bar-button goko-space-" + name });
+      const glyph = el.createSpan({ cls: "goko-bar-glyph" });
       setGlyph(glyph, ...glyphs);
       attachTip(el, tip, key);
       el.setAttribute("aria-label", tip);
@@ -133,7 +133,7 @@ export class SpaceBar {
     };
 
     const divider = (): void => {
-      this.root.createDiv({ cls: "pg-bar-divider" });
+      this.root.createDiv({ cls: "goko-bar-divider" });
     };
 
     // Clipping and finding first: they are what you come to the bar to do.
@@ -144,16 +144,16 @@ export class SpaceBar {
       handlers.onCreate(rect.right, rect.top - LAUNCH_GAP);
     };
 
-    this.search = this.root.createDiv({ cls: "pg-space-search" });
-    const open = this.search.createEl("button", { cls: "pg-bar-button pg-space-search-button" });
-    setGlyph(open.createSpan({ cls: "pg-bar-glyph" }), "search");
+    this.search = this.root.createDiv({ cls: "goko-space-search" });
+    const open = this.search.createEl("button", { cls: "goko-bar-button goko-space-search-button" });
+    setGlyph(open.createSpan({ cls: "goko-bar-glyph" }), "search");
     attachTip(open, "Search", "");
     open.onclick = (event: MouseEvent) => {
       event.stopPropagation();
       this.openSearch();
     };
 
-    const input = this.search.createEl("input", { cls: "pg-space-search-input", type: "text" });
+    const input = this.search.createEl("input", { cls: "goko-space-search-input", type: "text" });
     input.placeholder = "Search the library";
     input.spellcheck = false;
     input.autocomplete = "off";
@@ -185,16 +185,16 @@ export class SpaceBar {
     };
 
     // What was found and where, which is also the way to look somewhere else.
-    this.searchScope = this.search.createEl("button", { cls: "pg-space-search-scope" });
-    this.searchFound = this.searchScope.createSpan({ cls: "pg-space-search-found" });
+    this.searchScope = this.search.createEl("button", { cls: "goko-space-search-scope" });
+    this.searchFound = this.searchScope.createSpan({ cls: "goko-space-search-found" });
     attachTip(this.searchScope, "Search the whole library", "");
     this.searchScope.onclick = (event: MouseEvent) => {
       event.stopPropagation();
       if (this.searchScope.hasClass("is-switch")) handlers.onSearchScope();
     };
 
-    const clear = this.search.createEl("button", { cls: "pg-space-search-clear" });
-    setIcon(clear.createSpan({ cls: "pg-space-search-clear-glyph" }), "x");
+    const clear = this.search.createEl("button", { cls: "goko-space-search-clear" });
+    setIcon(clear.createSpan({ cls: "goko-space-search-clear-glyph" }), "x");
     attachTip(clear, "Clear search", "");
     clear.onclick = (event: MouseEvent) => {
       event.stopPropagation();
@@ -215,7 +215,7 @@ export class SpaceBar {
     divider();
 
     this.filter = button("filter", "Filter", "", ["funnel", "list-filter", "filter"]);
-    this.filterCount = this.filter.createDiv({ cls: "pg-space-count" });
+    this.filterCount = this.filter.createDiv({ cls: "goko-space-count" });
     this.filter.onclick = (event: MouseEvent) => {
       event.stopPropagation();
       const rect = this.filter.getBoundingClientRect();
@@ -236,7 +236,7 @@ export class SpaceBar {
     if (notifications) {
       const { center, host } = notifications;
       const bell = button("notifications", "Notifications", "", ["bell"]);
-      bell.createDiv({ cls: "pg-notif-dot" });
+      bell.createDiv({ cls: "goko-notif-dot" });
       const panel = new NotificationPanel(host, center);
       this.notifications = panel;
       bell.onclick = (event: MouseEvent) => {
@@ -274,11 +274,11 @@ export class SpaceBar {
     };
 
     if (Platform.isMobile) {
-      this.more = this.root.createEl("button", { cls: "pg-bar-button pg-space-more" });
-      this.moreGlyph = this.more.createSpan({ cls: "pg-bar-glyph" });
+      this.more = this.root.createEl("button", { cls: "goko-bar-button goko-space-more" });
+      this.moreGlyph = this.more.createSpan({ cls: "goko-bar-glyph" });
       setGlyph(this.moreGlyph, "more-horizontal");
       this.more.setAttribute("aria-label", "Wall controls");
-      this.more.createDiv({ cls: "pg-notif-dot" });
+      this.more.createDiv({ cls: "goko-notif-dot" });
       this.more.onclick = (event: MouseEvent) => {
         event.stopPropagation();
         this.setExpanded(!this.expanded);

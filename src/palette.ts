@@ -111,24 +111,24 @@ export class Palette {
     this.stage = null;
     this.active = 0;
 
-    this.backdrop = this.container.createDiv({ cls: "pg-palette-backdrop" });
+    this.backdrop = this.container.createDiv({ cls: "goko-palette-backdrop" });
     this.backdrop.onclick = () => this.close();
 
-    this.panel = this.container.createDiv({ cls: "pg-palette" });
+    this.panel = this.container.createDiv({ cls: "goko-palette" });
 
-    const head = this.panel.createDiv({ cls: "pg-palette-head" });
-    const glass = head.createDiv({ cls: "pg-palette-search" });
+    const head = this.panel.createDiv({ cls: "goko-palette-head" });
+    const glass = head.createDiv({ cls: "goko-palette-search" });
     setIcon(glass, "search");
-    this.chipEl = head.createDiv({ cls: "pg-palette-chip" });
+    this.chipEl = head.createDiv({ cls: "goko-palette-chip" });
 
-    this.input = head.createEl("input", { cls: "pg-palette-input", type: "text" });
+    this.input = head.createEl("input", { cls: "goko-palette-input", type: "text" });
     this.input.placeholder = ROOT_PLACEHOLDER;
     this.input.oninput = () => {
       this.active = 0;
       this.render();
     };
 
-    this.listEl = this.panel.createDiv({ cls: "pg-palette-list" });
+    this.listEl = this.panel.createDiv({ cls: "goko-palette-list" });
     this.listEl.onmousemove = (event: MouseEvent) => {
       if (this.hoverArmed) return;
       this.hoverArmed = true;
@@ -139,7 +139,7 @@ export class Palette {
       if (row) this.hover(row);
     };
 
-    const foot = this.panel.createDiv({ cls: "pg-palette-foot" });
+    const foot = this.panel.createDiv({ cls: "goko-palette-foot" });
     hint(foot, "↑↓", "navigate");
     hint(foot, "↵", "select");
     hint(foot, "esc", "close");
@@ -411,7 +411,7 @@ export class Palette {
     this.paintChip();
 
     if (groups.length === 0) {
-      list.createDiv({ cls: "pg-palette-empty", text: "No matches" });
+      list.createDiv({ cls: "goko-palette-empty", text: "No matches" });
       return;
     }
 
@@ -426,7 +426,7 @@ export class Palette {
     for (const group of groups) {
       // Inside a stage every row is the same kind of thing, so a heading
       // over them says nothing.
-      if (!this.stage) list.createDiv({ cls: "pg-palette-section", text: group.section });
+      if (!this.stage) list.createDiv({ cls: "goko-palette-section", text: group.section });
 
       for (const row of group.rows) {
         this.rows.push(row);
@@ -448,9 +448,9 @@ export class Palette {
       return;
     }
     for (const held of this.narrow) {
-      const pill = chip.createSpan({ cls: "pg-palette-narrow" });
+      const pill = chip.createSpan({ cls: "goko-palette-narrow" });
       pill.createSpan({ text: chipLabel(held) });
-      const drop = pill.createEl("button", { cls: "pg-palette-narrow-x", text: "\u00d7" });
+      const drop = pill.createEl("button", { cls: "goko-palette-narrow-x", text: "\u00d7" });
       drop.setAttribute("aria-label", `Remove ${chipLabel(held)}`);
       drop.onclick = (event) => {
         event.preventDefault();
@@ -494,11 +494,11 @@ export class Palette {
   }
 
   private paintRow(list: HTMLElement, row: PaletteRow): HTMLElement {
-    if (row.divider && list.childElementCount > 0) list.createDiv({ cls: "pg-menu-divider" });
-    const el = list.createDiv({ cls: "pg-palette-item" });
+    if (row.divider && list.childElementCount > 0) list.createDiv({ cls: "goko-menu-divider" });
+    const el = list.createDiv({ cls: "goko-palette-item" });
     if (row.destructive) el.addClass("is-destructive");
 
-    const icon = el.createDiv({ cls: "pg-palette-icon" });
+    const icon = el.createDiv({ cls: "goko-palette-icon" });
     const thumb = row.clipping ? this.handlers.preview(row.clipping) : "";
     if (thumb) {
       icon.addClass("is-thumb");
@@ -514,10 +514,10 @@ export class Palette {
       setIcon(icon, row.icon);
     }
 
-    paintLabel(el.createDiv({ cls: "pg-palette-label" }), row.label, row.ranges);
+    paintLabel(el.createDiv({ cls: "goko-palette-label" }), row.label, row.ranges);
 
     // The trailing slot holds a count, a shortcut, or a mark. Never both.
-    const detail = el.createDiv({ cls: "pg-palette-detail" });
+    const detail = el.createDiv({ cls: "goko-palette-detail" });
     if (row.detailIcon) {
       detail.addClass("is-marked");
       setIcon(detail, row.detailIcon);
@@ -526,7 +526,7 @@ export class Palette {
     }
 
     if (row.command?.stage) {
-      const arrow = el.createDiv({ cls: "pg-palette-arrow" });
+      const arrow = el.createDiv({ cls: "goko-palette-arrow" });
       setIcon(arrow, "arrow-right");
     }
 
@@ -571,14 +571,14 @@ export function paintLabel(el: HTMLElement, label: string, ranges: MatchRange[])
   let cursor = 0;
   for (const range of ranges) {
     if (range.start > cursor) el.createSpan({ text: label.slice(cursor, range.start) });
-    el.createSpan({ cls: "pg-palette-mark", text: label.slice(range.start, range.end) });
+    el.createSpan({ cls: "goko-palette-mark", text: label.slice(range.start, range.end) });
     cursor = range.end;
   }
   if (cursor < label.length) el.createSpan({ text: label.slice(cursor) });
 }
 
 export function hint(foot: HTMLElement, key: string, text: string): void {
-  const item = foot.createDiv({ cls: "pg-palette-hint" });
-  item.createSpan({ cls: "pg-palette-key", text: key });
+  const item = foot.createDiv({ cls: "goko-palette-hint" });
+  item.createSpan({ cls: "goko-palette-key", text: key });
   item.createSpan({ text });
 }

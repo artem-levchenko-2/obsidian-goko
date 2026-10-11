@@ -67,7 +67,7 @@ function playArchivedVideo(
   video.muted = true;
   video.autoplay = true;
   video.playsInline = true;
-  video.addClass("pg-note-video");
+  video.addClass("goko-note-video");
   images[0].replaceWith(video);
 }
 

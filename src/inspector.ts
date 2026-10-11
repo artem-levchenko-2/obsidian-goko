@@ -103,10 +103,10 @@ export class Inspector {
     width: number
   ) {
     this.width = clampInspectorWidth(width);
-    this.root = container.createDiv({ cls: "pg-inspector" });
+    this.root = container.createDiv({ cls: "goko-inspector" });
     if (Platform.isMobile) this.root.addClass("is-sheet");
-    this.body = this.root.createDiv({ cls: "pg-inspector-body" });
-    this.handle = this.root.createDiv({ cls: "pg-inspector-handle" });
+    this.body = this.root.createDiv({ cls: "goko-inspector-body" });
+    this.handle = this.root.createDiv({ cls: "goko-inspector-handle" });
     this.handle.setAttribute("aria-hidden", "true");
     this.installResize();
     this.apply();
@@ -178,7 +178,7 @@ export class Inspector {
     // How far the wall's own controls step aside. Not the wall itself: the
     // drawer is over it, so the masonry is never laid out again.
     this.container.style.setProperty(
-      "--pg-inspector-w",
+      "--goko-inspector-w",
       shown && !Platform.isMobile ? `${this.width}px` : "0px"
     );
 
@@ -219,7 +219,7 @@ export class Inspector {
     this.paintPreview(model);
     this.paintBar([model]);
 
-    const meta = this.body.createDiv({ cls: "pg-inspector-meta" });
+    const meta = this.body.createDiv({ cls: "goko-inspector-meta" });
     paintCardMeta(
       meta,
       model,
@@ -236,13 +236,13 @@ export class Inspector {
 
   /** The count, and a way out of the selection. */
   private paintHead(models: TileModel[]): void {
-    const head = this.body.createDiv({ cls: "pg-inspector-head" });
+    const head = this.body.createDiv({ cls: "goko-inspector-head" });
     head.createSpan({
-      cls: "pg-inspector-count",
+      cls: "goko-inspector-count",
       text: selectionLabel(models.length),
     });
 
-    const clear = head.createEl("button", { cls: "pg-inspector-icon" });
+    const clear = head.createEl("button", { cls: "goko-inspector-icon" });
     setIcon(clear, "x");
     attachTip(clear, "Clear selection");
     clear.setAttribute("aria-label", "Clear selection");
@@ -257,15 +257,15 @@ export class Inspector {
    * was given a poster, and shows its format chip alone rather than a hole.
    */
   private paintPreview(model: TileModel): void {
-    const frame = this.body.createDiv({ cls: "pg-inspector-frame" });
+    const frame = this.body.createDiv({ cls: "goko-inspector-frame" });
 
     const format = formatLabel(model);
-    if (format) frame.createSpan({ cls: "pg-inspector-format", text: format });
+    if (format) frame.createSpan({ cls: "goko-inspector-format", text: format });
 
     // The colours go directly under whatever they were read from, so the row
     // is held open for them rather than landing at the foot of whatever had
     // been drawn by the time the decode finished.
-    const palette = this.body.createDiv({ cls: "pg-inspector-palette" });
+    const palette = this.body.createDiv({ cls: "goko-inspector-palette" });
 
     if (model.kind === "video" && model.filePath) {
       this.paintVideo(frame, model, palette);
@@ -274,12 +274,12 @@ export class Inspector {
 
     const preview = previewOf(model);
     if (!preview) {
-      const glyph = frame.createSpan({ cls: "pg-inspector-noframe" });
+      const glyph = frame.createSpan({ cls: "goko-inspector-noframe" });
       setIcon(glyph, model.kind === "video" ? "play" : "file-text");
       return;
     }
 
-    const image = frame.createEl("img", { cls: "pg-inspector-image" });
+    const image = frame.createEl("img", { cls: "goko-inspector-image" });
     const src = (tile: TileModel): string => {
       const held = previewOf(tile);
       if (!held) return "";
@@ -302,7 +302,7 @@ export class Inspector {
    * a clip and the reason to open one card at all.
    */
   private paintVideo(frame: HTMLElement, model: TileModel, palette: HTMLElement): void {
-    const video = frame.createEl("video", { cls: "pg-inspector-image pg-inspector-video" });
+    const video = frame.createEl("video", { cls: "goko-inspector-image goko-inspector-video" });
     video.src = model.remote ? model.filePath : this.handlers.resource(model.filePath);
     if (model.posterPath) video.poster = this.handlers.resource(model.posterPath);
     video.controls = true;
@@ -318,8 +318,8 @@ export class Inspector {
       void this.paintSwatches(still, palette);
     }
 
-    const grab = frame.createEl("button", { cls: "pg-inspector-grab" });
-    setGlyph(grab.createSpan({ cls: "pg-bar-glyph" }), "image-plus", "image", "camera");
+    const grab = frame.createEl("button", { cls: "goko-inspector-grab" });
+    setGlyph(grab.createSpan({ cls: "goko-bar-glyph" }), "image-plus", "image", "camera");
     attachTip(grab, "Set frame as cover");
     grab.setAttribute("aria-label", "Set frame as cover");
     grab.onclick = (event: MouseEvent) => {
@@ -382,9 +382,9 @@ export class Inspector {
     if (reel.length < 2) return;
 
     frame.addClass("is-reel");
-    const dots = frame.createDiv({ cls: "pg-dots" });
+    const dots = frame.createDiv({ cls: "goko-dots" });
     const marks = reel.map((_tile, i) =>
-      dots.createSpan({ cls: i === 0 ? "pg-dot-step is-on" : "pg-dot-step" })
+      dots.createSpan({ cls: i === 0 ? "goko-dot-step is-on" : "goko-dot-step" })
     );
 
     // Where the frame returns to when the pointer leaves: the cover, which is
@@ -432,15 +432,15 @@ export class Inspector {
    */
   private paintBar(models: TileModel[]): void {
     const ids = models.map((model) => model.id);
-    const bar = this.body.createDiv({ cls: "pg-inspector-bar" });
+    const bar = this.body.createDiv({ cls: "goko-inspector-bar" });
 
     // Only for one card. A full screen of five is a lie about which one it
     // would show, and the reel already walks the wall from inside it.
     if (models.length === 1) {
-      const open = bar.createEl("button", { cls: "pg-inspector-open" });
-      const glyph = open.createSpan({ cls: "pg-inspector-open-glyph" });
+      const open = bar.createEl("button", { cls: "goko-inspector-open" });
+      const glyph = open.createSpan({ cls: "goko-inspector-open-glyph" });
       setIcon(glyph, "expand");
-      open.createSpan({ cls: "pg-inspector-open-label", text: "Open" });
+      open.createSpan({ cls: "goko-inspector-open-label", text: "Open" });
       open.onclick = () => this.handlers.onOpen(ids[0]);
     }
 
@@ -451,9 +451,9 @@ export class Inspector {
       destructive = false
     ): void => {
       const element = bar.createEl("button", {
-        cls: destructive ? "pg-inspector-action is-destructive" : "pg-inspector-action",
+        cls: destructive ? "goko-inspector-action is-destructive" : "goko-inspector-action",
       });
-      const glyph = element.createSpan({ cls: "pg-inspector-action-glyph" });
+      const glyph = element.createSpan({ cls: "goko-inspector-action-glyph" });
       setIcon(glyph, icon);
       attachTip(element, label);
       element.setAttribute("aria-label", label);
@@ -496,15 +496,15 @@ export class Inspector {
       fallback: string,
       open: (x: number, y: number) => void
     ): void => {
-      const block = host.createDiv({ cls: "pg-detail-field is-editable" });
-      block.createDiv({ cls: "pg-detail-label", text: label });
-      const chips = block.createDiv({ cls: "pg-detail-chips" });
+      const block = host.createDiv({ cls: "goko-detail-field is-editable" });
+      block.createDiv({ cls: "goko-detail-label", text: label });
+      const chips = block.createDiv({ cls: "goko-detail-chips" });
       const text =
         values.size > 1
           ? "Mixed"
           : [...values][0] || fallback;
       const chip = chips.createEl("button", {
-        cls: text === fallback ? "pg-detail-chip is-empty" : "pg-detail-chip",
+        cls: text === fallback ? "goko-detail-chip is-empty" : "goko-detail-chip",
         text,
       });
       chip.onclick = () => {
@@ -529,20 +529,20 @@ export class Inspector {
     const facts = fileFacts(model, this.handlers.bytesOf(model));
     if (facts.length === 0) return;
 
-    const fold = host.createEl("details", { cls: "pg-inspector-fold" });
+    const fold = host.createEl("details", { cls: "goko-inspector-fold" });
     fold.open = this.unfolded.has("facts");
-    const summary = fold.createEl("summary", { cls: "pg-inspector-summary" });
+    const summary = fold.createEl("summary", { cls: "goko-inspector-summary" });
     summary.createSpan({ text: "Details" });
     fold.ontoggle = () => {
       if (fold.open) this.unfolded.add("facts");
       else this.unfolded.delete("facts");
     };
 
-    const table = fold.createDiv({ cls: "pg-inspector-facts" });
+    const table = fold.createDiv({ cls: "goko-inspector-facts" });
     for (const fact of facts) {
-      const line = table.createDiv({ cls: "pg-inspector-fact" });
-      line.createSpan({ cls: "pg-inspector-fact-label", text: fact.label });
-      line.createSpan({ cls: "pg-inspector-fact-value", text: fact.value });
+      const line = table.createDiv({ cls: "goko-inspector-fact" });
+      line.createSpan({ cls: "goko-inspector-fact-label", text: fact.label });
+      line.createSpan({ cls: "goko-inspector-fact-value", text: fact.value });
     }
   }
 
@@ -551,7 +551,7 @@ export class Inspector {
     this.frame = 0;
     this.root.remove();
     // The wall keeps the width back, in case the pane outlives this panel.
-    this.container.setCssProps({ "--pg-inspector-w": "0px" });
+    this.container.setCssProps({ "--goko-inspector-w": "0px" });
   }
 
   private installResize(): void {
@@ -564,12 +564,12 @@ export class Inspector {
       const next = clampInspectorWidth(start + (from - event.clientX));
       this.width = next;
       this.root.style.width = `${next}px`;
-      this.container.style.setProperty("--pg-inspector-w", `${next}px`);
+      this.container.style.setProperty("--goko-inspector-w", `${next}px`);
     };
     const up = (): void => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      this.container.doc.body.removeClass("pg-resizing");
+      this.container.doc.body.removeClass("goko-resizing");
       this.handlers.onResize(this.width);
     };
 
@@ -578,7 +578,7 @@ export class Inspector {
       event.stopPropagation();
       from = event.clientX;
       start = this.width;
-      this.container.doc.body.addClass("pg-resizing");
+      this.container.doc.body.addClass("goko-resizing");
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
     });

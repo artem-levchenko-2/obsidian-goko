@@ -454,38 +454,38 @@ export class GokoView extends ItemView {
 
     // Out of the pointer's way but for its buttons, so a drop, a pan or a
     // right-click on an empty wall still reaches the wall underneath.
-    this.emptyWall = this.contentEl.createDiv({ cls: "pg-wall-empty" });
+    this.emptyWall = this.contentEl.createDiv({ cls: "goko-wall-empty" });
     const eyes = this.emptyWall.createSvg("svg", {
-      cls: "pg-wall-empty-eyes",
+      cls: "goko-wall-empty-eyes",
       attr: { viewBox: EMPTY_WALL_EYES_VIEWBOX, "aria-hidden": "true" },
     });
     eyes.createSvg("path", { attr: { d: EMPTY_WALL_EYES_PATH, fill: "currentColor" } });
     const copy = emptyWallCopy(Platform.isMobile);
-    const words = this.emptyWall.createDiv({ cls: "pg-wall-empty-words" });
-    words.createDiv({ cls: "pg-wall-empty-title", text: copy.title });
-    words.createDiv({ cls: "pg-wall-empty-hint", text: copy.hint });
-    const actions = this.emptyWall.createDiv({ cls: "pg-wall-empty-actions" });
+    const words = this.emptyWall.createDiv({ cls: "goko-wall-empty-words" });
+    words.createDiv({ cls: "goko-wall-empty-title", text: copy.title });
+    words.createDiv({ cls: "goko-wall-empty-hint", text: copy.hint });
+    const actions = this.emptyWall.createDiv({ cls: "goko-wall-empty-actions" });
     // The same clip as the Clip row under the + at the foot of the wall,
     // offered where someone looking at a bare wall is already looking.
-    const add = actions.createEl("button", { cls: "mod-cta pg-wall-empty-add" });
-    setIcon(add.createSpan({ cls: "pg-wall-empty-glyph" }), "plus");
+    const add = actions.createEl("button", { cls: "mod-cta goko-wall-empty-add" });
+    setIcon(add.createSpan({ cls: "goko-wall-empty-glyph" }), "plus");
     add.createSpan({ text: "Add clip" });
     add.onclick = () => void this.plugin.clipFromClipboard();
-    const guide = actions.createEl("button", { cls: "pg-wall-empty-guide", text: "Open guide" });
+    const guide = actions.createEl("button", { cls: "goko-wall-empty-guide", text: "Open guide" });
     guide.onclick = () => void this.plugin.openGuide();
 
     // The same face for a search that found nothing, with words of its own
     // and, when there is one, the way to the matches it is not showing.
-    this.searchEmpty = this.contentEl.createDiv({ cls: "pg-wall-empty pg-search-empty" });
+    this.searchEmpty = this.contentEl.createDiv({ cls: "goko-wall-empty goko-search-empty" });
     const lookingEyes = this.searchEmpty.createSvg("svg", {
-      cls: "pg-wall-empty-eyes",
+      cls: "goko-wall-empty-eyes",
       attr: { viewBox: EMPTY_WALL_EYES_VIEWBOX, "aria-hidden": "true" },
     });
     lookingEyes.createSvg("path", { attr: { d: EMPTY_WALL_EYES_PATH, fill: "currentColor" } });
-    const lookingWords = this.searchEmpty.createDiv({ cls: "pg-wall-empty-words" });
-    lookingWords.createDiv({ cls: "pg-wall-empty-title" });
-    lookingWords.createDiv({ cls: "pg-wall-empty-hint" });
-    this.searchEmpty.createDiv({ cls: "pg-wall-empty-actions" });
+    const lookingWords = this.searchEmpty.createDiv({ cls: "goko-wall-empty-words" });
+    lookingWords.createDiv({ cls: "goko-wall-empty-title" });
+    lookingWords.createDiv({ cls: "goko-wall-empty-hint" });
+    this.searchEmpty.createDiv({ cls: "goko-wall-empty-actions" });
 
     this.grid.onRendered = () => {
       this.playback?.prune();
@@ -521,7 +521,7 @@ export class GokoView extends ItemView {
       this.editProperties(ids, anchor.x, anchor.y);
     };
 
-    this.dock = this.contentEl.createDiv({ cls: "pg-dock" });
+    this.dock = this.contentEl.createDiv({ cls: "goko-dock" });
     this.actionBar = new ActionBar(this.dock, {
       onProperties: (x, y) => this.editProperties(this.grid?.selectedIds() ?? [], x, y),
       onDelete: () => this.removeSelection(),
@@ -592,7 +592,7 @@ export class GokoView extends ItemView {
     // On the pane rather than in the dock: the dock is centred at the foot of
     // the wall and this belongs in the corner, where leaving a folder is the
     // same gesture as leaving a clipping.
-    const back = this.contentEl.createEl("button", { cls: "pg-detail-back pg-folder-back" });
+    const back = this.contentEl.createEl("button", { cls: "goko-detail-back goko-folder-back" });
 
     this.spaceBar = new SpaceBar(this.dock, back, {
       onQuery: (text) => this.onQuery(text),
@@ -699,7 +699,7 @@ export class GokoView extends ItemView {
       "pointerdown",
       (event: PointerEvent) => {
         const target = event.target;
-        if (target instanceof Element && target.closest(".pg-spacebar")) return;
+        if (target instanceof Element && target.closest(".goko-spacebar")) return;
         this.spaceBar?.collapse();
       },
       true
@@ -1044,7 +1044,7 @@ export class GokoView extends ItemView {
     // border cannot have its dash offset animated and a stroke can. One rect,
     // so the dashes run continuously round the corners instead of four edges
     // meeting at seams. Made once and hidden by CSS until a drag arrives.
-    const frame = el.createSvg("svg", { cls: "pg-drop-frame" });
+    const frame = el.createSvg("svg", { cls: "goko-drop-frame" });
     frame.setAttribute("aria-hidden", "true");
     const dashes = frame.createSvg("rect");
 
@@ -1090,7 +1090,7 @@ export class GokoView extends ItemView {
       const dash = period * (DASH / (DASH + GAP));
       dashes.style.strokeDasharray = `${dash} ${period - dash}`;
       // One whole period per cycle, so the loop closes on itself.
-      el.style.setProperty("--pg-drop-period", `${period}px`);
+      el.style.setProperty("--goko-drop-period", `${period}px`);
     };
 
     // Kept apart from the depth rather than folded into it: the pointer on a
@@ -1107,7 +1107,7 @@ export class GokoView extends ItemView {
       if (on) {
         const space = this.activeGrid();
         const target = isSmartGrid(space) ? this.plugin.settings.homeGridName : space.name;
-        el.style.setProperty("--pg-drop-label", JSON.stringify(`Drop to add to ${target}`));
+        el.style.setProperty("--goko-drop-label", JSON.stringify(`Drop to add to ${target}`));
       }
       el.toggleClass("is-drop-target", on);
       // After the class, never before: the frame is display none until it is
@@ -1287,7 +1287,7 @@ export class GokoView extends ItemView {
     if (landed === 0 || !this.plugin.settings.aiAutoDescribe || !this.plugin.vision.ready) return;
     const notice = new Notice(`Goko: ${landed} imported. Describe them with AI?`, 12000);
     const button = notice.messageEl.createEl("button", {
-      cls: "pg-notice-action",
+      cls: "goko-notice-action",
       text: "Describe",
     });
     button.onclick = () => {
@@ -1388,7 +1388,7 @@ export class GokoView extends ItemView {
   private syncBottomInset(): void {
     const navbar = this.contentEl.doc.body.querySelector<HTMLElement>(".mobile-navbar");
     if (!navbar || !navbar.isShown()) {
-      this.contentEl.style.removeProperty("--pg-bottom-inset");
+      this.contentEl.style.removeProperty("--goko-bottom-inset");
       return;
     }
 
@@ -1403,7 +1403,7 @@ export class GokoView extends ItemView {
     // tall it is: the two differ whenever the view does not run to the
     // bottom of the window.
     const overlap = Math.max(0, content.bottom - bar.top);
-    this.contentEl.style.setProperty("--pg-bottom-inset", `${Math.round(overlap)}px`);
+    this.contentEl.style.setProperty("--goko-bottom-inset", `${Math.round(overlap)}px`);
   }
 
   /**
@@ -2830,13 +2830,13 @@ export class GokoView extends ItemView {
     const hidden = isFilterEmpty(this.activeFilter()) ? 0 : this.facets.length;
     const elsewhere = this.showAll || hidden > 0 ? 0 : this.libraryMatchTiles().length;
     const copy = searchEmptyCopy(search.query, hidden, elsewhere);
-    empty.querySelector(".pg-wall-empty-title")?.setText(copy.title);
-    empty.querySelector(".pg-wall-empty-hint")?.setText(copy.hint);
-    const actions = empty.querySelector<HTMLElement>(".pg-wall-empty-actions");
+    empty.querySelector(".goko-wall-empty-title")?.setText(copy.title);
+    empty.querySelector(".goko-wall-empty-hint")?.setText(copy.hint);
+    const actions = empty.querySelector<HTMLElement>(".goko-wall-empty-actions");
     actions?.empty();
     const action = copy.action;
     if (actions && action) {
-      const button = actions.createEl("button", { cls: "pg-wall-empty-guide", text: action.label });
+      const button = actions.createEl("button", { cls: "goko-wall-empty-guide", text: action.label });
       button.onclick = () => {
         if (action.kind === "filter") this.setFilter(emptyFilter());
         else this.goTo({ all: true, grid: this.activeGrid().name, folder: null }, emptyFilter());
@@ -2857,7 +2857,7 @@ export class GokoView extends ItemView {
     if (!inField && target?.closest("input, textarea, [contenteditable='true']")) return false;
     if (this.palette?.isOpen || this.sheet?.isOpen || this.menu?.isOpen || bar.panelOpen) return false;
     // The rail's icon and description panels close on Escape themselves.
-    if (this.contentEl.doc.body.querySelector(".pg-popover")) return false;
+    if (this.contentEl.doc.body.querySelector(".goko-popover")) return false;
     // The selection takes it first, as it does from a folder.
     if (!inField && (this.grid?.selectedIds().length ?? 0) > 0) return false;
     return true;
@@ -3086,7 +3086,7 @@ export class GokoView extends ItemView {
    * runs in both.
    */
   private chooseCover(path: string): void {
-    const input = this.contentEl.createEl("input", { type: "file", cls: "pg-file-input" });
+    const input = this.contentEl.createEl("input", { type: "file", cls: "goko-file-input" });
     input.accept = "image/*,video/*";
     input.addEventListener(
       "change",
@@ -3514,14 +3514,14 @@ export class GokoView extends ItemView {
    * detail view draws inside the panel exactly as it draws over the wall.
    */
   private buildSheet(): void {
-    const host = this.contentEl.createDiv({ cls: "pg-cardsheet" });
-    const backdrop = host.createDiv({ cls: "pg-cardsheet-backdrop" });
+    const host = this.contentEl.createDiv({ cls: "goko-cardsheet" });
+    const backdrop = host.createDiv({ cls: "goko-cardsheet-backdrop" });
     backdrop.onclick = () => this.detail?.close();
-    const close = host.createEl("button", { cls: "pg-cardsheet-close" });
+    const close = host.createEl("button", { cls: "goko-cardsheet-close" });
     setIcon(close, "x");
     attachTip(close, "Close", "\u238b");
     close.onclick = () => this.detail?.close();
-    this.sheetPanel = host.createDiv({ cls: "pg-cardsheet-panel" });
+    this.sheetPanel = host.createDiv({ cls: "goko-cardsheet-panel" });
     this.sheetHost = host;
     this.sheetBackdrop = backdrop;
   }

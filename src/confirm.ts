@@ -34,12 +34,12 @@ export class ConfirmDeleteModal extends Modal {
           }.`,
     });
 
-    const list = contentEl.createEl("ul", { cls: "pg-confirm-list" });
+    const list = contentEl.createEl("ul", { cls: "goko-confirm-list" });
     for (const title of this.titles.slice(0, 8)) {
       list.createEl("li", { text: title });
     }
     if (count > 8) {
-      list.createEl("li", { text: `and ${count - 8} more…`, cls: "pg-confirm-more" });
+      list.createEl("li", { text: `and ${count - 8} more…`, cls: "goko-confirm-more" });
     }
 
     new Setting(contentEl)
@@ -89,14 +89,14 @@ export class ConfirmSweepModal extends Modal {
       text: `${this.summary} in your attachment folder are no longer used by any clipping. They will be moved to trash.`,
     });
 
-    const list = contentEl.createEl("ul", { cls: "pg-confirm-list" });
+    const list = contentEl.createEl("ul", { cls: "goko-confirm-list" });
     for (const path of this.found.paths.slice(0, 8)) {
       list.createEl("li", { text: path.slice(path.lastIndexOf("/") + 1) });
     }
     if (this.found.paths.length > 8) {
       list.createEl("li", {
         text: `and ${this.found.paths.length - 8} more…`,
-        cls: "pg-confirm-more",
+        cls: "goko-confirm-more",
       });
     }
 
@@ -171,7 +171,7 @@ export class ConfirmRemovePlaceModal extends Modal {
     say();
 
     if (!smart && members > 0) {
-      const label = contentEl.createEl("label", { cls: "pg-confirm-check" });
+      const label = contentEl.createEl("label", { cls: "goko-confirm-check" });
       const box = label.createEl("input", { type: "checkbox" });
       label.createSpan({ text: `Also delete the ${plural(members)} in it` });
       box.onchange = () => {

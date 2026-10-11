@@ -29,7 +29,7 @@ export class RuleStrip {
   private timer = 0;
 
   constructor(container: HTMLElement) {
-    this.root = container.createDiv({ cls: "pg-rule-strip" });
+    this.root = container.createDiv({ cls: "goko-rule-strip" });
   }
 
   offer(offer: RuleOffer | null): void {
@@ -38,15 +38,15 @@ export class RuleStrip {
     this.root.toggleClass("is-visible", offer !== null);
     if (!offer) return;
 
-    setIcon(this.root.createDiv({ cls: "pg-rule-strip-icon" }), "wand-sparkles");
-    this.root.createDiv({ cls: "pg-rule-strip-text", text: offer.text });
-    const no = this.root.createEl("button", { cls: "pg-rule-strip-no", text: "No" });
+    setIcon(this.root.createDiv({ cls: "goko-rule-strip-icon" }), "wand-sparkles");
+    this.root.createDiv({ cls: "goko-rule-strip-text", text: offer.text });
+    const no = this.root.createEl("button", { cls: "goko-rule-strip-no", text: "No" });
     no.onclick = (event: MouseEvent) => {
       event.stopPropagation();
       this.offer(null);
       offer.onNo();
     };
-    const yes = this.root.createEl("button", { cls: "pg-rule-strip-yes", text: "Yes" });
+    const yes = this.root.createEl("button", { cls: "goko-rule-strip-yes", text: "Yes" });
     yes.onclick = (event: MouseEvent) => {
       event.stopPropagation();
       this.offer(null);

@@ -200,17 +200,17 @@ export class Sheet {
     this.close();
     this.stack = [screen];
 
-    this.backdrop = this.container.createDiv({ cls: "pg-palette-backdrop" });
+    this.backdrop = this.container.createDiv({ cls: "goko-palette-backdrop" });
     this.backdrop.onclick = () => this.close();
 
-    this.panel = this.container.createDiv({ cls: "pg-palette" });
+    this.panel = this.container.createDiv({ cls: "goko-palette" });
 
-    const head = this.panel.createDiv({ cls: "pg-palette-head" });
-    const glass = head.createDiv({ cls: "pg-palette-search" });
+    const head = this.panel.createDiv({ cls: "goko-palette-head" });
+    const glass = head.createDiv({ cls: "goko-palette-search" });
     setIcon(glass, "search");
-    this.chipEl = head.createDiv({ cls: "pg-palette-chip" });
+    this.chipEl = head.createDiv({ cls: "goko-palette-chip" });
 
-    this.input = head.createEl("input", { cls: "pg-palette-input", type: "text" });
+    this.input = head.createEl("input", { cls: "goko-palette-input", type: "text" });
     this.input.oninput = () => {
       // Only a narrowing list restarts at the top, where the rows have just
       // changed under the query and the old index means nothing. On a form the
@@ -222,9 +222,9 @@ export class Sheet {
       this.render({ keepScroll: !this.screen?.filters });
     };
 
-    this.listEl = this.panel.createDiv({ cls: "pg-palette-list" });
+    this.listEl = this.panel.createDiv({ cls: "goko-palette-list" });
     this.installRowDrag(this.listEl);
-    this.footEl = this.panel.createDiv({ cls: "pg-palette-foot" });
+    this.footEl = this.panel.createDiv({ cls: "goko-palette-foot" });
 
     this.onKey = (event: KeyboardEvent) => this.handleKey(event);
     this.container.doc.addEventListener("keydown", this.onKey, true);
@@ -270,7 +270,7 @@ export class Sheet {
       // still does it; this is so the screen does not require knowing that.
       if (screen.cta) {
         const cta = this.footEl.createEl("button", {
-          cls: "pg-sheet-cta",
+          cls: "goko-sheet-cta",
           text: screen.cta,
         });
         cta.onclick = (event: MouseEvent) => {
@@ -320,7 +320,7 @@ export class Sheet {
     list.dataset.reorderable = String(Boolean(screen.onReorder));
 
     const note = typeof screen.note === "function" ? screen.note() : screen.note;
-    if (note) list.createDiv({ cls: "pg-sheet-note", text: note });
+    if (note) list.createDiv({ cls: "goko-sheet-note", text: note });
 
     const query = this.input.value;
     const built = screen.rows(query, this.rows[this.active]?.label ?? "");
@@ -331,12 +331,12 @@ export class Sheet {
     // A form with no rows is a field and nothing else, not a search that found
     // nothing, so it says nothing rather than "No matches".
     if (found.length === 0) {
-      if (screen.filters) list.createDiv({ cls: "pg-palette-empty", text: "No matches" });
+      if (screen.filters) list.createDiv({ cls: "goko-palette-empty", text: "No matches" });
       return;
     }
 
     const swatches = screen.layout === "swatches";
-    const host = swatches ? list.createDiv({ cls: "pg-swatch-grid" }) : list;
+    const host = swatches ? list.createDiv({ cls: "goko-swatch-grid" }) : list;
     if (swatches) host.setAttribute("role", "radiogroup");
 
     // A list where no row has a left icon drops the gutter rather than
@@ -352,10 +352,10 @@ export class Sheet {
       // to and the cursor arithmetic never sees it.
       // In a swatch grid the caption spans the row above its group.
       if (row.heading) {
-        host.createDiv({ cls: "pg-palette-section", text: row.heading });
+        host.createDiv({ cls: "goko-palette-section", text: row.heading });
       }
       if (row.divider && !swatches && this.rows.length > 0) {
-        host.createDiv({ cls: "pg-menu-divider" });
+        host.createDiv({ cls: "goko-menu-divider" });
       }
       this.rows.push(row);
       this.rowEls.push(
@@ -374,16 +374,16 @@ export class Sheet {
   }
 
   private paintRow(list: HTMLElement, row: SheetRow, at: number, width: number): HTMLElement {
-    const el = list.createDiv({ cls: "pg-palette-item" });
+    const el = list.createDiv({ cls: "goko-palette-item" });
     if (row.destructive) el.addClass("is-destructive");
 
-    const icon = el.createDiv({ cls: "pg-palette-icon" });
+    const icon = el.createDiv({ cls: "goko-palette-icon" });
     if (row.icon) setIcon(icon, row.icon);
 
-    const label = el.createDiv({ cls: "pg-palette-label" });
+    const label = el.createDiv({ cls: "goko-palette-label" });
     paintLabel(label, row.label, at >= 0 ? [{ start: at, end: at + width }] : []);
 
-    const detail = el.createDiv({ cls: "pg-palette-detail" });
+    const detail = el.createDiv({ cls: "goko-palette-detail" });
     if (row.detailIcon) {
       detail.addClass("is-marked");
       setIcon(detail, row.detailIcon);
@@ -397,7 +397,7 @@ export class Sheet {
     // opens the row and says so with a pointer cursor, the handle moves it
     // and says so with a grab.
     if (this.screen?.onReorder) {
-      const grip = el.createDiv({ cls: "pg-palette-grip" });
+      const grip = el.createDiv({ cls: "goko-palette-grip" });
       setIcon(grip, "grip-vertical");
       // Pressing the handle and letting go without moving is a cancelled
       // drag, not a choice, so it must not fall through to the row.
@@ -437,7 +437,7 @@ export class Sheet {
    * a click or an arrow key moves it.
    */
   private paintSwatch(host: HTMLElement, row: SheetRow): HTMLElement {
-    const el = host.createDiv({ cls: "pg-swatch-option" });
+    const el = host.createDiv({ cls: "goko-swatch-option" });
     el.setAttribute("role", "radio");
     // The label is the icon's name, which is the only description there is.
     el.setAttribute("aria-label", row.label);
@@ -485,8 +485,8 @@ export class Sheet {
       // Only from the handle. Anywhere else on the row is a click, which is
       // what makes the row openable at all and the cursor honest about it.
       const target = event.target as HTMLElement | null;
-      if (!target?.closest(".pg-palette-grip")) return;
-      const row = target.closest(".pg-palette-item");
+      if (!target?.closest(".goko-palette-grip")) return;
+      const row = target.closest(".goko-palette-item");
       if (!row) return;
       const index = this.rowEls.indexOf(row as HTMLElement);
       if (index === -1) return;

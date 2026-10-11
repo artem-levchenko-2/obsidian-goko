@@ -107,8 +107,8 @@ export class NotificationPanel {
   open(x: number, y: number): void {
     this.close(true);
     this.anchor = { x, y: y - LAUNCH_GAP };
-    this.backdrop = this.container.createDiv({ cls: "pg-notif-backdrop" });
-    this.panel = this.container.createDiv({ cls: "pg-notif-panel" });
+    this.backdrop = this.container.createDiv({ cls: "goko-notif-backdrop" });
+    this.panel = this.container.createDiv({ cls: "goko-notif-panel" });
     this.panel.setAttribute("role", "dialog");
     this.panel.setAttribute("aria-label", "Notifications");
 
@@ -162,23 +162,23 @@ export class NotificationPanel {
     const panel = this.panel;
     if (!panel) return;
     panel.empty();
-    panel.createDiv({ cls: "pg-notif-heading", text: "Notifications" });
+    panel.createDiv({ cls: "goko-notif-heading", text: "Notifications" });
 
     const items = this.center.items;
     if (items.length === 0) {
-      panel.createDiv({ cls: "pg-notif-empty", text: "No notifications" });
+      panel.createDiv({ cls: "goko-notif-empty", text: "No notifications" });
     }
     for (const item of items) {
-      const row = panel.createDiv({ cls: "pg-notif-item" });
-      row.createDiv({ cls: "pg-notif-title", text: item.title });
-      row.createDiv({ cls: "pg-notif-body", text: item.body });
-      const actions = row.createDiv({ cls: "pg-notif-actions" });
+      const row = panel.createDiv({ cls: "goko-notif-item" });
+      row.createDiv({ cls: "goko-notif-title", text: item.title });
+      row.createDiv({ cls: "goko-notif-body", text: item.body });
+      const actions = row.createDiv({ cls: "goko-notif-actions" });
       // The main answer at the right end, where the plugin's dialogs put
       // theirs, whatever order the notification lists them in.
       const ordered = [...item.actions.filter((a) => !a.primary), ...item.actions.filter((a) => a.primary)];
       for (const action of ordered) {
         const button = actions.createEl("button", {
-          cls: action.primary ? "pg-notif-action mod-cta" : "pg-notif-action",
+          cls: action.primary ? "goko-notif-action mod-cta" : "goko-notif-action",
           text: action.label,
         });
         button.onclick = (event: MouseEvent) => {
