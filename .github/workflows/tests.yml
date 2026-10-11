@@ -1,0 +1,29 @@
+name: Tests
+
+# Every branch runs the same three checks as a local "done", so a change is
+# green before anyone reviews it and before main takes it. Edits to prose and
+# pictures alone change nothing these checks look at, and tags are left out:
+# a release tag sits on a commit its branch already tested.
+on:
+  push:
+    branches: ["**"]
+    paths-ignore: ["**.md", "media/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run lint
+      - run: npm run build
