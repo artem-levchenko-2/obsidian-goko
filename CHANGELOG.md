@@ -96,6 +96,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worth; it plays once its card is open.
 - A GIF picked on the wall showed only a still in the side panel, the one
   made for list rows. It plays there now, as a video does.
+- A large video is no longer read into memory whole to make its still,
+  which on a phone could close Obsidian: a video dropped onto the wall can
+  be any size. Over 128 MB on a phone and 512 MB on a desktop, the still is
+  left to a desktop with ffmpeg. And a file that cannot be read no longer
+  stops Goko making stills for every file after it.
 - On a phone, Search offers Describe with AI and File as suggested for the
   selected cards again. Both had been left out with the actions that need a
   desktop's file system, which they do not.

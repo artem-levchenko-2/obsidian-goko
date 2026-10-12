@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { MediaCache } from "../src/core/cache";
 import {
+  DESKTOP_WEBVIEW_POSTER_BYTES,
   FFMPEG_POSTER_FAILED,
   PHONE_POSTER_FAILED,
+  PHONE_WEBVIEW_POSTER_BYTES,
   WEBVIEW_POSTER_FAILED,
   posterFailure,
   posterRoutes,
   retriesPoster,
+  webviewReads,
 } from "../src/core/poster-route";
 import type { PosterDevice, PosterRoute } from "../src/core/poster-route";
 
@@ -65,6 +68,35 @@ describe("posterRoutes", () => {
   it("has only the webview on a phone, and on a desktop without ffmpeg", () => {
     expect(posterRoutes(PHONE)).toEqual(["webview"]);
     expect(posterRoutes(BARE_DESKTOP)).toEqual(["webview"]);
+  });
+});
+
+describe("webviewReads", () => {
+  it("reads a video a phone can hold in memory, and not one it cannot", () => {
+    expect(webviewReads(PHONE, PHONE_WEBVIEW_POSTER_BYTES)).toBe(true);
+    expect(webviewReads(PHONE, PHONE_WEBVIEW_POSTER_BYTES + 1)).toBe(false);
+  });
+
+  it("lets a desktop read more, but never a file it could not read whole at all", () => {
+    expect(webviewReads(MAC, PHONE_WEBVIEW_POSTER_BYTES + 1)).toBe(true);
+    expect(webviewReads(BARE_DESKTOP, DESKTOP_WEBVIEW_POSTER_BYTES)).toBe(true);
+    expect(webviewReads(BARE_DESKTOP, DESKTOP_WEBVIEW_POSTER_BYTES + 1)).toBe(false);
+    expect(webviewReads(MAC, 3 * 1024 * 1024 * 1024)).toBe(false);
+  });
+});
+
+describe("a video too big for a phone to read", () => {
+  it("is written off by the phone, which stops asking, and posted by a Mac", () => {
+    // Not read is reported as the webview failing, which is what the phone
+    // writes down and a desktop looks at again.
+    const phone = cacheWithVideo();
+    expect(pass(phone, PHONE, { webview: webviewReads(PHONE, 300 * 1024 * 1024) })).toBe(true);
+    expect(phone.get(KEY)?.thumbFailed).toBe(PHONE_POSTER_FAILED);
+    expect(pass(phone, PHONE)).toBe(false);
+
+    const mac = synced(phone);
+    expect(pass(mac, MAC, { webview: webviewReads(MAC, 300 * 1024 * 1024) })).toBe(true);
+    expect(mac.get(KEY)?.thumb).not.toBe("");
   });
 });
 

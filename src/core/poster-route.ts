@@ -41,11 +41,36 @@ export const WEBVIEW_POSTER_FAILED = "render failed on a desktop without ffmpeg"
 export const FFMPEG_POSTER_FAILED = "ffmpeg could not read a frame";
 
 /**
+ * The largest video a phone's webview is asked for a frame of, and a
+ * desktop's.
+ *
+ * The webview reads the whole file into memory first, since a frame drawn
+ * from a blob: URL is the only kind a canvas gives back. A phone that runs
+ * out of memory doing that takes Obsidian down with it, and on every launch,
+ * as the pass that asked starts over; a desktop cannot read a file over 2 GB
+ * that way at all. A video Goko downloaded stays under Maximum file size,
+ * but one dropped onto the wall can be any size.
+ */
+export const PHONE_WEBVIEW_POSTER_BYTES = 128 * 1024 * 1024;
+export const DESKTOP_WEBVIEW_POSTER_BYTES = 512 * 1024 * 1024;
+
+/**
+ * Whether the webview is asked for a frame of a video this size. One too big
+ * is not read and counts as the webview having failed: a phone writes that
+ * down for a desktop to look at again, and a desktop goes on to ffmpeg,
+ * which reads the file where it lies.
+ */
+export function webviewReads(device: PosterDevice, bytes: number): boolean {
+  return bytes <= (device.desktop ? DESKTOP_WEBVIEW_POSTER_BYTES : PHONE_WEBVIEW_POSTER_BYTES);
+}
+
+/**
  * The routes to try for one video, in order; the first to give a frame wins.
  *
  * The webview first, because on a desktop it answers at once and reads every
  * video a tile can play anyway. ffmpeg behind it, for what the webview could
- * not decode and for a phone's failure being looked at again.
+ * not decode or was too big for it to read, and for a phone's failure being
+ * looked at again.
  */
 export function posterRoutes(device: PosterDevice): PosterRoute[] {
   return device.ffmpeg ? ["webview", "tool"] : ["webview"];

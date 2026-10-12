@@ -10,6 +10,7 @@ import {
   sourceVideoCandidates,
 } from "./core/archive";
 import { MediaCache } from "./core/cache";
+import type { CacheEntry } from "./core/cache";
 import { readDimensions } from "./core/dimensions";
 import {
   absolutePath,
@@ -43,7 +44,7 @@ import {
   previewRoutes,
 } from "./core/preview-route";
 import type { PreviewOutcome } from "./core/preview-route";
-import { posterFailure, posterRoutes, retriesPoster } from "./core/poster-route";
+import { posterFailure, posterRoutes, retriesPoster, webviewReads } from "./core/poster-route";
 import type { PosterDevice, PosterRoute } from "./core/poster-route";
 import { renderPdfCover } from "./pdf-cover";
 import { ClippingIndex } from "./index-store";
@@ -242,101 +243,109 @@ export class ArchiveService {
     for (const entry of this.cache.entries()) {
       if (keys && !keys.has(entry.key)) continue;
       if (!entry.file || entry.thumb) continue;
-
-      // A format Chromium cannot decode is unusable until it has a preview,
-      // so that takes priority over the ordinary still. Tiles paint plain
-      // images as originals, so a still is only worth generating for the two
-      // things that need one: posting a video and freezing a GIF.
-      const wantsPreview = needsPreview(extensionOf(entry.file));
-      const target = wantsPreview
-        ? previewPath(entry.file)
-        : entry.kind === "video"
-          ? posterPath(entry.file)
-          : /\.gif$/i.test(entry.file)
-            ? thumbPath(entry.file)
-            : null;
-      if (!target) continue;
-
-      // Another device may already have rendered this, and the file itself
-      // is the better evidence: adopting it skips the render and outranks
-      // whatever the cache remembers about a past attempt.
-      if (await this.adoptDerived(entry.key, target)) {
-        derived++;
-        continue;
-      }
-
-      if (entry.failed) continue;
-      // A video's poster failure is looked at again by a device that can do
-      // more than the one that wrote it; see core/poster-route.ts. Every
-      // other failure stands until the archive-everything command clears it.
-      const poster = !wantsPreview && entry.kind === "video";
-      if (entry.thumbFailed && !(poster && retriesPoster(entry.thumbFailed, device))) continue;
-
-      if (wantsPreview) {
-        // A PDF goes through the app's own pdf.js, an SVG is drawn by the
-        // page, everything else goes through a program or the webview. Each
-        // records its own failures, since each is the one that can tell a
-        // file it will never read from a device that cannot read it.
-        const ext = extensionOf(entry.file);
-        const preview =
-          ext === "pdf"
-            ? await this.renderPdfPreview(entry.key, entry.file)
-            : isVector(ext)
-              ? await this.renderVectorPreview(entry.key, entry.file)
-              : await this.renderPreview(entry.key, entry.file, entry.kind);
-        if (preview) {
-          this.cache.setThumb(entry.key, preview.path, preview.width, preview.height);
-          derived++;
-        }
-        continue;
-      }
-
-      if (poster) {
-        const rendered = await this.renderVideoPoster(entry.key, entry.file, width, device);
-        if (!rendered) continue;
-        const path = normalizePath(target);
-        try {
-          if (!this.app.vault.getFileByPath(path)) {
-            await this.app.vault.createBinary(path, rendered.data);
-          }
-        } catch (error) {
-          // Almost always the file landing twice, another device or an earlier
-          // pass having written it. adoptDerived picks it up next time round.
-          console.warn(`Goko: could not write ${path} (${String(error)})`);
-          continue;
-        }
-        this.cache.setThumb(entry.key, path, rendered.width, rendered.height);
-        derived++;
-        continue;
-      }
-
-      const source = await this.blobUrl(entry.file);
-      if (!source) continue;
-
       try {
-        const rendered = await renderThumbnail(source.url, width);
-        if (!rendered) {
-          // Recorded so a GIF this device cannot decode is not asked about on
-          // every pass. The explicit archive-everything command clears these
-          // marks, and adoption above outranks them.
-          this.cache.setThumbFailed(entry.key, "render failed");
-          continue;
-        }
-
-        if (!this.app.vault.getFileByPath(normalizePath(target))) {
-          await this.app.vault.createBinary(normalizePath(target), rendered.data);
-        }
-        this.cache.setThumb(entry.key, target, rendered.width, rendered.height);
-        derived++;
-      } catch {
-        this.cache.setThumbFailed(entry.key, "render failed");
-        continue;
-      } finally {
-        source.revoke();
+        if (await this.deriveOne(entry, width, device)) derived++;
+      } catch (error) {
+        // One file that cannot be read must not end the pass. Thrown from
+        // here, it would leave the files after it without, the cache unsaved,
+        // and every launch stopping at the same file again.
+        console.warn(`Goko: could not make a still for ${entry.file} (${String(error)})`);
       }
     }
 
     if (derived > 0) this.emit();
+  }
+
+  /**
+   * Makes or adopts the preview or still one entry is missing, and says
+   * whether it has one now.
+   */
+  private async deriveOne(entry: CacheEntry, width: number, device: PosterDevice): Promise<boolean> {
+    // A format Chromium cannot decode is unusable until it has a preview,
+    // so that takes priority over the ordinary still. Tiles paint plain
+    // images as originals, so a still is only worth generating for the two
+    // things that need one: posting a video and freezing a GIF.
+    const wantsPreview = needsPreview(extensionOf(entry.file));
+    const target = wantsPreview
+      ? previewPath(entry.file)
+      : entry.kind === "video"
+        ? posterPath(entry.file)
+        : /\.gif$/i.test(entry.file)
+          ? thumbPath(entry.file)
+          : null;
+    if (!target) return false;
+
+    // Another device may already have rendered this, and the file itself
+    // is the better evidence: adopting it skips the render and outranks
+    // whatever the cache remembers about a past attempt.
+    if (await this.adoptDerived(entry.key, target)) return true;
+
+    if (entry.failed) return false;
+    // A video's poster failure is looked at again by a device that can do
+    // more than the one that wrote it; see core/poster-route.ts. Every
+    // other failure stands until the archive-everything command clears it.
+    const poster = !wantsPreview && entry.kind === "video";
+    if (entry.thumbFailed && !(poster && retriesPoster(entry.thumbFailed, device))) return false;
+
+    if (wantsPreview) {
+      // A PDF goes through the app's own pdf.js, an SVG is drawn by the
+      // page, everything else goes through a program or the webview. Each
+      // records its own failures, since each is the one that can tell a
+      // file it will never read from a device that cannot read it.
+      const ext = extensionOf(entry.file);
+      const preview =
+        ext === "pdf"
+          ? await this.renderPdfPreview(entry.key, entry.file)
+          : isVector(ext)
+            ? await this.renderVectorPreview(entry.key, entry.file)
+            : await this.renderPreview(entry.key, entry.file, entry.kind);
+      if (!preview) return false;
+      this.cache.setThumb(entry.key, preview.path, preview.width, preview.height);
+      return true;
+    }
+
+    if (poster) {
+      const rendered = await this.renderVideoPoster(entry.key, entry.file, width, device);
+      if (!rendered) return false;
+      const path = normalizePath(target);
+      try {
+        if (!this.app.vault.getFileByPath(path)) {
+          await this.app.vault.createBinary(path, rendered.data);
+        }
+      } catch (error) {
+        // Almost always the file landing twice, another device or an earlier
+        // pass having written it. adoptDerived picks it up next time round.
+        console.warn(`Goko: could not write ${path} (${String(error)})`);
+        return false;
+      }
+      this.cache.setThumb(entry.key, path, rendered.width, rendered.height);
+      return true;
+    }
+
+    const source = await this.blobUrl(entry.file);
+    if (!source) return false;
+
+    try {
+      const rendered = await renderThumbnail(source.url, width);
+      if (!rendered) {
+        // Recorded so a GIF this device cannot decode is not asked about on
+        // every pass. The explicit archive-everything command clears these
+        // marks, and adoption above outranks them.
+        this.cache.setThumbFailed(entry.key, "render failed");
+        return false;
+      }
+
+      if (!this.app.vault.getFileByPath(normalizePath(target))) {
+        await this.app.vault.createBinary(normalizePath(target), rendered.data);
+      }
+      this.cache.setThumb(entry.key, target, rendered.width, rendered.height);
+      return true;
+    } catch {
+      this.cache.setThumbFailed(entry.key, "render failed");
+      return false;
+    } finally {
+      source.revoke();
+    }
   }
 
   /** What this device can bring to a video's poster. */
@@ -364,7 +373,7 @@ export class ArchiveService {
       const rendered =
         route === "tool"
           ? await this.toolPoster(file, width)
-          : await this.webviewPoster(file, width);
+          : await this.webviewPoster(file, width, device);
       if (rendered === undefined) continue;
       tried.push(route);
       if (rendered) return rendered;
@@ -374,9 +383,28 @@ export class ArchiveService {
     return null;
   }
 
-  /** A frame the webview draws out of a <video>; undefined when the file cannot be read. */
-  private async webviewPoster(file: string, width: number): Promise<Rendered | null | undefined> {
-    const source = await this.blobUrl(file);
+  /**
+   * A frame the webview draws out of a <video>; undefined when there is no
+   * file to read. The whole file is read into memory first, so one too big
+   * for this device is not read at all (see webviewReads), and one that
+   * fails to read counts as the webview failing, which leaves ffmpeg its
+   * turn.
+   */
+  private async webviewPoster(
+    file: string,
+    width: number,
+    device: PosterDevice
+  ): Promise<Rendered | null | undefined> {
+    const found = this.app.vault.getFileByPath(normalizePath(file));
+    if (!found) return undefined;
+    if (!webviewReads(device, found.stat.size)) return null;
+
+    let source: { url: string; revoke: () => void } | null;
+    try {
+      source = await this.blobUrl(file);
+    } catch {
+      return null;
+    }
     if (!source) return undefined;
     try {
       return await renderPoster(source.url, width);
