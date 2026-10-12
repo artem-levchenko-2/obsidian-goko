@@ -448,7 +448,7 @@ export class GokoView extends ItemView {
       // where you were looking. The note is the plugin's own and a minute
       // old, so a second frontmatter write here is not a rewrite of anything
       // clipped.
-      if (this.openFolder) void this.assign([path], this.activeGrid().name, this.openFolder);
+      if (this.openFolder) void this.fileCaptured(path, this.openFolder);
     };
 
     this.grid = new GridRenderer(this.app, this.contentEl);
@@ -3431,6 +3431,25 @@ export class GokoView extends ItemView {
         return rows;
       },
     });
+  }
+
+  /**
+   * Puts a clipping just made into the folder that was open for it, and
+   * keeps the flight to it pointed at the note.
+   *
+   * Where folders on disk are the grids, filing it is a rename, and the
+   * flight was armed for the path the note was created at. It looked for a
+   * tile there until it gave up, while the card stood in the folder under
+   * its new path and the camera stayed where it was.
+   */
+  private async fileCaptured(path: string, folder: string): Promise<void> {
+    const { paths } = await this.assign([path], this.activeGrid().name, folder);
+    const pending = this.pendingReveal;
+    if (!pending || pending.path !== path || paths[0] === path) return;
+    pending.path = paths[0];
+    // The repaint the rename caused may already have looked for the old path
+    // and found nothing; the next may be a long way off.
+    this.flyToPending();
   }
 
   /**

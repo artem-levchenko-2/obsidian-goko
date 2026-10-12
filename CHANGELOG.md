@@ -53,6 +53,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was removed, is saved as a link titled "Instagram post" with a notice
   that says so. It used to be saved "without a picture" under the title
   "Instagram", and on a desktop as a picture of Instagram's sign-in page.
+- A clip made while a folder is open is flown to, as any other clip is,
+  when grids follow the folders on disk. Filing it into the folder moved the
+  note, and the wall kept looking for it where it had been.
 - On a phone, Search offers Describe with AI and File as suggested for the
   selected cards again. Both had been left out with the actions that need a
   desktop's file system, which they do not.
