@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from the article. Such a post used to clip with nothing to download and the
   bare link as its title. Of each video, the best copy below 4K is saved:
   4K outgrows the download limit within seconds.
+- Goko says when a post's video could not be saved for a reason you can fix,
+  naming the clipping: the site turned yt-dlp away, which usually means
+  yt-dlp is out of date; the video is over your Maximum file size; or the
+  download ran past three minutes. A clip tells you at once, and the pass
+  that fills in missing media tells you once at the end. A post with no
+  video in it stays quiet, as before.
 
 ### Fixed
 

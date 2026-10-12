@@ -60,8 +60,26 @@ import { extractPageImage, knownHostThumbnail, needsPageCover } from "./core/pag
 import { ownVideo } from "./core/source-video";
 import type { ClippingRecord } from "./core/scan";
 import type { GokoSettings } from "./core/settings";
+import { describeVideoProblems, videoProblem } from "./core/video-problems";
+import type { VideoProblem } from "./core/video-problems";
 
 const CACHE_FILE = "cache.json";
+
+/** Long enough to read a sentence that ends in what to do about it. */
+const PROBLEM_NOTICE_MS = 10000;
+
+/** Where a video problem goes: straight to a toast, or into a pass's pile. */
+export type ProblemSink = (problem: VideoProblem) => void;
+
+/** What fetching a post's own video needs to know besides the post. */
+interface SourceVideoOptions {
+  /** A duration cap for the yt-dlp route; unset means none. */
+  maxSeconds?: number;
+  /** The clipping's title, for naming it if the video does not arrive. */
+  title?: string;
+  /** Where a problem the person can fix goes; a toast unless said otherwise. */
+  report?: ProblemSink;
+}
 
 export interface ArchiveSummary {
   ok: number;
@@ -85,6 +103,18 @@ export class ArchiveService {
   onChange(cb: () => void): void {
     this.listeners.push(cb);
   }
+
+  /**
+   * Tells the person about videos that did not arrive for a reason they can
+   * act on. Everything else about archiving stays quiet.
+   */
+  private announce(problems: VideoProblem[]): void {
+    for (const message of describeVideoProblems(problems, this.settings().maxBytes)) {
+      new Notice(message, PROBLEM_NOTICE_MS);
+    }
+  }
+
+  private readonly announceNow: ProblemSink = (problem) => this.announce([problem]);
 
   /** Whether a background pass is downloading right now. */
   get busy(): boolean {
@@ -407,7 +437,8 @@ export class ArchiveService {
   async archiveRecord(
     record: ClippingRecord,
     retryFailed = false,
-    settle = true
+    settle = true,
+    report: ProblemSink = this.announceNow
   ): Promise<void> {
     this.adoptLocalMedia(record);
     const canonical = dedupeMedia(record.media).filter((m) => {
@@ -431,7 +462,7 @@ export class ArchiveService {
     // Runs regardless of whether anything inline was outstanding: on a
     // re-archive every ref is already on disk, and the post's own video
     // would otherwise never be fetched.
-    await this.archiveSourceVideo(record, retryFailed);
+    await this.archiveSourceVideo(record, retryFailed, report);
 
     // Nothing inline, or everything inline failed, so the page's own preview
     // image is the only thing left that could cover this tile.
@@ -523,7 +554,8 @@ export class ArchiveService {
    */
   private async archiveSourceVideo(
     record: ClippingRecord,
-    retryFailed: boolean
+    retryFailed: boolean,
+    report: ProblemSink
   ): Promise<void> {
     // A page this route would never fetch a video for has nothing to skip,
     // and its embeds are left exactly as they were.
@@ -539,8 +571,11 @@ export class ArchiveService {
       if (own.embedded) this.adoptLocalFile(own.key, own.file, "video");
       return;
     }
-    const limits = this.sourceVideoLimits(record.source);
-    await this.downloadSourceVideoFor(record.source, retryFailed, limits);
+    await this.downloadSourceVideoFor(record.source, retryFailed, {
+      ...this.sourceVideoLimits(record.source),
+      title: record.title,
+      report,
+    });
   }
 
   /**
@@ -576,7 +611,7 @@ export class ArchiveService {
   async downloadSourceVideoFor(
     source: string,
     retryFailed: boolean,
-    options: { maxSeconds?: number } = {}
+    options: SourceVideoOptions = {}
   ): Promise<string | null> {
     if (!source || !this.fetchesSourceVideo(source)) return null;
 
@@ -613,7 +648,10 @@ export class ArchiveService {
     const result = isThreadsUrl(source)
       ? await this.sniffedVideo(source, key)
       : await this.ytdlpVideo(source, key, options.maxSeconds);
-    if (!result) return null;
+    if (!result) {
+      this.reportVideoFailure(key, source, options);
+      return null;
+    }
 
     // The yt-dlp route holds itself to the cap before downloading; this is
     // the sniffed route's only check, and a backstop for the other.
@@ -623,6 +661,7 @@ export class ArchiveService {
         kind: "video",
         failed: `too large (${result.data.byteLength} bytes)`,
       });
+      this.reportVideoFailure(key, source, options);
       return null;
     }
 
@@ -640,6 +679,19 @@ export class ArchiveService {
       bytes: result.data.byteLength,
     });
     return path;
+  }
+
+  /**
+   * Passes on the failure just recorded for a post's video, when it is one
+   * the person can do something about. Only a fresh attempt gets here: a
+   * failure the cache already held was returned on before anything ran, so
+   * a pass over the library does not repeat what an earlier one said.
+   */
+  private reportVideoFailure(key: string, source: string, options: SourceVideoOptions): void {
+    const failed = this.cache.get(key)?.failed;
+    const problem = failed ? videoProblem(failed) : null;
+    if (!problem) return;
+    (options.report ?? this.announceNow)({ ...problem, source, title: options.title ?? "" });
   }
 
   /**
@@ -791,7 +843,8 @@ export class ArchiveService {
     media: Array<{ url: string; kind: "image" | "video" }>,
     onProgress?: (done: number, total: number) => void,
     onStage?: (label: string) => void,
-    sourceVideoUrl?: string
+    sourceVideoUrl?: string,
+    video: Pick<SourceVideoOptions, "title" | "report"> = {}
   ): Promise<{ byUrl: Map<string, string>; sourceVideo: string | null }> {
     const byUrl = new Map<string, string>();
     const canonical: CanonicalMedia[] = media.map((m) => ({
@@ -827,7 +880,10 @@ export class ArchiveService {
     }
     if (!haveVideo && !sourceVideo && this.fetchesSourceVideo(source)) {
       onStage?.("Fetching video…");
-      sourceVideo = await this.downloadSourceVideoFor(source, true, this.sourceVideoLimits(source));
+      sourceVideo = await this.downloadSourceVideoFor(source, true, {
+        ...this.sourceVideoLimits(source),
+        ...video,
+      });
     }
 
     // Scoped to what was just archived: capture must never wait behind the
@@ -1040,9 +1096,10 @@ export class ArchiveService {
   }
 
   /**
-   * Background pass: fills in whatever is missing without blocking or
-   * announcing itself. The grid shows remote covers meanwhile and swaps to
-   * local ones as they land.
+   * Background pass: fills in whatever is missing without blocking. The grid
+   * shows remote covers meanwhile and swaps to local ones as they land. The
+   * one thing it announces is a video that could not be saved for a reason
+   * the person can fix, once per kind when the pass is done.
    *
    * With `download` off it does only what needs no network: files already
    * in the vault get their previews and posters, and nothing is fetched.
@@ -1052,10 +1109,13 @@ export class ArchiveService {
   async archiveMissing(download = true): Promise<void> {
     if (this.running) return;
     this.running = true;
+    // Gathered for one toast per kind at the end, so a device catching up on
+    // a library's worth of clippings does not stack a toast for each.
+    const problems: VideoProblem[] = [];
     try {
       await this.absorbFromDisk();
       for (const record of this.index.records()) {
-        if (download) await this.archiveRecord(record, false, false);
+        if (download) await this.archiveRecord(record, false, false, (p) => problems.push(p));
         else this.adoptLocalMedia(record);
       }
       // Once, for the whole pass. Each record left its own outcomes in the
@@ -1067,6 +1127,7 @@ export class ArchiveService {
       // Background work never interrupts the user; the next pass retries.
     } finally {
       this.running = false;
+      this.announce(problems);
     }
   }
 
@@ -1076,11 +1137,12 @@ export class ArchiveService {
       return this.summary();
     }
     this.running = true;
+    const problems: VideoProblem[] = [];
     try {
       // The explicit command retries everything, hopeless renders included.
       this.cache.clearThumbFailures();
       for (const record of this.index.records()) {
-        await this.archiveRecord(record, true, false);
+        await this.archiveRecord(record, true, false, (p) => problems.push(p));
       }
       // Catches anything downloaded on an earlier run that never got a
       // thumbnail, for instance because the view was closed at the time.
@@ -1089,6 +1151,7 @@ export class ArchiveService {
       this.emit();
     } finally {
       this.running = false;
+      this.announce(problems);
     }
     return this.summary();
   }

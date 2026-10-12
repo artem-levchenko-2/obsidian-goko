@@ -39,6 +39,9 @@ export interface ProcessExit {
 
 export type YtdlpOutcome = { file: string } | { failed: string };
 
+/** How long one yt-dlp run may take before it is stopped. */
+export const DOWNLOAD_TIMEOUT_MS = 180000;
+
 export const TIMED_OUT = "yt-dlp timed out";
 export const NO_VIDEO = "yt-dlp found no video";
 export const NO_FORMAT = "yt-dlp found no suitable format";

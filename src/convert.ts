@@ -3,7 +3,7 @@ import { nodeRequire } from "./core/system";
 import { executableCandidates } from "./core/tools";
 import type { ToolEnv } from "./core/tools";
 import { NO_YTDLP } from "./core/archive";
-import { NO_VIDEO, classifyYtdlp, ytdlpArgs } from "./core/ytdlp";
+import { DOWNLOAD_TIMEOUT_MS, NO_VIDEO, classifyYtdlp, ytdlpArgs } from "./core/ytdlp";
 import type { ProcessExit, YtdlpLimits } from "./core/ytdlp";
 import type { InstallPlan } from "./core/tool-install";
 
@@ -334,7 +334,6 @@ function runCapturing(
   });
 }
 
-const DOWNLOAD_TIMEOUT_MS = 180000;
 
 /**
  * Downloads a post's video with yt-dlp, which speaks these sites natively.

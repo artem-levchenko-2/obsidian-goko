@@ -419,7 +419,11 @@ export class CaptureService {
       // Fetched into the file, never written as an address: it is signed and
       // expires. If it cannot be fetched the note keeps the poster, when the
       // link has one.
-      link.sourceVideoUrl
+      link.sourceVideoUrl,
+      // A video that did not arrive for a reason the person can fix is told
+      // at once, except in a batch, where five hundred toasts would bury it.
+      // The cache still records it, and Download all clipping media says it.
+      { title: link.title, report: options.quiet ? () => {} : undefined }
     );
 
     const media = link.media.map((item) => ({
