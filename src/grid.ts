@@ -220,6 +220,9 @@ interface TileElement {
    * while the pointer is on the card.
    */
   track: HTMLElement | null;
+  /** The frame sizeCard last wrote to and what it wrote, so an unchanged card is skipped. */
+  sizedFrame: Element | null;
+  sized: string;
 }
 
 /**
@@ -2371,6 +2374,8 @@ export class GridRenderer {
       frame: 0,
       dots: null,
       track: null,
+      sizedFrame: null,
+      sized: "",
     };
   }
 
@@ -2513,6 +2518,8 @@ export class GridRenderer {
     tile.frame = 0;
     tile.dots = null;
     tile.track = null;
+    tile.sizedFrame = null;
+    tile.sized = "";
     this.pool.push(tile);
   }
 
@@ -2644,7 +2651,7 @@ export class GridRenderer {
    * edge it is against, which is how a contact sheet behaves when you put a
    * loupe on the corner of it.
    */
-  private setMagnify(element: TileElement, position: Position): void {
+  private setMagnify(frame: HTMLElement, position: Position): void {
     const wantX = (position.w * (MAGNIFY - 1)) / 2;
     const wantY = (position.h * (MAGNIFY - 1)) / 2;
     const room = (before: number, after: number, want: number): [number, number] => {
@@ -2660,7 +2667,7 @@ export class GridRenderer {
       Math.max(0, this.layout.totalHeight - position.y - position.h),
       wantY
     );
-    const style = element.root.style;
+    const style = frame.style;
     style.setProperty("--goko-grow-l", `${Math.round(l)}px`);
     style.setProperty("--goko-grow-r", `${Math.round(r)}px`);
     style.setProperty("--goko-grow-t", `${Math.round(t)}px`);
@@ -2730,20 +2737,43 @@ export class GridRenderer {
     element.root.style.width = `${position.w}px`;
     element.root.style.height = `${position.h}px`;
 
-    // Scale that grows the card by exactly SELECT_LIFT on each edge, whatever
-    // its size. A uniform factor would lift a tall tile far more than a short
-    // one; the anisotropy here is under 2% and invisible.
-    const sx = position.w > SELECT_LIFT * 2 ? position.w / (position.w - SELECT_LIFT * 2) : 1;
-    const sy = position.h > SELECT_LIFT * 2 ? position.h / (position.h - SELECT_LIFT * 2) : 1;
-    element.root.style.setProperty("--goko-sx", sx.toFixed(4));
-    element.root.style.setProperty("--goko-sy", sy.toFixed(4));
-    this.setMagnify(element, position);
-
-    // Ahead of the early returns below. A pooled element can come back
-    // already carrying the incoming tile's signature, and a genuinely new
-    // clipping that landed on one would then skip its entrance entirely.
+    // Ahead of the content. A pooled element can come back already carrying
+    // the incoming tile's signature, and a genuinely new clipping that landed
+    // on one would then skip its entrance entirely.
     if (this.entering.has(model.id)) this.playEnter(element, model.id, order);
 
+    this.paintContent(element, model);
+    this.sizeCard(element, position);
+  }
+
+  /**
+   * The parts of a card that follow its size and place, written on the frame,
+   * which is the element that reads them. styles.css registers them as not
+   * inherited, so a change restyles the frame alone. Written on the tile, as
+   * they were, a change of tile size restyled every element of every card on
+   * the wall, the pills and the picture included.
+   */
+  private sizeCard(element: TileElement, position: Position): void {
+    const frame = element.root.firstElementChild;
+    if (!(frame instanceof HTMLElement) || !frame.hasClass("goko-frame")) return;
+    const key = [position.x, position.y, position.w, position.h, this.contentWidth, this.layout.totalHeight].join("|");
+    if (element.sizedFrame === frame && element.sized === key) return;
+    element.sizedFrame = frame;
+    element.sized = key;
+
+    // Scale that grows the card's longer side by exactly SELECT_LIFT at each
+    // end and the shorter by a little less, so it never leaves the inset it
+    // owns. One factor for both axes, per card: one constant for the wall
+    // would lift a tall tile far more than a short one, and a factor per
+    // axis stretches the rounded corners into ellipses, which the GPU draws
+    // with shaders of their own, built the first time a card is hovered.
+    const fit = (side: number): number => (side > SELECT_LIFT * 2 ? side / (side - SELECT_LIFT * 2) : 1);
+    frame.style.setProperty("--goko-s", Math.min(fit(position.w), fit(position.h)).toFixed(4));
+    this.setMagnify(frame, position);
+  }
+
+  /** What a card shows: built when it changes, left alone when it has not. */
+  private paintContent(element: TileElement, model: TileModel): void {
     if (element.signature === model.signature) return;
 
     // Posters are always local files; the painted asset may be either.

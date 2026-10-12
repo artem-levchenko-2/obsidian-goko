@@ -1,3 +1,34 @@
+/* Per-card values the wall writes on each card's frame, which is what reads
+   them, registered as not inherited. A custom property inherits unless it is
+   registered, so setting one on an element restyles everything inside it
+   too: written on the tile, a change of tile size restyled every element of
+   every card on the wall. The universal syntax keeps each var()'s fallback
+   working where the value is unset. */
+@property --goko-s {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --goko-grow-l {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --goko-grow-r {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --goko-grow-t {
+  syntax: "*";
+  inherits: false;
+}
+
+@property --goko-grow-b {
+  syntax: "*";
+  inherits: false;
+}
+
 .goko-view {
   /* One floating surface, defined once. The selection toolbar is the
      reference: every bar, menu and popup over the wall is the same material,
@@ -88,6 +119,8 @@
   /* Tile shadows are the thing that gives a light wall away fastest: an
      alpha tuned against near-black is a bruise against white. */
   --goko-tile-lift: 0 6px 18px rgba(0, 0, 0, 0.3);
+  /* The lift's own shape with no colour, worn at rest; see .goko-frame. */
+  --goko-tile-rest: 0 6px 18px rgba(0, 0, 0, 0);
   --goko-tile-lift-selected: 0 8px 22px rgba(0, 0, 0, 0.38);
   --goko-tile-lift-strong: 0 10px 26px rgba(0, 0, 0, 0.42);
 
@@ -139,6 +172,7 @@
   --goko-accent: #2563c9;
   --goko-on-accent: #ffffff;
   --goko-tile-lift: 0 4px 14px rgba(0, 0, 0, 0.12);
+  --goko-tile-rest: 0 4px 14px rgba(0, 0, 0, 0);
   --goko-tile-lift-selected: 0 6px 18px rgba(0, 0, 0, 0.16);
   --goko-tile-lift-strong: 0 8px 22px rgba(0, 0, 0, 0.2);
 }
@@ -887,6 +921,12 @@ body.goko-resizing {
   border-radius: 10px;
   background: var(--background-secondary);
   transform: scale(1);
+  /* The hover lift's shadow, already in place and fully transparent, so
+     lifting a card only fades it in. Grown from none, the blur passed through
+     every radius on the way, and the GPU builds a shader for each blur width
+     the first time it draws one: a pause of a tenth of a second or more
+     before a card rose, the first time each card was hovered. */
+  box-shadow: var(--goko-tile-rest);
   /* Resting state, so this is the transition that runs on the way OUT.
      Long and soft, so a card settles back to flat instead of snapping.
      `inset` is here for the tightest stage, where a hover grows the box
@@ -1232,24 +1272,6 @@ body.goko-resizing {
     transition:
       inset 300ms cubic-bezier(0.22, 0.61, 0.36, 1) 300ms,
       box-shadow 300ms ease 300ms;
-  }
-
-  /*
-   * The ring goes with it.
-   *
-   * At every other size the ring sits at the tile's own edge, because a
-   * selected card scales its frame out to exactly there. A magnified card
-   * does not scale — it grows — so the ring has to be told the same box, or
-   * it stays the size the card used to be and reads as a selection that
-   * came undone.
-   */
-  .goko-viewport.is-tiny:not(.is-dropping) .goko-tile.is-selected:hover::after {
-    inset:
-      calc(4px - var(--goko-grow-t, 0px))
-      calc(4px - var(--goko-grow-r, 0px))
-      calc(4px - var(--goko-grow-b, 0px))
-      calc(4px - var(--goko-grow-l, 0px));
-    transition: inset 300ms cubic-bezier(0.22, 0.61, 0.36, 1) 300ms;
   }
 }
 
@@ -1897,7 +1919,7 @@ body.goko-resizing {
 }
 
 .goko-tile.is-selected .goko-frame {
-  transform: scale(var(--goko-sx, 1), var(--goko-sy, 1));
+  transform: scale(var(--goko-s, 1));
   box-shadow: var(--goko-tile-lift-selected);
 }
 
@@ -1907,28 +1929,20 @@ body.goko-resizing {
  * hovering a selected card brought up the title fade over the ring, so
  * selection appeared to come undone under the cursor. A card's chrome
  * answers a hover; whether it is selected is not something a hover may have
- * an opinion about. */
-.goko-tile.is-selected::after {
+ * an opinion about. Above the badges inside the frame, which the frame's
+ * transform makes a stacking context of its own.
+ *
+ * On the frame itself, so it is the picture's own edge and corners however
+ * the frame is drawn: scaled by a selection or a hover, grown at the
+ * tightest stage, leaving or arriving. Its stroke scales with the frame, by
+ * a few hundredths. */
+.goko-tile.is-selected .goko-frame::after {
   content: "";
   position: absolute;
-  /* At the tile's own edge, not the frame's resting inset: a selected or
-     hovered card scales its frame up by exactly the four pixels the frame
-     was inset by, so the drawn frame fills the tile. At inset 4 the ring sat
-     inside the picture with its corners cutting across it. Drawn against the
-     tile rather than the frame for the other half of the same reason — the
-     scale is anisotropic, and a ring on the frame had its stroke stretched
-     wider one way than the other. */
   inset: 0;
   z-index: calc(var(--goko-layer-badges) + 1);
-  /* The frame's radius as that scale draws it, one axis at a time. The ring
-     and the scaled picture share the tile's edge, so their corners have to
-     be the same curve: at 14px, the ring's corner cut inside the picture's
-     and the picture showed past it at all four corners. */
-  border-radius: calc(10px * var(--goko-sx, 1)) / calc(10px * var(--goko-sy, 1));
+  border-radius: inherit;
   box-shadow: inset 0 0 0 3px var(--goko-accent);
-  /* Matches the frame's own resting transition, for the tightest stage where
-     a hover grows the box instead of scaling it. */
-  transition: inset 200ms cubic-bezier(0.33, 0, 0.2, 1);
   pointer-events: none;
 }
 
@@ -2052,7 +2066,7 @@ body.goko-resizing {
    shadow after the finger had gone, so on touch a card simply stays flat. */
 @media (hover: hover) {
   .goko-tile:hover .goko-frame {
-    transform: scale(var(--goko-sx, 1), var(--goko-sy, 1));
+    transform: scale(var(--goko-s, 1));
     box-shadow: var(--goko-tile-lift);
     /* While engaged, short enough to follow the cursor. Leaving hover falls
        back to the resting transition above, which is the gentle one. */
@@ -2071,11 +2085,11 @@ body.goko-resizing {
 .goko-viewport.is-panning .goko-tile:hover .goko-frame,
 .goko-viewport.is-selecting .goko-tile:hover .goko-frame {
   transform: scale(1);
-  box-shadow: none;
+  box-shadow: var(--goko-tile-rest);
 }
 
 .goko-viewport.is-selecting .goko-tile.is-selected .goko-frame {
-  transform: scale(var(--goko-sx, 1), var(--goko-sy, 1));
+  transform: scale(var(--goko-s, 1));
 }
 
 @media (prefers-reduced-motion: reduce) {
