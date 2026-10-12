@@ -13,7 +13,7 @@ import { segmentIndex, stepIndex } from "./core/carousel";
 import { setGlyph } from "./glyph";
 import { paintSwatchStrip, readSwatches } from "./core/swatch-strip";
 import { systemAvailable } from "./core/system";
-import { previewOf } from "./core/tile";
+import { pictureOf } from "./core/tile";
 import type { TileModel } from "./core/tile";
 import { attachTip } from "./core/tip";
 import { watchedOnYoutube } from "./core/youtube";
@@ -252,9 +252,11 @@ export class Inspector {
   /**
    * The picture, with what it is written over the corner.
    *
-   * Reads the same preview the wall is already showing, so this costs a
-   * cached decode rather than a fetch. A video has no still to show unless it
-   * was given a poster, and shows its format chip alone rather than a hole.
+   * Reads the file the wall paints, so this costs a cached decode rather than
+   * a fetch. A GIF plays here, as a video does, though on the wall it rests
+   * on its still until the pointer is over it. A video has no still to show
+   * unless it was given a poster, and shows its format chip alone rather
+   * than a hole.
    */
   private paintPreview(model: TileModel): void {
     const frame = this.body.createDiv({ cls: "goko-inspector-frame" });
@@ -272,7 +274,7 @@ export class Inspector {
       return;
     }
 
-    const preview = previewOf(model);
+    const preview = pictureOf(model);
     if (!preview) {
       const glyph = frame.createSpan({ cls: "goko-inspector-noframe" });
       setIcon(glyph, model.kind === "video" ? "play" : "file-text");
@@ -281,7 +283,7 @@ export class Inspector {
 
     const image = frame.createEl("img", { cls: "goko-inspector-image" });
     const src = (tile: TileModel): string => {
-      const held = previewOf(tile);
+      const held = pictureOf(tile);
       if (!held) return "";
       return held.remote ? held.path : this.handlers.resource(held.path);
     };
@@ -378,7 +380,7 @@ export class Inspector {
     model: TileModel,
     src: (tile: TileModel) => string
   ): void {
-    const reel = this.handlers.reelFor(model).filter((tile) => previewOf(tile) !== null);
+    const reel = this.handlers.reelFor(model).filter((tile) => pictureOf(tile) !== null);
     if (reel.length < 2) return;
 
     frame.addClass("is-reel");

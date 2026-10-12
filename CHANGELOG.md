@@ -93,6 +93,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   over 8 MB stays on its still on the wall, as it was always meant to,
   since playing it costs more than the motion is worth; it plays once its
   card is open.
+- A GIF picked on the wall showed only a still in the side panel, the one
+  made for list rows. It plays there now, as a video does.
 - On a phone, Search offers Describe with AI and File as suggested for the
   selected cards again. Both had been left out with the actions that need a
   desktop's file system, which they do not.

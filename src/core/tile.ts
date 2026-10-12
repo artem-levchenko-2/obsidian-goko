@@ -611,3 +611,16 @@ export function previewOf(tile: TileModel): Preview | null {
   if (tile.kind === "video") return null;
   return tile.filePath ? { path: tile.filePath, remote: tile.remote } : null;
 }
+
+/**
+ * The picture for the panel that shows one card, or null when there is none.
+ *
+ * The file itself wherever an img can hold it, so a GIF moves there as a
+ * video plays there: picking one card is the deliberate act that hovering
+ * stands in for on the wall. Only a GIF has a still for previewOf to prefer,
+ * so it is the one picture this changes.
+ */
+export function pictureOf(tile: TileModel): Preview | null {
+  if (tile.kind === "image" && tile.filePath) return { path: tile.filePath, remote: tile.remote };
+  return previewOf(tile);
+}

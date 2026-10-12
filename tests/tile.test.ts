@@ -7,6 +7,8 @@ import {
   mediaCount,
   noteText,
   noteTileHeight,
+  pictureOf,
+  previewOf,
   tilesForRecord,
 } from "../src/core/tile";
 import { COMBOLANDS_BODY, COMBOLANDS_FM, NOOK_BODY, NOOK_FM } from "./fixtures/clippings";
@@ -435,6 +437,28 @@ describe("animated covers", () => {
     const tile = buildTiles([combolands], cache)[0];
     expect(tile.filePath).toBe("F7.gif");
     expect(tile.posterPath).toBe("T7.webp");
+  });
+
+  it("plays a gif in the panel, and keeps its still for a row", () => {
+    const cache = cacheWith([
+      [COMBO_7, { file: "F7.gif", thumb: "T7.webp", width: 960, height: 420, bytes: 101_000 }],
+    ]);
+    const tile = buildTiles([combolands], cache)[0];
+    expect(pictureOf(tile)).toEqual({ path: "F7.gif", remote: false });
+    expect(previewOf(tile)).toEqual({ path: "T7.webp", remote: false });
+  });
+
+  it("gives the panel the same picture as a row for anything but a gif", () => {
+    const image = buildTiles(
+      [combolands],
+      cacheWith([[COMBO_7, { file: "F7.jpg", thumb: "T7.webp", width: 1920, height: 1080 }]])
+    )[0];
+    expect(pictureOf(image)).toEqual(previewOf(image));
+    const video = buildTiles(
+      [nook],
+      cacheWith([[NOOK_MP4, { kind: "video", file: "c.mp4", thumb: "c.poster.webp", width: 886, height: 1920 }]])
+    )[0];
+    expect(pictureOf(video)).toEqual({ path: "c.poster.webp", remote: false });
   });
 
   it("keeps a poster for video", () => {
