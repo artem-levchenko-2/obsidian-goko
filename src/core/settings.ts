@@ -24,6 +24,13 @@ export interface GokoSettings {
   archiveOnCreate: boolean;
   /** Add new files in the clippings folder to the wall as they appear. */
   watchClippings: boolean;
+  /**
+   * Whether the wall's videos play by themselves while they are in view.
+   * Off by default, so a video plays while the pointer is over it: a wall
+   * where every video in sight runs at once is a lot to look at, and it is
+   * the person's to ask for. A phone has no pointer, so there a video stands
+   * as its still on the wall and plays once its card is open.
+   */
   autoplayVideo: boolean;
   maxBytes: number;
   /**
@@ -232,7 +239,7 @@ export const DEFAULT_SETTINGS: GokoSettings = {
   attachmentFolder: "Attachments/Clippings",
   archiveOnCreate: true,
   watchClippings: true,
-  autoplayVideo: true,
+  autoplayVideo: false,
   maxBytes: 26214400,
   youtubeVideoMinutes: 0,
   thumbnailWidth: 400,

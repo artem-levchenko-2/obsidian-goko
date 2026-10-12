@@ -48,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that have only the day stand under that day's timed ones, ordered by title
   as before. The details panel shows when a clipping was saved as a date and
   a time in your own format rather than as the raw value.
+- Videos on the wall play while the pointer is over them, rather than all at
+  once whenever they are in view. Autoplay videos, in the settings, turns
+  the old way back on. This is the starting point of a new install: a vault
+  that already has Goko keeps what its settings say. On a phone, which has
+  no pointer, a video plays once its card is open.
 
 ### Fixed
 

@@ -87,11 +87,11 @@ describe("sharedOf and withShared", () => {
   it("leaves the device's half alone when merging", () => {
     // The whole point of the split: a phone keeps its own density and its own
     // open grid even as the desktop's grids arrive.
-    const local = { ...DEFAULT_SETTINGS, tileSize: "s" as const, autoplayVideo: false, activeGrid: "Manga" };
+    const local = { ...DEFAULT_SETTINGS, tileSize: "s" as const, autoplayVideo: true, activeGrid: "Manga" };
     const merged = withShared(local, fallback);
     expect(merged.grids).toEqual(fallback.grids);
     expect(merged.tileSize).toBe("s");
-    expect(merged.autoplayVideo).toBe(false);
+    expect(merged.autoplayVideo).toBe(true);
     expect(merged.activeGrid).toBe("Manga");
   });
 });

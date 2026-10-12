@@ -15,4 +15,8 @@ describe("settings", () => {
   it("caps files at 25MB", () => {
     expect(DEFAULT_SETTINGS.maxBytes).toBe(25 * 1024 * 1024);
   });
+
+  it("plays a video on the wall only while it is hovered", () => {
+    expect(DEFAULT_SETTINGS.autoplayVideo).toBe(false);
+  });
 });
