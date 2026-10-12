@@ -400,7 +400,7 @@ export class GridRenderer {
 
   constructor(private app: App, container: HTMLElement) {
     this.viewport = container.createDiv({ cls: "goko-viewport" });
-    this.viewport.dataset.density = DEFAULT_STAGE;
+    this.stampDensity(DEFAULT_STAGE);
 
     /*
      * On touch the wall is scrolled by the browser rather than by us.
@@ -733,7 +733,7 @@ export class GridRenderer {
    * place you were looking rather than jumping back to the top.
    */
   setDensity(stage: DensityStage): void {
-    this.viewport.dataset.density = stage;
+    this.stampDensity(stage);
     if (stage === this.density) return;
     this.density = stage;
     // Folders count as something to lay out. A grid can hold nothing but
@@ -744,6 +744,21 @@ export class GridRenderer {
     // A folder's height is measured off the stage too, so it is not only
     // the columns that were stale.
     if (this.tiles.length > 0 || this.folders.length > 0) this.relayout();
+  }
+
+  /**
+   * Names the stage for the stylesheet as a class for each of the two stages
+   * it trims chrome at, rather than as the stage itself. Chromium restyles
+   * everything a selector on an attribute could match whenever the attribute
+   * changes at all, so a stage attribute restyled every card's pills and
+   * frame on every step, between Medium and Large too, where no rule
+   * differs; a class that stays put costs nothing. The attribute stays, for
+   * reading the stage off the page, with no selector on it.
+   */
+  private stampDensity(stage: DensityStage): void {
+    this.viewport.dataset.density = stage;
+    this.viewport.toggleClass("is-tiny", stage === "xs");
+    this.viewport.toggleClass("is-small", stage === "s");
   }
 
   private viewportSize(): { width: number; height: number } {

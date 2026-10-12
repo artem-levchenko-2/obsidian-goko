@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The wall does less work as you move over it and change the tile size. The
+  pills a card shows on hover no longer keep a layer of their own on every
+  card while hidden, and a step between tile sizes no longer restyles every
+  card's pills and frame.
 - Goko and another plugin that used the same class names no longer restyle
   each other when both are on in one vault. With both on, Goko's bar shrank
   to an empty strip and card captions moved to the top. If you style Goko

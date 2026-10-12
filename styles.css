@@ -1090,17 +1090,17 @@ body.goko-resizing {
    a stamp. A name and a mark is all a card that small can honestly show, so
    the body is dropped — core/tile.ts drops it from the measurement at the
    same width, COMPACT_COLUMN. */
-.goko-viewport[data-density="xs"] .goko-sheet {
+.goko-viewport.is-tiny .goko-sheet {
   inset: 6px;
   padding: 8px;
 }
 
-.goko-viewport[data-density="xs"] .goko-sheet-host,
-.goko-viewport[data-density="xs"] .goko-sheet-text {
+.goko-viewport.is-tiny .goko-sheet-host,
+.goko-viewport.is-tiny .goko-sheet-text {
   display: none;
 }
 
-.goko-viewport[data-density="xs"] .goko-sheet-title {
+.goko-viewport.is-tiny .goko-sheet-title {
   -webkit-line-clamp: 2;
   line-clamp: 2;
 }
@@ -1109,11 +1109,11 @@ body.goko-resizing {
    the room a magnification buys is exactly the room the words needed: this
    is what makes a wall of tiny cards readable without leaving sorting. */
 @media (hover: hover) and (pointer: fine) {
-  .goko-viewport[data-density="xs"]:not(.is-dropping) .goko-tile:hover .goko-sheet-host {
+  .goko-viewport.is-tiny:not(.is-dropping) .goko-tile:hover .goko-sheet-host {
     display: block;
   }
 
-  .goko-viewport[data-density="xs"]:not(.is-dropping) .goko-tile:hover .goko-sheet-text {
+  .goko-viewport.is-tiny:not(.is-dropping) .goko-tile:hover .goko-sheet-text {
     display: -webkit-box;
     -webkit-line-clamp: 4;
     line-clamp: 4;
@@ -1136,7 +1136,14 @@ body.goko-resizing {
   /* One block, in one corner. */
   justify-content: flex-end;
   opacity: 0;
-  transition: opacity 120ms ease;
+  /* Hidden as well as transparent at rest, once the fade out has run. Each
+     pill blurs what is behind it, and a transparent pill still keeps a
+     compositor layer for that, on every card on the wall; a hidden one
+     keeps none. */
+  visibility: hidden;
+  transition:
+    opacity 120ms ease,
+    visibility 0s linear 120ms;
   pointer-events: none;
 }
 
@@ -1145,6 +1152,10 @@ body.goko-resizing {
 @media (hover: hover) {
   .goko-tile:hover .goko-meta {
     opacity: 1;
+    visibility: visible;
+    transition:
+      opacity 120ms ease,
+      visibility 0s;
   }
 }
 
@@ -1163,34 +1174,34 @@ body.goko-resizing {
    * being over a card still the size of a stamp read as a glitch: the chrome
    * has to arrive after the card is big enough to hold it.
    */
-  .goko-viewport[data-density="xs"] .goko-marks,
-  .goko-viewport[data-density="xs"] .goko-dots,
-  .goko-viewport[data-density="xs"] .goko-suggest {
+  .goko-viewport.is-tiny .goko-marks,
+  .goko-viewport.is-tiny .goko-dots,
+  .goko-viewport.is-tiny .goko-suggest {
     opacity: 0;
     pointer-events: none;
     transition: opacity 200ms ease;
   }
 
-  .goko-viewport[data-density="xs"] .goko-tile:hover .goko-marks,
-  .goko-viewport[data-density="xs"] .goko-tile:hover .goko-dots,
-  .goko-viewport[data-density="xs"] .goko-tile:hover .goko-suggest {
+  .goko-viewport.is-tiny .goko-tile:hover .goko-marks,
+  .goko-viewport.is-tiny .goko-tile:hover .goko-dots,
+  .goko-viewport.is-tiny .goko-tile:hover .goko-suggest {
     opacity: 1;
     transition-delay: 420ms;
   }
 
-  .goko-viewport[data-density="xs"] .goko-tile:hover .goko-suggest {
+  .goko-viewport.is-tiny .goko-tile:hover .goko-suggest {
     pointer-events: auto;
   }
 
   /* The pills and the caption ride the same delay. They are already an
      opacity the wall fades on hover, so this only holds them back. */
-  .goko-viewport[data-density="xs"] .goko-tile:hover .goko-meta {
+  .goko-viewport.is-tiny .goko-tile:hover .goko-meta {
     transition-delay: 420ms;
   }
 
   /* Above the selection ring's layer, so a magnified card is over its
      neighbours whatever state they are in. */
-  .goko-viewport[data-density="xs"] .goko-tile:hover {
+  .goko-viewport.is-tiny .goko-tile:hover {
     z-index: 8;
   }
 
@@ -1211,7 +1222,7 @@ body.goko-resizing {
    * stop, and then the card you stopped on opens. Leaving has no delay: a
    * card you have moved off is a card you are done with.
    */
-  .goko-viewport[data-density="xs"]:not(.is-dropping) .goko-tile:hover .goko-frame {
+  .goko-viewport.is-tiny:not(.is-dropping) .goko-tile:hover .goko-frame {
     inset:
       calc(4px - var(--goko-grow-t, 0px))
       calc(4px - var(--goko-grow-r, 0px))
@@ -1232,7 +1243,7 @@ body.goko-resizing {
    * it stays the size the card used to be and reads as a selection that
    * came undone.
    */
-  .goko-viewport[data-density="xs"]:not(.is-dropping) .goko-tile.is-selected:hover::after {
+  .goko-viewport.is-tiny:not(.is-dropping) .goko-tile.is-selected:hover::after {
     inset:
       calc(4px - var(--goko-grow-t, 0px))
       calc(4px - var(--goko-grow-r, 0px))
@@ -1692,7 +1703,7 @@ body.goko-resizing {
 
 
 
-.goko-viewport[data-density="s"] .goko-badges {
+.goko-viewport.is-small .goko-badges {
   max-height: 19px;
 }
 
