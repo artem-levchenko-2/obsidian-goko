@@ -97,6 +97,12 @@ describe("buildCommands", () => {
     expect(list).not.toContain("selection:reveal");
   });
 
+  it("keeps the model and the suggestions on a phone, which need no file system", () => {
+    const list = ids(context({ selection: ["a.md"], hasSystem: false, suggested: 1 }));
+    expect(list).toContain("selection:describe");
+    expect(list).toContain("selection:file-suggested");
+  });
+
   it("marks deletion destructive", () => {
     expect(find(context({ selection: ["a.md"] }), "selection:delete")?.destructive).toBe(true);
   });

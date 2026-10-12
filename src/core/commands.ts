@@ -200,43 +200,45 @@ function selectionCommands(context: PaletteContext): PaletteCommand[] {
       keywords: "save copy download file",
       run: () => actions.exportSelection(selection),
     });
+  }
 
-    // Each card to its own suggested place. Ahead of the model, since it is
-    // the thing a selection on the inbox is most likely there to do.
-    if (context.suggested) {
-      items.push({
-        id: "selection:file-suggested",
-        label:
-          context.suggested === 1 ? "File as suggested" : `File ${context.suggested} as suggested`,
-        icon: "list-checks",
-        section: "Actions",
-        keywords: "file suggested accept suggestion move sort inbox",
-        run: () => actions.fileSuggested(selection),
-      });
-    }
-
-    // Even ones already described: a person pointing at a card means it,
-    // where the bulk row below leaves a finished card alone.
+  // Each card to its own suggested place. Ahead of the model, since it is
+  // the thing a selection on the inbox is most likely there to do. Neither
+  // this nor the model needs a file system, and both sat inside the gate
+  // above, which kept them off every phone.
+  if (context.suggested) {
     items.push({
-      id: "selection:describe",
-      label: selection.length === 1 ? "Describe with AI" : `Describe ${selection.length} with AI`,
-      icon: "sparkles",
+      id: "selection:file-suggested",
+      label:
+        context.suggested === 1 ? "File as suggested" : `File ${context.suggested} as suggested`,
+      icon: "list-checks",
       section: "Actions",
-      keywords: "ai vision summary tags describe annotate model",
-      run: () => actions.describe(selection),
+      keywords: "file suggested accept suggestion move sort inbox",
+      run: () => actions.fileSuggested(selection),
     });
+  }
 
-    // Revealing picks one file, so a selection of many has no single answer.
-    if (one) {
-      items.push({
-        id: "selection:reveal",
-        label: "Show in system explorer",
-        icon: "folder",
-        section: "Actions",
-        keywords: "finder show file folder disk",
-        run: () => actions.reveal(selection[0]),
-      });
-    }
+  // Even ones already described: a person pointing at a card means it,
+  // where the bulk row below leaves a finished card alone.
+  items.push({
+    id: "selection:describe",
+    label: selection.length === 1 ? "Describe with AI" : `Describe ${selection.length} with AI`,
+    icon: "sparkles",
+    section: "Actions",
+    keywords: "ai vision summary tags describe annotate model",
+    run: () => actions.describe(selection),
+  });
+
+  // Revealing picks one file, so a selection of many has no single answer.
+  if (context.hasSystem && one) {
+    items.push({
+      id: "selection:reveal",
+      label: "Show in system explorer",
+      icon: "folder",
+      section: "Actions",
+      keywords: "finder show file folder disk",
+      run: () => actions.reveal(selection[0]),
+    });
   }
 
   // Moving to the grid you are already in does nothing, and every selected

@@ -43,6 +43,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A card no longer pauses before it lifts the first time it is hovered. The
   lift's shadow is already there at rest, transparent, and the lift scales
   both sides by one factor, so its rounded corners stay round.
+- On a phone, Search offers Describe with AI and File as suggested for the
+  selected cards again. Both had been left out with the actions that need a
+  desktop's file system, which they do not.
 - Goko and another plugin that used the same class names no longer restyle
   each other when both are on in one vault. With both on, Goko's bar shrank
   to an empty strip and card captions moved to the top. If you style Goko
