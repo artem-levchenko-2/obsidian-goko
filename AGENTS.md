@@ -45,10 +45,11 @@ when it is installed).
 **`main` is what people install.** Obsidian reads `manifest.json` on `main` to
 learn the newest version and shows the `README.md` there on the plugin's page,
 and a clone builds whatever `main` holds. So no change goes there straight
-away: it lives in a branch of its own (push it, and CI tests it), another
-agent reviews it in a fresh session, and it reaches `main` as a fast-forward
-once the maintainer approves, usually with a release. No squash: commits keep
-their authors. If `main` has moved on meanwhile, rebase the branch onto
+away: it lives in the release's branch, `release-X.Y.Z`, as a commit of its
+own (push it, and CI tests it), another agent reviews the branch in a fresh
+session, and it reaches `main` as a fast-forward once the maintainer
+approves. A change too large to review with the rest of a release gets a
+branch of its own. No squash: commits keep their authors. If `main` has moved on meanwhile, rebase the branch onto
 `origin/main`, push it again and wait for CI; a rebase that changed code needs
 a new review.
 
@@ -119,7 +120,7 @@ closed — otherwise the desktop finishes the downloads and hides the gap.
 ## Releasing
 
 1. Changes collect under `## [Unreleased]` in `CHANGELOG.md`, each in the
-   branch that makes it.
+   commit that makes it.
 2. Bump `version` in `manifest.json` and `package.json`, add
    `"X.Y.Z": "<minAppVersion>"` to `versions.json`, rename the heading to
    `## [X.Y.Z] - YYYY-MM-DD`, and commit as `Goko X.Y.Z`: the last commit of
