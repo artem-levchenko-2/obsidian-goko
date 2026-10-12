@@ -111,6 +111,18 @@ function readAuthor(html: string, alts: string[]): string {
 }
 
 /**
+ * Whether the embed answered with Instagram's own notice instead of the post.
+ *
+ * A private post, a removed one and a mistyped address all draw that same
+ * card for a reader who is not signed in, so this cannot say which of them
+ * it was. Only that Instagram itself said no, which an embed that has merely
+ * changed shape does not say.
+ */
+export function instagramWithheld(html: string): boolean {
+  return WITHHELD.test(html);
+}
+
+/**
  * The pictures and the author of a post, from the markup of its embed page.
  *
  * For some posts the embed sends no data at all — `contextJSON` is null and
@@ -134,18 +146,6 @@ function readAuthor(html: string, alts: string[]): string {
  * Null when the page draws no picture, which is also how a removed post, a
  * private one or a changed page arrives.
  */
-/**
- * Whether the embed answered with Instagram's own notice instead of the post.
- *
- * A private post, a removed one and a mistyped address all draw that same
- * card for a reader who is not signed in, so this cannot say which of them
- * it was. Only that Instagram itself said no, which an embed that has merely
- * changed shape does not say.
- */
-export function instagramWithheld(html: string): boolean {
-  return WITHHELD.test(html);
-}
-
 export function parseInstagramHtmlEmbed(html: string): InstagramPost | null {
   const media: ResolvedMedia[] = [];
   const alts: string[] = [];
