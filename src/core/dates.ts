@@ -206,14 +206,22 @@ export function nowISO(now: Date = new Date()): string {
   return `${todayISO(now)}T${time}`;
 }
 
-/** A local date and time, written with a T or a space, with or without seconds. */
-const LOCAL_DATE_TIME = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/;
+/**
+ * A date and time, written with a T or a space, with or without seconds and
+ * their fractions, and with or without the offset of the zone it was written
+ * in.
+ */
+const DATE_TIME = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?$/i;
 
 /**
  * A `created` value in the one form that sorts as text: a date and time as
- * `YYYY-MM-DDTHH:mm:ss`, a bare date as it is. Obsidian writes the time with
- * a T and seconds, a hand might write a space and leave the seconds off, and
- * each would otherwise sort by its punctuation. Anything else is left alone.
+ * `YYYY-MM-DDTHH:mm:ss` on this device's clock, a bare date as it is.
+ * Obsidian writes the time with a T and seconds, a hand might write a space
+ * and leave the seconds off, and each would otherwise sort by its
+ * punctuation. Obsidian's Web Clipper, set to write a date and time, adds
+ * the zone's offset, and such a value is moved onto this device's clock so
+ * it sorts among the rest by the moment it names. Anything else is left
+ * alone.
  *
  * A bare date sorts under every time on the same day, since text that stops
  * sooner sorts first: the notes from before times were written stand under
@@ -221,8 +229,37 @@ const LOCAL_DATE_TIME = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/;
  */
 export function createdKey(value: string): string {
   const trimmed = value.trim();
-  const parts = LOCAL_DATE_TIME.exec(trimmed);
-  return parts ? `${parts[1]}T${parts[2]}:${parts[3]}:${parts[4] ?? "00"}` : trimmed;
+  const parts = DATE_TIME.exec(trimmed);
+  if (!parts) return trimmed;
+  const local = `${parts[1]}T${parts[2]}:${parts[3]}:${parts[4] ?? "00"}`;
+  if (!parts[5]) return local;
+  const zone = parts[5].toUpperCase() === "Z" ? "Z" : parts[5].replace(/^([+-]\d{2})(\d{2})$/, "$1:$2");
+  const at = Date.parse(`${local}${zone}`);
+  return Number.isNaN(at) ? local : nowISO(new Date(at));
+}
+
+/**
+ * The `created` values for clippings added together, one each, in the order
+ * they were added: the first is the newest, so on a wall ordered newest
+ * first a batch stands in the order it arrived in, its first item at the
+ * top.
+ *
+ * No two are the same second, and none is a second already given out:
+ * `last` is the newest value given before. Two clippings that shared a second
+ * used to fall back on their titles, and a batch came out in alphabetical
+ * order. A batch quicker than one a second therefore runs a little ahead of
+ * the clock, by as many seconds as it has items, which is the price of an
+ * order that needs no second key.
+ */
+export function stampsFor(count: number, now: Date, last: string): string[] {
+  let base = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours(), now.getMinutes(), now.getSeconds());
+  const after = DATE_TIME.exec(last);
+  if (after && !after[5]) {
+    const [year, month, day] = after[1].split("-").map(Number);
+    const next = new Date(year, month - 1, day, Number(after[2]), Number(after[3]), Number(after[4] ?? 0) + 1);
+    if (next.getTime() > base.getTime()) base = next;
+  }
+  return Array.from({ length: Math.max(0, count) }, (_, i) => nowISO(new Date(base.getTime() + (count - 1 - i) * 1000)));
 }
 
 /**

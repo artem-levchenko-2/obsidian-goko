@@ -161,3 +161,32 @@ export function withGridKey(body: string, grid: string): string {
   if (line) kept.push(line);
   return bom + ["---", ...kept, ...lines.slice(end)].join(eol);
 }
+
+/**
+ * A dropped note's text with the time it was added written in as `created`,
+ * when it brought none. The wall orders by that key, and a note without it
+ * went to the very end, under everything else, which is the last place a
+ * note just dropped belongs.
+ *
+ * A `created` the note does carry is its own account of itself and is kept,
+ * whatever it says. One that is there and empty is filled, since it says
+ * nothing.
+ */
+export function withCreated(body: string, created: string): string {
+  const bom = body.startsWith("\uFEFF") ? "\uFEFF" : "";
+  const text = body.slice(bom.length);
+  const eol = text.includes("\r\n") ? "\r\n" : "\n";
+  const line = `created: ${created}`;
+  const lines = text.split(/\r?\n/);
+
+  const end = lines[0]?.trimEnd() === "---" ? lines.findIndex((l, i) => i > 0 && l.trimEnd() === "---") : -1;
+  if (end < 0) return bom + ["---", line, "---", ""].join(eol) + text;
+
+  const at = lines.findIndex((l, i) => i > 0 && i < end && /^created\s*:/.test(l));
+  if (at < 0) return bom + [...lines.slice(0, end), line, ...lines.slice(end)].join(eol);
+  const value = lines[at].replace(/^created\s*:/, "").trim();
+  // A list hung under an empty key is still a value of a kind.
+  const hung = at + 1 < end && /^(\s|-)/.test(lines[at + 1]);
+  if (hung || !/^(""|'')?$/.test(value)) return body;
+  return bom + [...lines.slice(0, at), line, ...lines.slice(at + 1)].join(eol);
+}

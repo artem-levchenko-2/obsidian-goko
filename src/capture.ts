@@ -1,6 +1,6 @@
 import { App, Notice, Platform, TFile, normalizePath, requestUrl } from "obsidian";
 import type { ArchiveService } from "./archive-service";
-import { nowISO } from "./core/dates";
+import { stampsFor } from "./core/dates";
 import { extensionForMime, extensionOf, kindForMime, needsPreview } from "./core/formats";
 import { domainOf } from "./core/scan";
 import { pdfPathOf, readPdfIntoNote } from "./core/pdf";
@@ -10,7 +10,7 @@ import { PreviewNotices } from "./core/preview-route";
 import { readArticle } from "./article";
 import { normalizeUrl } from "./core/normalize";
 import { fileableGrid } from "./core/spaces";
-import { withGridKey } from "./core/drop";
+import { withCreated, withGridKey } from "./core/drop";
 import { freePath, takenIgnoringCase } from "./core/placement";
 import type { ClippingIndex } from "./index-store";
 import {
@@ -78,6 +78,14 @@ function todayStamp(): string {
   );
 }
 
+/** How one capture is made: by hand or in a batch, and when it was added. */
+export interface CaptureOptions {
+  /** One of a batch: no notices, no tabs, no model. See capture(). */
+  quiet?: boolean;
+  /** The `created` a batch reserved for this item; taken now when absent. */
+  created?: string;
+}
+
 export class CaptureService {
   /** Set by the grid view so capture can drive its progress bar. */
   onProgress: ((state: ProgressState | null) => void) | null = null;
@@ -108,6 +116,8 @@ export class CaptureService {
    * to be open. Awaited, so the note opens with its new keys already on it.
    */
   onDuplicate: ((path: string) => Promise<void>) | null = null;
+  /** The newest `created` this device has given out, so none is given twice. */
+  private lastStamp = "";
 
   constructor(
     private app: App,
@@ -122,6 +132,20 @@ export class CaptureService {
      */
     private folderForGrid: (grid: string) => string = () => normalizePath(settings().clippingsFolder)
   ) {}
+
+  /**
+   * The `created` values for clippings about to be added, one each, the
+   * first the newest: see stampsFor. Taken when they are added rather than
+   * when their notes are written, since a clip of a long video can take a
+   * minute to download and would otherwise land under one added after it.
+   * A batch takes all of its values before it starts, so it keeps the order
+   * it arrived in however long each item takes.
+   */
+  reserveCreated(count: number): string[] {
+    const stamps = stampsFor(count, new Date(), this.lastStamp);
+    if (stamps.length > 0) this.lastStamp = stamps[0];
+    return stamps;
+  }
 
   async captureFromClipboard(): Promise<void> {
     let text = "";
@@ -183,12 +207,13 @@ export class CaptureService {
    * is worth far more than the stamp a paste has to settle for; without one
    * the stamp is used, because a paste genuinely has nothing else to go on.
    */
-  async captureMedia(blob: Blob, label = "", options: { quiet?: boolean } = {}): Promise<void> {
+  async captureMedia(blob: Blob, label = "", options: CaptureOptions = {}): Promise<void> {
     const kind = kindForMime(blob.type);
     if (!kind) {
       if (!options.quiet) new Notice("Goko: that is not a picture or a video");
       return;
     }
+    const created = options.created ?? this.reserveCreated(1)[0];
 
     this.report(0.3, `Saving ${kind}…`);
     const attachment = await this.saveAttachment(blob);
@@ -212,7 +237,7 @@ export class CaptureService {
     try {
       const file = await this.app.vault.create(
         notePath,
-        buildPastedImageNote(title, attachment, nowISO(), grid)
+        buildPastedImageNote(title, attachment, created, grid)
       );
       // Same as the link path: ingest alone leaves the grid unaware.
       await this.index.handleModify(file);
@@ -302,23 +327,20 @@ export class CaptureService {
    * Files a markdown note that already exists as a clipping.
    *
    * The cheapest capture there is, because a clipping IS a markdown note in
-   * the clippings folder: bringing one in is copying it there. The one thing
-   * added is the grid it was dropped on, which is what filing it means where
-   * a grid is a key (see withGridKey); nothing else is rewritten — a note
-   * dropped on the wall is somebody's writing, and the plugin's opinion about
-   * frontmatter is not worth imposing on it. scanClipping falls back to the
-   * file name for a title, so even a note with no frontmatter at all gets a
-   * card that says what it is.
+   * the clippings folder: bringing one in is copying it there. Two things
+   * are added: the grid it was dropped on, which is what filing it means
+   * where a grid is a key (see withGridKey), and the time it was added, when
+   * it carries no `created` of its own (see withCreated). Nothing else is
+   * rewritten — a note dropped on the wall is somebody's writing, and the
+   * plugin's opinion about frontmatter is not worth imposing on it.
+   * scanClipping falls back to the file name for a title, so even a note
+   * with no frontmatter at all gets a card that says what it is.
    *
    * Copied rather than moved: the file is somewhere the reader put it, and
    * an import that empties a folder is an import nobody trusts twice.
    */
-  async captureNote(
-    body: string,
-    name: string,
-    grid?: string,
-    options: { quiet?: boolean } = {}
-  ): Promise<void> {
+  async captureNote(body: string, name: string, grid?: string, options: CaptureOptions = {}): Promise<void> {
+    const created = options.created ?? this.reserveCreated(1)[0];
     const title = noteNameFor(name.replace(/\.md$/i, ""), "");
     const target = this.targetGrid(grid);
     const folder = normalizePath(this.folderForGrid(target));
@@ -330,7 +352,7 @@ export class CaptureService {
 
     let file: TFile;
     try {
-      file = await this.app.vault.create(path, withGridKey(body, target));
+      file = await this.app.vault.create(path, withCreated(withGridKey(body, target), created));
     } catch (error) {
       if (!options.quiet) new Notice(`Goko: could not add the note (${String(error)})`);
       return;
@@ -366,7 +388,7 @@ export class CaptureService {
    * tabs, a thousand frontmatter writes for things that changed nothing. Per
    * call rather than a flag on the service, because both go through here.
    */
-  async capture(raw: string, grid?: string, options: { quiet?: boolean } = {}): Promise<void> {
+  async capture(raw: string, grid?: string, options: CaptureOptions = {}): Promise<void> {
     const url = cleanUrl(raw);
     if (!isHttpUrl(url)) {
       // Said plainly, because the common way here is a file copied in Finder:
@@ -387,6 +409,7 @@ export class CaptureService {
       await this.answerDuplicate(existing.path, options.quiet);
       return;
     }
+    const created = options.created ?? this.reserveCreated(1)[0];
 
     this.report(0.1, "Reading link…");
     const link = await this.resolve(url);
@@ -403,7 +426,7 @@ export class CaptureService {
     }
 
     if (!link || !hasMediaToArchive(link)) {
-      await this.saveWithoutMedia(url, link, grid, options.quiet);
+      await this.saveWithoutMedia(url, link, created, grid, options.quiet);
       return;
     }
 
@@ -448,12 +471,12 @@ export class CaptureService {
     // clip then goes the way it went before the video was known about, so
     // a refused or expired address leaves it no poorer than that.
     if (media.length === 0) {
-      await this.saveWithoutMedia(url, link, grid, options.quiet);
+      await this.saveWithoutMedia(url, link, created, grid, options.quiet);
       return;
     }
 
     this.report(0.85, "Creating clipping…");
-    const file = await this.createNote({ ...link, media }, undefined, grid);
+    const file = await this.createNote({ ...link, media }, created, undefined, grid);
     if (!file) {
       this.onProgress?.(null);
       return;
@@ -494,6 +517,7 @@ export class CaptureService {
   private async saveWithoutMedia(
     url: string,
     link: ResolvedLink | null,
+    created: string,
     grid?: string,
     quiet = false
   ): Promise<void> {
@@ -510,7 +534,7 @@ export class CaptureService {
     // Nor a post the site withheld: its page is the site's sign-in screen.
     const pin = canonicalPinUrl(url) ?? (link ? canonicalPinUrl(link.url) : null);
     if (scanAvailable() && !pin && !link?.withheld) {
-      const outcome = await this.scanAndSave(url, grid, link?.article);
+      const outcome = await this.scanAndSave(url, created, grid, link?.article);
       if (outcome.ok) return;
       console.warn(`Goko: scan of ${url} failed (${outcome.reason})`);
     }
@@ -520,7 +544,7 @@ export class CaptureService {
     // share sheet from someone who is not looking at the screen: they
     // shared it, saw a notice about nothing being created or saw nothing
     // at all, and believed they had saved it.
-    await this.saveBare(link ?? bareLink(url), bareNotice(link), grid, quiet);
+    await this.saveBare(link ?? bareLink(url), bareNotice(link), created, grid, quiet);
   }
 
   /**
@@ -556,11 +580,12 @@ export class CaptureService {
   private async saveBare(
     link: ResolvedLink,
     notice: string,
+    created: string,
     grid?: string,
     quiet = false
   ): Promise<void> {
     this.report(0.85, "Creating clipping…");
-    const file = await this.createNote({ ...link, media: [] }, undefined, grid);
+    const file = await this.createNote({ ...link, media: [] }, created, undefined, grid);
     this.onProgress?.(null);
     if (!file) return;
 
@@ -853,6 +878,7 @@ export class CaptureService {
    */
   private async scanAndSave(
     url: string,
+    created: string,
     grid?: string,
     article = ""
   ): Promise<{ ok: true } | { ok: false; reason: string }> {
@@ -895,7 +921,8 @@ export class CaptureService {
     };
     const file = await this.createNote(
       link,
-      (target) => buildScanNote(link.title, url, attachment, nowISO(), target, article),
+      created,
+      (target) => buildScanNote(link.title, url, attachment, created, target, article),
       grid
     );
     if (!file) return { ok: false, reason: "could not create the note" };
@@ -920,6 +947,7 @@ export class CaptureService {
 
   private async createNote(
     link: ResolvedLink,
+    created: string,
     content?: (grid: string) => string,
     explicitGrid?: string
   ): Promise<TFile | null> {
@@ -932,7 +960,7 @@ export class CaptureService {
     const path = this.freeNotePath(folder, noteNameFor(link.title, link.url));
 
     try {
-      return await this.app.vault.create(path, content ? content(grid) : buildNote(link, nowISO(), grid));
+      return await this.app.vault.create(path, content ? content(grid) : buildNote(link, created, grid));
     } catch (error) {
       new Notice(`Goko: could not create the note (${String(error)})`);
       return null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyDrop, describeSkipped, titleForDropped, wantsDrop, withGridKey } from "../src/core/drop";
+import { classifyDrop, describeSkipped, titleForDropped, wantsDrop, withCreated, withGridKey } from "../src/core/drop";
 import type { DroppedFile } from "../src/core/drop";
 
 const file = (name: string, type = ""): DroppedFile => ({ name, type });
@@ -185,5 +185,44 @@ describe("withGridKey", () => {
 
   it("does not mistake a key that only starts with grid for it", () => {
     expect(withGridKey("---\ngridlines: on\n---\n", "Craft")).toBe('---\ngridlines: on\ngrid: "Craft"\n---\n');
+  });
+});
+
+describe("withCreated", () => {
+  const at = "2026-10-12T14:30:05";
+
+  it("dates a note that brought no created, and leaves the rest as it was", () => {
+    expect(withCreated('---\ntitle: "A page"\n---\nBody text.\n', at)).toBe(
+      '---\ntitle: "A page"\ncreated: 2026-10-12T14:30:05\n---\nBody text.\n'
+    );
+  });
+
+  it("keeps the created a note brought, whatever it says", () => {
+    const note = "---\ncreated: 2019-07-04\ntitle: x\n---\n";
+    expect(withCreated(note, at)).toBe(note);
+    expect(withCreated("---\ncreated: last spring\n---\n", at)).toBe("---\ncreated: last spring\n---\n");
+  });
+
+  it("fills a created that is there and empty", () => {
+    expect(withCreated("---\ncreated:\ntitle: x\n---\n", at)).toBe(
+      "---\ncreated: 2026-10-12T14:30:05\ntitle: x\n---\n"
+    );
+    expect(withCreated('---\ncreated: ""\n---\n', at)).toBe("---\ncreated: 2026-10-12T14:30:05\n---\n");
+  });
+
+  it("gives a note with no frontmatter a block of its own", () => {
+    expect(withCreated("Just text.\n", at)).toBe("---\ncreated: 2026-10-12T14:30:05\n---\nJust text.\n");
+  });
+
+  it("does not mistake a key that only starts with created for it", () => {
+    expect(withCreated("---\ncreated_by: me\n---\n", at)).toBe(
+      "---\ncreated_by: me\ncreated: 2026-10-12T14:30:05\n---\n"
+    );
+  });
+
+  it("keeps Windows line endings and a byte-order mark", () => {
+    expect(withCreated("\uFEFF---\r\ntitle: x\r\n---\r\nBody\r\n", at)).toBe(
+      "\uFEFF---\r\ntitle: x\r\ncreated: 2026-10-12T14:30:05\r\n---\r\nBody\r\n"
+    );
   });
 });

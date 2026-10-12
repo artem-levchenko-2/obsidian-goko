@@ -9,6 +9,7 @@ import {
   nowISO,
   relativeLabel,
   savedLabel,
+  stampsFor,
   todayISO,
   tokenLabel,
 } from "../src/core/dates";
@@ -147,6 +148,52 @@ describe("createdKey", () => {
     const day = createdKey("2026-10-12");
     expect(createdKey("2026-10-12 00:00") > day).toBe(true);
     expect(day > createdKey("2026-10-11T23:59:59")).toBe(true);
+  });
+
+  it("moves a time written with its zone onto this device's clock", () => {
+    // Worked out through the device's own zone, so it holds on any machine.
+    const moment = nowISO(new Date(Date.UTC(2026, 9, 12, 11, 30, 5)));
+    expect(createdKey("2026-10-12T14:30:05+03:00")).toBe(moment);
+    expect(createdKey("2026-10-12T14:30:05+0300")).toBe(moment);
+    expect(createdKey("2026-10-12T11:30:05Z")).toBe(moment);
+    expect(createdKey("2026-10-12T11:30:05.250Z")).toBe(moment);
+  });
+
+  it("drops the fraction of a second from a time without a zone", () => {
+    expect(createdKey("2026-10-12T14:30:05.250")).toBe("2026-10-12T14:30:05");
+  });
+});
+
+describe("stampsFor", () => {
+  const now = new Date(2026, 9, 12, 14, 30, 5, 700);
+
+  it("stamps a clipping with the second it was added in", () => {
+    expect(stampsFor(1, now, "")).toEqual(["2026-10-12T14:30:05"]);
+    expect(stampsFor(1, now, "2026-10-12T14:29:59")).toEqual(["2026-10-12T14:30:05"]);
+  });
+
+  it("never gives out a second twice", () => {
+    expect(stampsFor(1, now, "2026-10-12T14:30:05")).toEqual(["2026-10-12T14:30:06"]);
+    expect(stampsFor(1, now, "2026-10-12T14:30:09")).toEqual(["2026-10-12T14:30:10"]);
+  });
+
+  it("gives a batch a second each, its first item the newest", () => {
+    expect(stampsFor(3, now, "")).toEqual([
+      "2026-10-12T14:30:07",
+      "2026-10-12T14:30:06",
+      "2026-10-12T14:30:05",
+    ]);
+    expect(stampsFor(2, now, "2026-10-12T14:30:05")).toEqual(["2026-10-12T14:30:07", "2026-10-12T14:30:06"]);
+  });
+
+  it("carries a batch over a minute and a day", () => {
+    const late = new Date(2026, 9, 12, 23, 59, 59);
+    expect(stampsFor(2, late, "")).toEqual(["2026-10-13T00:00:00", "2026-10-12T23:59:59"]);
+  });
+
+  it("goes by the clock alone when the last value is not one it gave out", () => {
+    expect(stampsFor(1, now, "2026-10-12")).toEqual(["2026-10-12T14:30:05"]);
+    expect(stampsFor(1, now, "2026-10-12T20:00:00+03:00")).toEqual(["2026-10-12T14:30:05"]);
   });
 });
 

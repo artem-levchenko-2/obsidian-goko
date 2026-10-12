@@ -1232,7 +1232,7 @@ export class GokoView extends ItemView {
     // A markdown file is already a clipping in every way but where it lives,
     // so it is filed rather than archived. Which of the two a file is stays
     // core/drop.ts's decision; this only carries it out.
-    const take = async (file: File, quiet: boolean): Promise<void> => {
+    const take = async (file: File, quiet: boolean, created?: string): Promise<void> => {
       if (asNotes.has(file.name)) {
         // Dragged from Finder out of this vault's own clippings, the note is
         // already a clipping: filed where it was dropped, not copied beside
@@ -1244,10 +1244,10 @@ export class GokoView extends ItemView {
           await this.moveTo([own], grid || settings.homeGridName);
           return;
         }
-        await this.plugin.capture.captureNote(await file.text(), file.name, undefined, { quiet });
+        await this.plugin.capture.captureNote(await file.text(), file.name, undefined, { quiet, created });
         return;
       }
-      await this.plugin.capture.captureMedia(file, titleForDropped(file.name), { quiet });
+      await this.plugin.capture.captureMedia(file, titleForDropped(file.name), { quiet, created });
     };
 
     if (batch.length === 1) {
@@ -1268,10 +1268,13 @@ export class GokoView extends ItemView {
         },
       });
 
+    // Every file's time is taken now, the first file's the newest, so the
+    // batch stands on the wall in the order it was dropped in.
+    const created = this.plugin.capture.reserveCreated(batch.length);
     show("Importing\u2026");
-    for (const file of batch) {
+    for (const [i, file] of batch.entries()) {
       if (stopped) break;
-      await take(file, true);
+      await take(file, true, created[i]);
       done++;
       show(titleForDropped(file.name));
     }
