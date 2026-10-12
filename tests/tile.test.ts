@@ -728,4 +728,56 @@ describe("svg covers", () => {
     const record = scanClipping("Clippings/Logo.md", { title: "Logo", cover: svg }, `![[${svg}]]`);
     expect(buildTiles([record], new MediaCache())[0].kind).toBe("note");
   });
+
+  // A page's SVGs are mostly its logos, icons and badges, so one stands for
+  // a clipping only when the clipping has no other picture.
+  const photo = "https://example.com/screenshot.png";
+  const photoFile = "Attachments/Clippings/5a6b7c8d9e0f-screenshot.png";
+  const page = "https://example.com/";
+  const pageFile = "Attachments/Clippings/1f2e3d4c5b6a-card.jpg";
+
+  function readme(): ReturnType<typeof scanClipping> {
+    return scanClipping("Clippings/Repo.md", { title: "Repo", source: page }, `![](${source})\n\n![](${photo})`);
+  }
+
+  it("lets a picture of another kind stand ahead of an svg before it", () => {
+    const cache = cacheWith([
+      [source, { file: svg, thumb: preview, width: 1600, height: 350 }],
+      [photo, { file: photoFile, thumb: "" }],
+    ]);
+    expect(buildTiles([readme()], cache)[0].filePath).toBe(photoFile);
+  });
+
+  it("puts the page's own picture ahead of an svg", () => {
+    const record = scanClipping("Clippings/Repo.md", { title: "Repo", source: page }, `![](${source})`);
+    const cache = cacheWith([
+      [source, { file: svg, thumb: preview, width: 1600, height: 350 }],
+      [page, { file: pageFile, thumb: "" }],
+    ]);
+    expect(buildTiles([record], cache)[0].filePath).toBe(pageFile);
+  });
+
+  it("falls back on an svg the page names as its own picture", () => {
+    const record = scanClipping("Clippings/Site.md", { title: "Site", source: page }, "No pictures here.");
+    const cache = cacheWith([[page, { file: svg, thumb: preview, width: 1600, height: 840 }]]);
+    expect(buildTiles([record], cache)[0].filePath).toBe(preview);
+  });
+
+  it("leaves svgs out of the reel when the cover is a picture of another kind", () => {
+    const cache = cacheWith([
+      [source, { file: svg, thumb: preview, width: 1600, height: 350 }],
+      [photo, { file: photoFile, thumb: "" }],
+    ]);
+    expect(tilesForRecord(readme(), cache).map((tile) => tile.filePath)).toEqual([photoFile]);
+  });
+
+  it("keeps svgs in the reel when the cover is one", () => {
+    const second = "https://example.com/diagram.svg";
+    const record = scanClipping("Clippings/Site.md", { title: "Site", source: page }, `![](${source})\n\n![](${second})`);
+    const cache = cacheWith([
+      [source, { file: svg, thumb: preview, width: 1600, height: 840 }],
+      [second, { file: "Attachments/Clippings/9f8e7d6c5b4a-diagram.svg", thumb: "Attachments/Clippings/9f8e7d6c5b4a-diagram.preview.png" }],
+    ]);
+    expect(tilesForRecord(record, cache)).toHaveLength(2);
+  });
 });

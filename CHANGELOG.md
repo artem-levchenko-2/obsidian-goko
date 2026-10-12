@@ -23,7 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SVG pictures get a card. A page whose only picture is an SVG used to be
   clipped without one, and a dropped or pasted SVG saved as a broken PNG.
   The wall paints a picture drawn from the SVG at 1600 px wide, never the
-  SVG itself, which as markup could run scripts.
+  SVG itself, which as markup could run scripts. An SVG is a clipping's
+  picture only when it has no other, the page's own included: in a page, an
+  SVG is far more often a logo, an icon or a badge than what the page is
+  about.
 - On a phone, Save a copy hands a clipping's files to the share sheet, where
   Save Image, Save Video and Save to Files sit beside every app that takes
   them, and Open file opens its picture or video in a tab. Both stand where

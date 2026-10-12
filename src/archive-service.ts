@@ -469,8 +469,9 @@ export class ArchiveService {
     await this.archiveSourceVideo(record, retryFailed, report);
 
     // Nothing inline, or everything inline failed, so the page's own preview
-    // image is the only thing left that could cover this tile.
-    if (!outcomes.some((o) => o.file)) {
+    // image is the only thing left that could cover this tile. An SVG is no
+    // cover while the page has a picture of its own: see needsPageCover.
+    if (!outcomes.some((o) => o.file && !isVector(extensionOf(o.file)))) {
       await this.resolvePageCover(record, retryFailed);
     }
 
@@ -1090,10 +1091,18 @@ export class ArchiveService {
 
     if (!candidate) {
       const page = await this.fetchPageImage(record.source);
-      if (page.image) candidate = { key, url: page.image, kind: "image", alt: record.title };
-      // Unread is not the same as having nothing to show. Left unwritten, so
-      // the next pass asks again rather than believing this one.
-      else if (!page.read) return;
+      // The page may name a picture the clipping holds already, such as the
+      // SVG that no longer stops this being asked. It then has nothing else
+      // to offer, and fetching it again under the page's key would at best
+      // make a second copy of the same file.
+      const held = new Set(dedupeMedia(record.media).map((media) => media.key));
+      if (page.image && !held.has(normalizeUrl(page.image))) {
+        candidate = { key, url: page.image, kind: "image", alt: record.title };
+      } else if (!page.read) {
+        // Unread is not the same as having nothing to show. Left unwritten,
+        // so the next pass asks again rather than believing this one.
+        return;
+      }
     }
 
     if (!candidate) {

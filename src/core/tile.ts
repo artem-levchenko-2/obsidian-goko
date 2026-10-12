@@ -1,5 +1,5 @@
 import type { MediaCache } from "./cache";
-import { extensionOf, isRenderable, kindForExtension } from "./formats";
+import { extensionOf, isRenderable, isVector, kindForExtension } from "./formats";
 import { dedupeMedia, normalizeUrl, sourceVideoKeyFor } from "./normalize";
 import type { CanonicalMedia } from "./normalize";
 import { knownHostThumbnail } from "./page-cover";
@@ -34,6 +34,12 @@ export interface TileModel {
    * reader rather than to the full screen.
    */
   isDocument?: boolean;
+  /**
+   * The picture was drawn from an SVG. It stands for a clipping only when
+   * the clipping has no other picture: an SVG in a page is far more often a
+   * logo, an icon or a badge than the thing the page is about.
+   */
+  isVector?: boolean;
   width: number;
   height: number;
   /** True when width and height are guesses, to be corrected on load. */
@@ -229,13 +235,15 @@ function localCover(
   if (!renderable) {
     // HEIC, TIFF, RAW, PDF and friends: paint the generated preview instead.
     if (!entry.thumb) return null;
+    const ext = extensionOf(entry.file);
     return {
       posterPath: "",
       filePath: entry.thumb,
       remote: false,
       kind: "image",
       animated: false,
-      isDocument: extensionOf(entry.file) === "pdf",
+      isDocument: ext === "pdf",
+      isVector: isVector(ext),
       ...size,
     };
   }
@@ -451,10 +459,16 @@ function pickCover(record: ClippingRecord, cache: MediaCache): Cover | null {
   // must never lean on it being there. The page's thumbnail is remembered
   // instead, to stand in only when no real media follows.
   let pageThumbnail: string | null = null;
+  // A picture drawn from an SVG waits for the end, behind the page's own
+  // picture too: it is the cover only when there is nothing else.
+  let drawn: Cover | null = null;
 
   for (const item of media) {
     const outcome = coverForMedia(item, cache);
-    if (outcome.kind === "cover") return outcome.cover;
+    if (outcome.kind === "cover") {
+      if (!outcome.cover.isVector) return outcome.cover;
+      drawn ??= outcome.cover;
+    }
     if (outcome.kind === "page-thumbnail") pageThumbnail ??= outcome.url;
   }
 
@@ -464,7 +478,8 @@ function pickCover(record: ClippingRecord, cache: MediaCache): Cover | null {
     const pageEntry = cache.get(normalizeUrl(record.source));
     if (pageEntry?.file) {
       const cover = localCover(pageEntry);
-      if (cover) return cover;
+      if (cover && !cover.isVector) return cover;
+      drawn ??= cover;
     }
     if (!pageEntry?.failed) {
       // Known video hosts resolve to a thumbnail with no page fetch, so those
@@ -474,7 +489,7 @@ function pickCover(record: ClippingRecord, cache: MediaCache): Cover | null {
     }
   }
 
-  return pageThumbnail ? remoteCover(pageThumbnail, "image") : null;
+  return pageThumbnail ? remoteCover(pageThumbnail, "image") : drawn;
 }
 
 /**
@@ -520,16 +535,23 @@ export function buildTiles(
  * in for a clipping with no usable media, which is a cover's job, not a
  * carousel's. A record whose media all fail returns an empty list, and the
  * caller keeps the single cover tile it already has.
+ *
+ * Pictures drawn from SVGs are here only when the cover is one of them, by
+ * the rule pickCover follows: where the clipping has a picture of another
+ * kind, its logos and badges would be a reel of noise, and a cover that
+ * stood behind them would no longer be the reel's first frame.
  */
 export function tilesForRecord(
   record: ClippingRecord,
   cache: MediaCache
 ): TileModel[] {
   const tiles: TileModel[] = [];
+  const vectors = pickCover(record, cache)?.isVector === true;
 
   for (const item of dedupeMedia(record.media)) {
     const outcome = coverForMedia(item, cache);
     if (outcome.kind !== "cover") continue;
+    if (outcome.cover.isVector && !vectors) continue;
     tiles.push({
       id: record.path,
       record,

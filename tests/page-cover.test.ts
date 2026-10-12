@@ -157,6 +157,13 @@ describe("needsPageCover", () => {
     expect(needsPageCover(record, archived)).toBe(false);
   });
 
+  it("still wants one when the only archived picture is an SVG", () => {
+    // An SVG stands for a clipping only when nothing else will, the page's
+    // own picture included.
+    const archived = (key: string) => (key.includes("pbs.twimg.com") ? "Attachments/a1b2c3d4e5f6-badge.svg" : undefined);
+    expect(needsPageCover(record, archived)).toBe(true);
+  });
+
   it("skips it once the post's own video has been pulled", () => {
     // tile.ts prefers that video, so the page's still would never be shown.
     const archived = (key: string) => (key.startsWith("ytdlp:") ? "video.mp4" : undefined);

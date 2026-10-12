@@ -1,3 +1,4 @@
+import { extensionOf, isVector } from "./formats";
 import { dedupeMedia, sourceVideoKeyFor } from "./normalize";
 import type { MediaRef } from "./scan";
 import { classifyYoutube } from "./youtube";
@@ -143,12 +144,13 @@ export function extractPageImage(html: string, baseUrl: string): string | null {
 /**
  * Whether a page cover is worth fetching for a clipping.
  *
- * The page cover is the last thing tile.ts reaches for, so it is only worth
- * a request while nothing ahead of it has been archived. Two things get
- * there first: an inline image from the clipping's own body, and a video
- * pulled from the post. The second is the one that used to be missed, and
- * on X it is the expensive miss, because the still a video post publishes
- * is a frame of the very video already on disk.
+ * tile.ts reaches for the page cover once the clipping's own pictures have
+ * failed it, so it is only worth a request while nothing ahead of it has
+ * been archived. Two things get there first: an inline image from the
+ * clipping's own body, unless it is an SVG, and a video pulled from the
+ * post. The second is the one that used to be missed, and on X it is the
+ * expensive miss, because the still a video post publishes is a frame of
+ * the very video already on disk.
  *
  * @param archivedFile the cache's answer for a key: a local file, or
  * undefined. Passed as a function so this stays free of Obsidian imports.
@@ -162,5 +164,11 @@ export function needsPageCover(
   // tile shows it ahead of anything fetched for the page.
   if (record.media.some((media) => !/^https?:\/\//i.test(media.url))) return false;
   if (archivedFile(sourceVideoKeyFor(record.source))) return false;
-  return !dedupeMedia(record.media).some((media) => archivedFile(media.key));
+  // An SVG does not count: tile.ts puts the page's own picture ahead of one,
+  // since an SVG in a page is far more often a logo, an icon or a badge than
+  // the thing the page is about.
+  return !dedupeMedia(record.media).some((media) => {
+    const file = archivedFile(media.key);
+    return file !== undefined && !isVector(extensionOf(file));
+  });
 }
