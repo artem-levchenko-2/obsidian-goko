@@ -61,6 +61,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   property menus, as Obsidian's own property editor does. Turn off Let Goko
   edit tags for a vault where only the Web Clipper writes them. A vault
   that already has Goko keeps its setting.
+- A new install comes with three rules under Properties by domain: a
+  clipping from Dribbble or Behance gets `categories: design`, one from
+  GitHub `categories: code`. The box used to start empty, so a rule was
+  something you read about before you saw one work. They are ordinary
+  rules, to change or delete. A vault that already has Goko keeps its own.
 
 ### Fixed
 

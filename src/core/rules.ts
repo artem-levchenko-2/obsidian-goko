@@ -134,6 +134,21 @@ export function applyRules(rules: DomainRule[], url: string): Annotation {
 }
 
 /**
+ * The rules a new install starts with. Real rules rather than a commented
+ * example, so the first clipping from one of these sites shows a rule at
+ * work: its category on the tile, in the filter menu and in the details
+ * panel. Each names a site that is about one thing whatever the page. A
+ * site that carries anything, such as X or YouTube, has nothing a rule could
+ * say about its clippings, and the filter menu already tells them apart by
+ * source.
+ */
+export const DEFAULT_RULES = [
+  "dribbble.com      categories: design",
+  "*.behance.net     categories: design",
+  "github.com        categories: code",
+].join("\n");
+
+/**
  * The commented example earlier versions wrote into the rules box as its
  * value. Being a value, it hid the placeholder that now shows the shape, so
  * it is kept only to be recognised and cleared; see settledRules.

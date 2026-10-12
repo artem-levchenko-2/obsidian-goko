@@ -8,6 +8,7 @@ import type { Effort, VisionProvider } from "./vision";
 import { DEFAULT_CONCURRENCY, DEFAULT_EFFORT } from "./vision";
 import type { ArrivalMode } from "./arrivals";
 import { DEFAULT_ARRIVAL_MODE } from "./arrivals";
+import { DEFAULT_RULES } from "./rules";
 
 /** Where a picked card's details are shown; see GokoSettings.detailStyle. */
 export type DetailStyle = "panel" | "sheet";
@@ -81,7 +82,8 @@ export interface GokoSettings {
   /**
    * Domain rules, as the text the settings pane shows: one rule per line, a
    * host pattern then the properties it adds. See core/rules.ts. Kept as text
-   * so it can be edited in one box and cannot be half-saved.
+   * so it can be edited in one box and cannot be half-saved. A new install
+   * starts with DEFAULT_RULES.
    */
   domainRules: string;
 
@@ -254,7 +256,7 @@ export const DEFAULT_SETTINGS: GokoSettings = {
   cardProperties: ["categories"],
   tileProperty: "categories",
   tileTitle: true,
-  domainRules: "",
+  domainRules: DEFAULT_RULES,
   aiProvider: "",
   aiKeySecret: "",
   aiModel: "",

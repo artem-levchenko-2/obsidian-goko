@@ -147,7 +147,7 @@ export function guideMarkdown(settings: GuideSettings): string {
     "- **Grids** are boards. The rail down the left lists them; make one from **+** → **New grid**.",
     "- **Folders** are piles inside a grid. Make one from **+** → **New folder**, then drag cards onto its row in the rail to file them.",
     "- **Filters** narrow the wall by a property: the funnel at the foot of the wall.",
-    `- **Domain rules** give every clip from a site the same properties, such as \`example.com categories: design\`. Write them under **${COPY.domainRules.name}** in Goko's settings.`,
+    `- **Domain rules** give every clip from a site the same properties, such as \`dribbble.com categories: design\`. Goko comes with a few; change them or write your own under **${COPY.domainRules.name}** in Goko's settings.`,
     "",
     "> [!note] Privacy",
     `> Goko only talks to the sites you clip, and to \`api.fxtwitter.com\` for video on X. You can turn that off with **${COPY.useResolvers.name}** in Goko's settings.`,

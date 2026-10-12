@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { SHIPPED_RULES_EXAMPLE, applyRules, hostMatches, hostOf, parseRules, settledRules } from "../src/core/rules";
+import {
+  DEFAULT_RULES,
+  SHIPPED_RULES_EXAMPLE,
+  applyRules,
+  hostMatches,
+  hostOf,
+  parseRules,
+  settledRules,
+} from "../src/core/rules";
 import { DEFAULT_SETTINGS } from "../src/core/settings";
+import { isEditable } from "../src/core/editable";
 
 describe("parseRules", () => {
   it("reads one rule per line", () => {
@@ -127,11 +136,32 @@ describe("applyRules", () => {
   });
 });
 
-describe("settledRules", () => {
-  it("starts a fresh install with an empty box, so the placeholder shows", () => {
-    expect(DEFAULT_SETTINGS.domainRules).toBe("");
+describe("DEFAULT_RULES", () => {
+  it("starts a new install with rules that work as written", () => {
+    expect(DEFAULT_SETTINGS.domainRules).toBe(DEFAULT_RULES);
+    const { rules, errors } = parseRules(DEFAULT_RULES);
+    expect(errors).toEqual([]);
+    expect(rules.map((rule) => rule.pattern)).toEqual(["dribbble.com", "*.behance.net", "github.com"]);
+    expect(applyRules(rules, "https://dribbble.com/shots/1234567-example")).toEqual({ categories: ["design"] });
+    expect(applyRules(rules, "https://www.behance.net/gallery/1234567/example")).toEqual({ categories: ["design"] });
+    expect(applyRules(rules, "https://github.com/example/example")).toEqual({ categories: ["code"] });
   });
 
+  it("writes only into categories, which the tile, the filters and the panel all show", () => {
+    const keys = parseRules(DEFAULT_RULES).rules.flatMap((rule) => Object.keys(rule.annotation));
+    expect(new Set(keys)).toEqual(new Set(["categories"]));
+    expect(isEditable("categories")).toBe(true);
+    expect(DEFAULT_SETTINGS.tileProperty).toBe("categories");
+    expect(DEFAULT_SETTINGS.filterProperties).toContain("categories");
+    expect(DEFAULT_SETTINGS.cardProperties).toContain("categories");
+  });
+
+  it("is kept as it is at launch, being no one's old example", () => {
+    expect(settledRules(DEFAULT_RULES)).toBe(DEFAULT_RULES);
+  });
+});
+
+describe("settledRules", () => {
   it("clears the example earlier versions saved as the value", () => {
     expect(settledRules(SHIPPED_RULES_EXAMPLE)).toBe("");
     expect(settledRules(`${SHIPPED_RULES_EXAMPLE}\n`)).toBe("");
