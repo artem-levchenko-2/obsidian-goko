@@ -15,3 +15,10 @@ export const INSTAGRAM_REEL_EMBED = "<!DOCTYPE html><html><body><div class=\"Emb
 
 /** The blob is there and its JSON is broken, which is how a shape change arrives. */
 export const INSTAGRAM_BROKEN_EMBED = "<!DOCTYPE html><html><body><div class=\"Embed\"><script type=\"application/json\" data-sjs>{\"require\":[[\"ScheduledServerJS\",\"handle\",null,[{\"__bbox\":{\"require\":[[\"RelayPrefetchedStreamCache\",\"next\",[],[\"adp_PolarisEmbedSimpleRootQueryRelayPreloader\",{\"__bbox\":{\"contextJSON\":\"{\\\"gql_data\\\": {\\\"shortcode_media\\\": {\\\"display_url\\\": \\\"x\\\"}}}\"}}]]]}}]]]}</script></body></html>";
+
+/**
+ * What the embed draws for a post it will not show a reader who is not
+ * signed in: private, removed, or never there. Cut down to the card, with
+ * the code and the request id invented.
+ */
+export const INSTAGRAM_WITHHELD_EMBED = "<!DOCTYPE html><html><head><title></title></head><body class=\"x1 Locale_en_US\" dir=\"ltr\"><div class=\"_aa4c\"><div class=\"EmbedBrokenMedia\"><div class=\"ebmLogo\"><a class=\"EmbedLogo embedNonTextLink\" href=\"https://www.instagram.com/p/AAAAAAAAAAA/?utm_source=ig_embed&amp;utm_campaign=invalid&amp;ig_rid=A_AAAAAAAAAAAAAAAAAAAAAAA\" target=\"_blank\"><i class=\"Sprite elSprite embedHideText img\"><u>Instagram</u></i></a></div><div class=\"ebmMessage\">The link to this photo or video may be broken, or the post may have been removed.</div><a class=\"EmbedVisitInstagram\" href=\"https://www.instagram.com/p/AAAAAAAAAAA/?utm_source=ig_embed&amp;utm_campaign=invalid&amp;ig_rid=A_AAAAAAAAAAAAAAAAAAAAAAA\" target=\"_blank\"><span>Visit Instagram</span></a></div></div></body></html>";

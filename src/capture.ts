@@ -17,6 +17,7 @@ import {
   ResolvedLink,
   amazonProduct,
   bareLink,
+  bareNotice,
   buildNote,
   buildPastedImageNote,
   buildScanNote,
@@ -30,6 +31,7 @@ import {
   parseFxTweet,
   instagramEmbedUrl,
   instagramPost,
+  instagramTitle,
   parseInstagramEmbed,
   parsePageMeta,
   xStatus,
@@ -37,6 +39,7 @@ import {
   refineThreadsLink,
   threadsPostCode,
 } from "./core/resolve";
+import { instagramWithheld } from "./core/instagram-html";
 import { ThreadsEmbed, isThreadsAvatar, parseThreadsEmbed, threadsEmbedUrl } from "./core/threads";
 import { hasMediaToArchive, pictureRefused } from "./core/page-video";
 import { headerValue } from "./core/response-headers";
@@ -503,8 +506,10 @@ export class CaptureService {
     // from a reader who is not signed in, and its page is then the site's
     // front page or a sign-in form: a scan of that is a picture of
     // Pinterest, not of the pin. The address alone is the honest clipping.
+    //
+    // Nor a post the site withheld: its page is the site's sign-in screen.
     const pin = canonicalPinUrl(url) ?? (link ? canonicalPinUrl(link.url) : null);
-    if (scanAvailable() && !pin) {
+    if (scanAvailable() && !pin && !link?.withheld) {
       const outcome = await this.scanAndSave(url, grid, link?.article);
       if (outcome.ok) return;
       console.warn(`Goko: scan of ${url} failed (${outcome.reason})`);
@@ -515,7 +520,7 @@ export class CaptureService {
     // share sheet from someone who is not looking at the screen: they
     // shared it, saw a notice about nothing being created or saw nothing
     // at all, and believed they had saved it.
-    await this.saveBare(link ?? bareLink(url), link !== null, grid, quiet);
+    await this.saveBare(link ?? bareLink(url), bareNotice(link), grid, quiet);
   }
 
   /**
@@ -542,14 +547,15 @@ export class CaptureService {
    * Writes a clipping with no media at all: the address, and whatever the
    * page managed to say about itself.
    *
-   * @param read whether the page was fetched. A page that answered and has
-   * no picture is a different thing from one that refused to be read, and
-   * the notice says which — the second is worth knowing about, because the
-   * clipping will carry only its address until you give it something.
+   * A page that answered and has no picture is a different thing from one
+   * that could not be read, or one whose site showed a notice in place of
+   * the post, and the notice says which: the last two are worth knowing
+   * about, because the clipping will carry only its address until you give
+   * it something.
    */
   private async saveBare(
     link: ResolvedLink,
-    read: boolean,
+    notice: string,
     grid?: string,
     quiet = false
   ): Promise<void> {
@@ -560,11 +566,7 @@ export class CaptureService {
 
     await this.index.handleModify(file);
     if (!quiet) {
-      new Notice(
-        read
-          ? "Goko: saved without a picture"
-          : "Goko: saved as a link — the page could not be read"
-      );
+      new Notice(notice);
       this.onFinished?.((link.title || domainOf(link.url) || link.url).slice(0, 40), file.path);
     }
     this.onCreated?.(file.path, quiet);
@@ -724,17 +726,21 @@ export class CaptureService {
     url: string
   ): Promise<ResolvedLink | null> {
     const page = await this.resolvePage(url);
-    const base: ResolvedLink = page ?? {
-      url,
-      title: `Instagram ${post.kind}`,
-      description: "",
-      author: "",
-      published: "",
-      media: [],
-    };
+    const base: ResolvedLink = page ?? { ...bareLink(url), title: instagramTitle(post.kind) };
 
-    const embed = await this.fetchInstagramEmbed(post.code);
-    if (!embed) return base;
+    const html = await this.fetchText(instagramEmbedUrl(post.code));
+    const embed = html ? parseInstagramEmbed(html) : null;
+    if (!embed) {
+      // Instagram's own notice in place of the post, and no picture from the
+      // page either. The post is private or gone, and the page's title and
+      // description are its sign-in screen's, so none of them is kept. A
+      // page with its og:image stands as it is: a post can be public with
+      // its embed turned off.
+      if (html && base.media.length === 0 && instagramWithheld(html)) {
+        return { ...bareLink(base.url), title: instagramTitle(post.kind), withheld: "Instagram" };
+      }
+      return base;
+    }
 
     return {
       ...base,
@@ -789,21 +795,6 @@ export class CaptureService {
       });
       if (response.status < 200 || response.status >= 300) return null;
       return response.text;
-    } catch {
-      return null;
-    }
-  }
-
-  private async fetchInstagramEmbed(code: string): Promise<ReturnType<typeof parseInstagramEmbed>> {
-    try {
-      const response = await requestUrl({
-        url: instagramEmbedUrl(code),
-        method: "GET",
-        headers: { "User-Agent": USER_AGENT },
-        throw: false,
-      });
-      if (response.status < 200 || response.status >= 300) return null;
-      return parseInstagramEmbed(response.text);
     } catch {
       return null;
     }

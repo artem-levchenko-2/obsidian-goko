@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { parseInstagramEmbed } from "../src/core/resolve";
-import { INSTAGRAM_BROKEN_EMBED, INSTAGRAM_CAROUSEL_EMBED } from "./fixtures/instagram";
+import { bareLink, bareNotice, instagramTitle, parseInstagramEmbed } from "../src/core/resolve";
+import { instagramWithheld } from "../src/core/instagram-html";
+import {
+  INSTAGRAM_BROKEN_EMBED,
+  INSTAGRAM_CAROUSEL_EMBED,
+  INSTAGRAM_WITHHELD_EMBED,
+} from "./fixtures/instagram";
 
 /**
  * Pages shaped like the one Instagram serves at /p/<code>/embed/captioned/
@@ -210,5 +215,36 @@ describe("parseInstagramEmbed, the order it reads an embed in", () => {
   it("answers nothing when neither is there, so the og: tags stand", () => {
     expect(parseInstagramEmbed(INSTAGRAM_BROKEN_EMBED)).toBeNull();
     expect(parseInstagramEmbed("<html><body><img src=\"https://example.com/a.jpg\" /></body></html>")).toBeNull();
+  });
+});
+
+describe("a post Instagram will not show", () => {
+  it("is told by the notice the embed draws in its place", () => {
+    expect(instagramWithheld(INSTAGRAM_WITHHELD_EMBED)).toBe(true);
+    expect(parseInstagramEmbed(INSTAGRAM_WITHHELD_EMBED)).toBeNull();
+  });
+
+  it("is not an embed that only changed shape, or one that drew the post", () => {
+    expect(instagramWithheld(INSTAGRAM_BROKEN_EMBED)).toBe(false);
+    expect(instagramWithheld(INSTAGRAM_CAROUSEL_EMBED)).toBe(false);
+    expect(instagramWithheld("<p>EmbedBrokenMedia is a class name</p>")).toBe(false);
+  });
+
+  it("says so, and that it may be private or removed, since the notice is the same for both", () => {
+    const notice = bareNotice({ ...bareLink("https://www.instagram.com/p/AAAAAAAAAAA/"), withheld: "Instagram" });
+    expect(notice).toContain("Instagram would not show this post");
+    expect(notice).toContain("private");
+    expect(notice).toContain("removed");
+  });
+
+  it("leaves the other bare clippings as they were", () => {
+    expect(bareNotice(null)).toBe("Goko: saved as a link — the page could not be read");
+    expect(bareNotice(bareLink("https://example.com/"))).toBe("Goko: saved without a picture");
+  });
+
+  it("is titled by what the address says it is", () => {
+    expect(instagramTitle("p")).toBe("Instagram post");
+    expect(instagramTitle("reel")).toBe("Instagram reel");
+    expect(instagramTitle("tv")).toBe("Instagram video");
   });
 });

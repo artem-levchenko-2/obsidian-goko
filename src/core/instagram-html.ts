@@ -7,6 +7,13 @@ const IMG_TAG = /<img\b[^>]*>/gi;
 /** One attribute of a tag, however it is quoted. */
 const ATTRIBUTE = /\s([a-z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
 
+/**
+ * The card the embed draws in place of a post it will not show, which says
+ * "The link to this photo or video may be broken, or the post may have been
+ * removed."
+ */
+const WITHHELD = /<div\b[^>]*\bclass\s*=\s*["'][^"']*\bEmbedBrokenMedia\b/i;
+
 /** The name the embed's header writes out, the account that posted. */
 const USERNAME_TEXT = /<span\b[^>]*\bclass\s*=\s*["']UsernameText["'][^>]*>([^<]*)<\/span>/i;
 
@@ -127,6 +134,18 @@ function readAuthor(html: string, alts: string[]): string {
  * Null when the page draws no picture, which is also how a removed post, a
  * private one or a changed page arrives.
  */
+/**
+ * Whether the embed answered with Instagram's own notice instead of the post.
+ *
+ * A private post, a removed one and a mistyped address all draw that same
+ * card for a reader who is not signed in, so this cannot say which of them
+ * it was. Only that Instagram itself said no, which an embed that has merely
+ * changed shape does not say.
+ */
+export function instagramWithheld(html: string): boolean {
+  return WITHHELD.test(html);
+}
+
 export function parseInstagramHtmlEmbed(html: string): InstagramPost | null {
   const media: ResolvedMedia[] = [];
   const alts: string[] = [];

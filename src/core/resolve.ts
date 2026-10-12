@@ -48,6 +48,13 @@ export interface ResolvedLink {
    * it as `origin:`.
    */
   origin?: string;
+  /**
+   * The site, when it answered with a notice of its own in place of the
+   * post: Instagram does for one that is private or removed. Nothing the
+   * page says is then about the post, so it is clipped as its address
+   * alone, and the notice says why.
+   */
+  withheld?: string;
 }
 
 /** Parameters that identify the sharer, not the content. */
@@ -208,6 +215,13 @@ export function instagramPost(url: string): { kind: string; code: string } | nul
   if (!match) return null;
   // "reels" and "reel" address the same thing; the mirror expects "reel".
   return { kind: match[1] === "reels" ? "reel" : match[1], code: match[2] };
+}
+
+/** What an Instagram address is called before anything about it is known. */
+export function instagramTitle(kind: string): string {
+  if (kind === "reel") return "Instagram reel";
+  if (kind === "tv") return "Instagram video";
+  return "Instagram post";
 }
 
 /**
@@ -817,6 +831,22 @@ export function parseAmazonPage(html: string, sourceUrl: string): ResolvedLink {
  */
 export function bareLink(url: string): ResolvedLink {
   return { url, title: "", description: "", author: "", published: "", media: [] };
+}
+
+/**
+ * What a clipping saved with no media says, given what reading the link
+ * came to: null when the page could not be read at all.
+ *
+ * A withheld post cannot be told apart from a removed one, since the site
+ * shows a reader who is not signed in the same notice for both, so the
+ * notice names both rather than guessing.
+ */
+export function bareNotice(link: ResolvedLink | null): string {
+  if (!link) return "Goko: saved as a link — the page could not be read";
+  if (link.withheld) {
+    return `Goko: saved as a link — ${link.withheld} would not show this post. It is private, or it was removed.`;
+  }
+  return "Goko: saved without a picture";
 }
 
 /**
