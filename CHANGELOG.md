@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A post on X that shares an X Article saves the article's videos and images,
+  in the order the article shows them, and takes its title and description
+  from the article. Such a post used to clip with nothing to download and the
+  bare link as its title. Of each video, the best copy below 4K is saved:
+  4K outgrows the download limit within seconds.
+
 ### Fixed
 
 - Goko and another plugin that used the same class names no longer restyle
