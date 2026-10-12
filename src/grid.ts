@@ -341,6 +341,10 @@ export class GridRenderer {
   onHoverMedia:
     | ((media: HTMLVideoElement | HTMLImageElement | Array<HTMLVideoElement | HTMLImageElement> | null) => void)
     | null = null;
+  /** A card's picture was swapped for another file in place. Set by the
+      view, so playback can say whether a GIF swapped onto its still should
+      be moving. */
+  onMediaSwapped: ((media: HTMLImageElement) => void) | null = null;
 
   /** The card currently open in the detail view, hidden while it is. */
   private focusedId: string | null = null;
@@ -2628,6 +2632,7 @@ export class GridRenderer {
       if (!image.isConnected) return;
       image.src = next;
       image.addClass("is-loaded");
+      this.onMediaSwapped?.(image);
     };
     void preload
       .decode()
@@ -2806,7 +2811,8 @@ export class GridRenderer {
       element.media instanceof HTMLImageElement
     ) {
       const image = element.media;
-      this.swapImage(image, original);
+      // Onto the still, for a GIF that has one, as a new card is painted.
+      this.swapImage(image, still || original);
       if (model.animated && still && original) {
         image.dataset.stillSrc = still;
         image.dataset.animatedSrc = original;
@@ -2910,8 +2916,12 @@ export class GridRenderer {
       // until the tile has already arrived on screen. Which is the hitch.
       image.decoding = "async";
       image.alt = model.record.title;
-      // Always the full-resolution asset, so the tile stays sharp at any zoom.
-      image.src = original;
+      // The full-resolution asset, so the tile stays sharp at any zoom. Only a
+      // GIF has a still (see localCover), and it rests on it, as a video rests
+      // on its poster and a folder cover's GIF on its still: painted moving,
+      // it moved with nothing to stop it on a wall whose autoplay is off.
+      // Playback swaps the animation in when it plays.
+      image.src = still || original;
 
       if (model.animated && still) {
         image.dataset.stillSrc = still;
@@ -3176,12 +3186,11 @@ export class GridRenderer {
         image.decoding = "async";
         image.alt = "";
         image.draggable = false;
+        // On its still, which only a GIF has, as the card's own media is.
+        image.src = still || original;
         if (member.animated && still) {
-          image.src = still;
           image.dataset.stillSrc = still;
           image.dataset.animatedSrc = original;
-        } else {
-          image.src = original;
         }
         image.addEventListener("error", () => slot.addClass("is-broken"), { once: true });
       }

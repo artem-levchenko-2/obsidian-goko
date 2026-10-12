@@ -7,6 +7,7 @@ import {
   PreviewNotices,
   WebviewDecodes,
   localPreviewRefs,
+  needsAdopting,
   previewFailure,
   previewNotice,
   previewOutcome,
@@ -144,12 +145,31 @@ describe("localPreviewRefs", () => {
     expect(localPreviewRefs(record)).toEqual([{ key: video, path: video, kind: "video" }]);
   });
 
+  it("includes a GIF embedded in the note, which rests on a still until it plays", () => {
+    const gif = `${FOLDER}/pasted-2031-04-07 081522.gif`;
+    const record = clipping({ media: [{ url: gif, kind: "image", alt: "" }] });
+    expect(localPreviewRefs(record)).toEqual([{ key: gif, path: gif, kind: "image" }]);
+  });
+
   it("leaves out a picture that paints itself, and one that is not in the vault", () => {
     const record = clipping({
       cover: `${FOLDER}/pasted-2031-04-07 081522.jpg`,
       media: [{ url: "https://cdn.example.com/photo.heic", kind: "image", alt: "" }],
     });
     expect(localPreviewRefs(record)).toEqual([]);
+  });
+});
+
+describe("needsAdopting", () => {
+  it("wants a file that needs a preview, a video and a GIF in the cache", () => {
+    expect(needsAdopting(HEIC, "image")).toBe(true);
+    expect(needsAdopting(`${FOLDER}/a.mp4`, "video")).toBe(true);
+    expect(needsAdopting(`${FOLDER}/a.GIF`, "image")).toBe(true);
+  });
+
+  it("leaves a picture that paints itself, and has nothing to rest on, alone", () => {
+    expect(needsAdopting(`${FOLDER}/a.jpg`, "image")).toBe(false);
+    expect(needsAdopting(`${FOLDER}/a.webp`, undefined)).toBe(false);
   });
 });
 

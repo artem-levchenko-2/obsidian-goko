@@ -116,11 +116,24 @@ export function previewSize(
 }
 
 /**
+ * Whether a file in the vault has to be in the cache before a card shows it
+ * as it should: one that needs a preview to be painted at all, a video,
+ * which a card shows by a still of it, and a GIF, which rests on a still
+ * until it plays. Previews and stills are made only for what the cache
+ * holds.
+ */
+export function needsAdopting(path: string, kind: MediaKind | null | undefined): boolean {
+  const ext = extensionOf(path);
+  return kind === "video" || ext === "gif" || needsPreview(ext);
+}
+
+/**
  * The files in the vault a clipping points at that need a preview before the
- * wall can paint them, or a still to show a video by, with the cache key
- * each is recorded under. A video Goko downloaded is in the cache already;
- * one dropped onto the wall or embedded by hand gets there only through
- * this, and without it the card showed nothing but its title.
+ * wall can paint them, or a still to show a video or rest a GIF on, with the
+ * cache key each is recorded under. What Goko downloaded is in the cache
+ * already; a file dropped onto the wall or embedded by hand gets there only
+ * through this. Without it a video's card showed nothing but its title, and
+ * a GIF moved with no still to stop on.
  *
  * Its embeds, and its hand-set `cover:`. The cover is a vault path from the
  * start and was left out of this once, which is how a HEIC set as a cover
@@ -142,7 +155,7 @@ export function localPreviewRefs(
     if (kind && !refs.some((ref) => ref.key === key)) refs.push({ key, path: cover, kind });
   }
 
-  return refs.filter((ref) => ref.kind === "video" || needsPreview(extensionOf(ref.path)));
+  return refs.filter((ref) => needsAdopting(ref.path, ref.kind));
 }
 
 function isRemote(url: string): boolean {

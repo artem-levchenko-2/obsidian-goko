@@ -37,6 +37,7 @@ import { mimeForPath } from "./core/file-clip";
 import {
   WebviewDecodes,
   localPreviewRefs,
+  needsAdopting,
   previewFailure,
   previewOutcome,
   previewRoutes,
@@ -506,10 +507,10 @@ export class ArchiveService {
    * skips it, and for a photograph that is the whole story. A PDF dropped
    * from Finder is not, nor is a HEIC set as a cover: it lives in the vault
    * and has nothing the wall can show until a preview of it has been made.
-   * Nor is a video Goko did not download itself, dropped onto the wall or
-   * embedded by hand: a card shows a video by a still of it. The cache is
-   * where a preview or a still is recorded, so the file has to be in the
-   * cache to get one.
+   * Nor is a video or a GIF Goko did not download itself, dropped onto the
+   * wall or embedded by hand: a card shows a video by a still of it, and a
+   * GIF rests on one until it plays. The cache is where a preview or a still
+   * is recorded, so the file has to be in the cache to get one.
    *
    * Only files that need one. An ordinary picture paints itself, and
    * putting every pasted JPEG in the cache would double the bookkeeping for
@@ -530,19 +531,18 @@ export class ArchiveService {
 
   /**
    * Makes the preview for one file just saved into the vault, or the still
-   * of a video, now rather than on the next background pass, and says where
-   * that leaves it.
+   * of a video or a GIF, now rather than on the next background pass, and
+   * says where that leaves it.
    *
    * The one door every way a picture arrives by hand goes through — pasted,
    * dropped, picked, or given to a card as its cover — so the preview is
    * made the same way for all of them, and the caller can tell the person
-   * the truth when this device cannot make one. A video that plays as it is
-   * counts as shown whatever becomes of its still.
+   * the truth when this device cannot make one. A video or a GIF, which
+   * plays as it is, counts as shown whatever becomes of its still.
    */
   async previewFile(path: string): Promise<PreviewOutcome> {
-    const ext = extensionOf(path);
-    const kind = kindForExtension(ext);
-    if (!needsPreview(ext) && kind !== "video") return "shown";
+    const kind = kindForExtension(extensionOf(path));
+    if (!needsAdopting(path, kind)) return "shown";
 
     this.adoptLocalFile(normalizeUrl(path), path, kind ?? "image");
     const entry = this.cache.byFile(path);

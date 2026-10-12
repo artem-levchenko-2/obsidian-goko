@@ -503,6 +503,7 @@ export class GokoView extends ItemView {
     // Hovering a card plays it even when autoplay is off, which is the only
     // way a video moves on such a wall.
     this.grid.onHoverMedia = (media) => this.playback?.hover(media);
+    this.grid.onMediaSwapped = (media) => this.playback?.settle(media);
 
     this.grid.onOpenNoteRequested = (id: string) => this.openNote(id);
     this.grid.onCoverDropped = (id: string, transfer: DataTransfer) => {

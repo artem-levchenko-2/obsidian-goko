@@ -1,12 +1,12 @@
 import { App, Notice, Platform, TFile, normalizePath, requestUrl } from "obsidian";
 import type { ArchiveService } from "./archive-service";
 import { stampsFor } from "./core/dates";
-import { extensionForMime, extensionOf, kindForMime, needsPreview } from "./core/formats";
+import { extensionForMime, kindForMime } from "./core/formats";
 import { domainOf } from "./core/scan";
 import { pdfPathOf, readPdfIntoNote } from "./core/pdf";
 import type { PdfRead, PdfTally } from "./core/pdf";
 import { readPdfText } from "./pdf-cover";
-import { PreviewNotices } from "./core/preview-route";
+import { PreviewNotices, needsAdopting } from "./core/preview-route";
 import { readArticle } from "./article";
 import { normalizeUrl } from "./core/normalize";
 import { fileableGrid } from "./core/spaces";
@@ -248,13 +248,14 @@ export class CaptureService {
     }
 
     // A PDF or a HEIC has nothing the wall can paint until a preview of it
-    // is made, nor a video until it has a still. The background pass would
+    // is made, nor a video until it has a still, and a GIF has nothing to
+    // rest on until it has one either. The background pass would
     // do it within a few seconds, and a card of words would stand there
     // meanwhile — acceptable for a note that arrived on its own, wrong for a
     // file somebody just dropped. So the preview is asked for now, for this
     // one file. A device that cannot make one says so, since otherwise the
     // card of words is all there is to go on.
-    if (kind === "video" || needsPreview(extensionOf(attachment))) {
+    if (needsAdopting(attachment, kind)) {
       this.report(0.9, "Rendering preview\u2026");
       const outcome = await this.archiver.previewFile(attachment);
       const notice = this.previewNotices.after(attachment, outcome, options.quiet);

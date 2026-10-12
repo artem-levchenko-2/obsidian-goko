@@ -214,6 +214,22 @@ export class PlaybackController {
     for (const element of this.hovered) this.play(element, true);
   }
 
+  /**
+   * Brings one element in line with the wall after its file was swapped in
+   * place. A swap paints a GIF on its still, which is right on a wall whose
+   * autoplay is off, unless the pointer is on it; with autoplay on, apply()
+   * decides, or the GIF would stand still until the next scroll.
+   */
+  settle(element: Playable): void {
+    if (!this.ratios.has(element)) return;
+    if (this.enabled) {
+      this.schedule();
+      return;
+    }
+    if (this.hovered.has(element) && !PlaybackController.prefersReducedMotion()) this.play(element);
+    else this.stop(element);
+  }
+
   observe(element: Playable): void {
     if (this.ratios.has(element)) return;
     this.ratios.set(element, 0);

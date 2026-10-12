@@ -56,13 +56,14 @@ const VIDEO_RATIO = { width: 16, height: 9 };
 
 /**
  * Frame 0 of an animated GIF is often useless as a cover: a terminal
- * recording opens on an empty prompt. Showing the original instead of a
- * still lets it animate, which is both truer to the content and closer to
- * how posts.design previews clips.
+ * recording opens on an empty prompt. So a GIF with a still is played as a
+ * video is, under the pointer and wherever autoplay is on, and rests on its
+ * still the way a video rests on its poster.
  */
 const ANIMATED_EXT = /\.gif$/i;
 
-/** Above this, decoding every frame costs more than the motion is worth. */
+/** Above this, decoding every frame costs more than the motion is worth, and
+    the card stays on its still. */
 const MAX_ANIMATED_BYTES = 8 * 1024 * 1024;
 
 /**
