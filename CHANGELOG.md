@@ -65,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A clip made while a folder is open is flown to, as any other clip is,
   when grids follow the folders on disk. Filing it into the folder moved the
   note, and the wall kept looking for it where it had been.
+- A video Goko did not download itself, such as one dropped onto the wall
+  or embedded in a note by hand, shows on its card and plays like any
+  other. Such a card used to show only its title: a card shows a video by a
+  still of it, and only a video Goko had downloaded was given one.
 - On a phone, Search offers Describe with AI and File as suggested for the
   selected cards again. Both had been left out with the actions that need a
   desktop's file system, which they do not.

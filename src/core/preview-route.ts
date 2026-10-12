@@ -117,7 +117,10 @@ export function previewSize(
 
 /**
  * The files in the vault a clipping points at that need a preview before the
- * wall can paint them, with the cache key each is recorded under.
+ * wall can paint them, or a still to show a video by, with the cache key
+ * each is recorded under. A video Goko downloaded is in the cache already;
+ * one dropped onto the wall or embedded by hand gets there only through
+ * this, and without it the card showed nothing but its title.
  *
  * Its embeds, and its hand-set `cover:`. The cover is a vault path from the
  * start and was left out of this once, which is how a HEIC set as a cover
@@ -139,7 +142,7 @@ export function localPreviewRefs(
     if (kind && !refs.some((ref) => ref.key === key)) refs.push({ key, path: cover, kind });
   }
 
-  return refs.filter((ref) => needsPreview(extensionOf(ref.path)));
+  return refs.filter((ref) => ref.kind === "video" || needsPreview(extensionOf(ref.path)));
 }
 
 function isRemote(url: string): boolean {

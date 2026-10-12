@@ -136,6 +136,14 @@ describe("localPreviewRefs", () => {
     expect(localPreviewRefs(record)).toHaveLength(1);
   });
 
+  it("includes a video embedded in the note, which a card shows by a still", () => {
+    // Dropped onto the wall, or embedded by hand: Goko did not download it,
+    // so nothing else puts it in the cache to be given one.
+    const video = `${FOLDER}/flower.mp4`;
+    const record = clipping({ media: [{ url: video, kind: "video", alt: "" }] });
+    expect(localPreviewRefs(record)).toEqual([{ key: video, path: video, kind: "video" }]);
+  });
+
   it("leaves out a picture that paints itself, and one that is not in the vault", () => {
     const record = clipping({
       cover: `${FOLDER}/pasted-2031-04-07 081522.jpg`,

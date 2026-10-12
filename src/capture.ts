@@ -248,13 +248,13 @@ export class CaptureService {
     }
 
     // A PDF or a HEIC has nothing the wall can paint until a preview of it
-    // is made. The background pass would do it within a few seconds, and a
-    // card of words would stand there meanwhile — acceptable for a note
-    // that arrived on its own, wrong for a file somebody just dropped. So
-    // the preview is asked for now, for this one file. A device that cannot
-    // make one says so, since otherwise the card of words is all there is
-    // to go on.
-    if (needsPreview(extensionOf(attachment))) {
+    // is made, nor a video until it has a still. The background pass would
+    // do it within a few seconds, and a card of words would stand there
+    // meanwhile — acceptable for a note that arrived on its own, wrong for a
+    // file somebody just dropped. So the preview is asked for now, for this
+    // one file. A device that cannot make one says so, since otherwise the
+    // card of words is all there is to go on.
+    if (kind === "video" || needsPreview(extensionOf(attachment))) {
       this.report(0.9, "Rendering preview\u2026");
       const outcome = await this.archiver.previewFile(attachment);
       const notice = this.previewNotices.after(attachment, outcome, options.quiet);

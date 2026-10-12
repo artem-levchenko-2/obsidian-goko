@@ -317,7 +317,8 @@ export function coverForMedia(item: CanonicalMedia, cache: MediaCache): MediaOut
       const cover = localCover(archived);
       return cover ? { kind: "cover", cover } : SKIP;
     }
-    // A video needs a poster to stand in for it, and there is none.
+    // A video needs a poster to stand in for it, and there is none until the
+    // archiver has the file in its cache and has made one.
     if (item.kind === "video") return SKIP;
     // Nor does a format the browser cannot decode: a PDF, a HEIC, a RAW.
     // Pointing an <img> at one only errors, and the wall answers an error by

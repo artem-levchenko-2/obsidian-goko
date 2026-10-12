@@ -497,6 +497,18 @@ describe("buildTiles with local embeds", () => {
     const video = scanClipping("Clippings/V.md", { title: "V" }, "![[Attachments/Clippings/a.mp4]]");
     expect(buildTiles([video], new MediaCache())[0].kind).toBe("note");
   });
+
+  it("plays an embedded video once the archiver has given it a still", () => {
+    // Under its own path, which is where previewFile and the background pass
+    // put a video Goko did not download itself.
+    const file = "Attachments/Clippings/a.mp4";
+    const video = scanClipping("Clippings/V.md", { title: "V" }, `![[${file}]]`);
+    const cache = cacheWith([[file, { file, thumb: "Attachments/Clippings/a.poster.webp", kind: "video" }]]);
+    const [tile] = buildTiles([video], cache);
+    expect(tile.kind).toBe("video");
+    expect(tile.filePath).toBe(file);
+    expect(tile.posterPath).toBe("Attachments/Clippings/a.poster.webp");
+  });
 });
 
 describe("tilesForRecord", () => {
