@@ -1,6 +1,6 @@
 import { App, Notice, Platform, TFile, normalizePath, requestUrl } from "obsidian";
 import type { ArchiveService } from "./archive-service";
-import { todayISO as today } from "./core/dates";
+import { nowISO } from "./core/dates";
 import { extensionForMime, extensionOf, kindForMime, needsPreview } from "./core/formats";
 import { domainOf } from "./core/scan";
 import { pdfPathOf, readPdfIntoNote } from "./core/pdf";
@@ -209,7 +209,7 @@ export class CaptureService {
     try {
       const file = await this.app.vault.create(
         notePath,
-        buildPastedImageNote(title, attachment, today(), grid)
+        buildPastedImageNote(title, attachment, nowISO(), grid)
       );
       // Same as the link path: ingest alone leaves the grid unaware.
       await this.index.handleModify(file);
@@ -904,7 +904,7 @@ export class CaptureService {
     };
     const file = await this.createNote(
       link,
-      (target) => buildScanNote(link.title, url, attachment, today(), target, article),
+      (target) => buildScanNote(link.title, url, attachment, nowISO(), target, article),
       grid
     );
     if (!file) return { ok: false, reason: "could not create the note" };
@@ -941,7 +941,7 @@ export class CaptureService {
     const path = this.freeNotePath(folder, noteNameFor(link.title, link.url));
 
     try {
-      return await this.app.vault.create(path, content ? content(grid) : buildNote(link, today(), grid));
+      return await this.app.vault.create(path, content ? content(grid) : buildNote(link, nowISO(), grid));
     } catch (error) {
       new Notice(`Goko: could not create the note (${String(error)})`);
       return null;

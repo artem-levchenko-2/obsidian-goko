@@ -1,3 +1,4 @@
+import { nowISO } from "./dates";
 import { extensionOf, kindForExtension, kindForMime } from "./formats";
 import { parseInstagramHtmlEmbed } from "./instagram-html";
 import { decodeEntities, readMetaTags } from "./page-cover";
@@ -854,19 +855,13 @@ export function yamlString(value: string): string {
   return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ")}"`;
 }
 
-function today(): string {
-  const now = new Date();
-  const pad = (n: number): string => String(n).padStart(2, "0");
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-}
-
 /** Matches the Web Clipper's frontmatter contract, which the vault treats as fixed. */
 /**
  * `grid` is written only when the capture is going somewhere other than home.
  * Home is the absence of the key, so stamping it would put a redundant line
  * in every note the plugin creates.
  */
-export function buildNote(link: ResolvedLink, created = today(), grid = ""): string {
+export function buildNote(link: ResolvedLink, created = nowISO(), grid = ""): string {
   const lines = [
     "---",
     `title: ${yamlString(link.title)}`,

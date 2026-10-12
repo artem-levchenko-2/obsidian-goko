@@ -1,3 +1,4 @@
+import { savedLabel } from "./dates";
 import { extensionOf } from "./formats";
 import { humanBytes } from "./media-refs";
 import type { TileModel } from "./tile";
@@ -65,7 +66,7 @@ export function fileFacts(model: TileModel, bytes: number): Fact[] {
   const ext = extensionOf(model.filePath || model.record.cover || model.record.source);
   if (ext) facts.push({ label: "Type", value: ext.toUpperCase() });
 
-  if (model.record.created) facts.push({ label: "Saved", value: model.record.created });
+  if (model.record.created) facts.push({ label: "Saved", value: savedLabel(model.record.created) });
 
   return facts;
 }

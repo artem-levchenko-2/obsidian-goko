@@ -77,6 +77,33 @@ describe("sortRecords", () => {
     sortRecords(input);
     expect(input[0].path).toBe("a.md");
   });
+
+  it("orders a day's clippings by the time they were made, newest first", () => {
+    const sorted = sortRecords([
+      rec("a.md", "2026-10-12T09:15:00", "Alpha"),
+      rec("z.md", "2026-10-12T14:30:05", "Zulu"),
+      rec("m.md", "2026-10-12T14:30:04", "Mike"),
+    ]);
+    expect(sorted.map((r) => r.title)).toEqual(["Zulu", "Mike", "Alpha"]);
+  });
+
+  it("stands the notes that have only the day under that day's timed ones, by title", () => {
+    const sorted = sortRecords([
+      rec("b.md", "2026-10-12", "Beta"),
+      rec("y.md", "2026-10-11T23:59:59", "Yesterday"),
+      rec("a.md", "2026-10-12", "Alpha"),
+      rec("t.md", "2026-10-12T08:00:00", "Timed"),
+    ]);
+    expect(sorted.map((r) => r.title)).toEqual(["Timed", "Alpha", "Beta", "Yesterday"]);
+  });
+
+  it("reads a time written with a space and no seconds like Obsidian's own", () => {
+    const sorted = sortRecords([
+      rec("a.md", "2026-10-12T09:00:00", "Nine"),
+      rec("b.md", "2026-10-12 10:30", "Half past ten"),
+    ]);
+    expect(sorted[0].title).toBe("Half past ten");
+  });
 });
 
 describe("shuffleRecords", () => {

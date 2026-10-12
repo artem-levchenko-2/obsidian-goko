@@ -2,6 +2,7 @@ import type { App, TFile } from "obsidian";
 import type { Placement } from "./core/placement";
 import { ClippingRecord, scanClipping, splitFrontmatter } from "./core/scan";
 import { cleanUrl } from "./core/resolve";
+import { newestFirst } from "./core/order";
 
 export function isInFolder(path: string, folder: string): boolean {
   if (!path.toLowerCase().endsWith(".md")) return false;
@@ -12,14 +13,7 @@ export function isInFolder(path: string, folder: string): boolean {
 }
 
 export function sortRecords(records: ClippingRecord[]): ClippingRecord[] {
-  return [...records].sort((a, b) => {
-    if (a.created !== b.created) {
-      if (!a.created) return 1;
-      if (!b.created) return -1;
-      return a.created < b.created ? 1 : -1;
-    }
-    return a.title.localeCompare(b.title);
-  });
+  return [...records].sort(newestFirst);
 }
 
 /**

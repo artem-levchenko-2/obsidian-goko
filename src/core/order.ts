@@ -15,6 +15,7 @@
  * Pure: index-store.ts holds the by-date and shuffled orders beside this one.
  */
 
+import { createdKey } from "./dates";
 import type { ClippingRecord } from "./scan";
 
 /** How the wall is sorted. Not persisted: see the note on `view.order`. */
@@ -25,6 +26,26 @@ const UPDATED_KEY = "updated";
 
 function updatedOf(record: ClippingRecord): string {
   return (record.properties[UPDATED_KEY] ?? [])[0]?.trim() ?? "";
+}
+
+/**
+ * Newest first, by `created`, then by title.
+ *
+ * A clipping made in Goko carries the time it was made, so a day's clippings
+ * stand in the order they came and the one just taken is the first card. A
+ * note with only the day, as every note had before, stands under that day's
+ * timed ones, and among its own kind by title. One with no `created` at all
+ * goes to the end.
+ */
+export function newestFirst(a: ClippingRecord, b: ClippingRecord): number {
+  const left = createdKey(a.created);
+  const right = createdKey(b.created);
+  if (left !== right) {
+    if (!left) return 1;
+    if (!right) return -1;
+    return left < right ? 1 : -1;
+  }
+  return a.title.localeCompare(b.title);
 }
 
 /**
@@ -48,11 +69,6 @@ export function byUpdated(records: readonly ClippingRecord[]): ClippingRecord[] 
       if (!right) return -1;
       return left < right ? 1 : -1;
     }
-    if (a.created !== b.created) {
-      if (!a.created) return 1;
-      if (!b.created) return -1;
-      return a.created < b.created ? 1 : -1;
-    }
-    return a.title.localeCompare(b.title);
+    return newestFirst(a, b);
   });
 }

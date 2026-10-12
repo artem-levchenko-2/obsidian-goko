@@ -5,7 +5,10 @@ import {
   dateTokenMatches,
   isDateProperty,
   looksLikeDate,
+  createdKey,
+  nowISO,
   relativeLabel,
+  savedLabel,
   todayISO,
   tokenLabel,
 } from "../src/core/dates";
@@ -108,6 +111,63 @@ describe("todayISO", () => {
     // stamp tomorrow and early morning west of it would stamp yesterday.
     const late = new Date(2026, 7, 19, 23, 30);
     expect(todayISO(late)).toBe("2026-08-19");
+  });
+});
+
+describe("nowISO", () => {
+  it("writes the local date and time with seconds, as Obsidian's Date & time property does", () => {
+    expect(nowISO(new Date(2026, 9, 12, 14, 30, 5))).toBe("2026-10-12T14:30:05");
+  });
+
+  it("pads every part", () => {
+    expect(nowISO(new Date(2026, 0, 5, 7, 4, 9))).toBe("2026-01-05T07:04:09");
+  });
+
+  it("is something every date reader here already takes", () => {
+    const value = nowISO(new Date(2026, 9, 12, 14, 30, 5));
+    expect(looksLikeDate(value)).toBe(true);
+    expect(relativeLabel(value, new Date(2026, 9, 12, 17, 31).getTime())).toBe("3h ago");
+  });
+});
+
+describe("createdKey", () => {
+  it("writes every date and time the same way", () => {
+    expect(createdKey("2026-10-12T14:30:05")).toBe("2026-10-12T14:30:05");
+    expect(createdKey("2026-10-12 14:30")).toBe("2026-10-12T14:30:00");
+    expect(createdKey(" 2026-10-12T14:30 ")).toBe("2026-10-12T14:30:00");
+  });
+
+  it("leaves a bare date and anything else as it is", () => {
+    expect(createdKey("2026-10-12")).toBe("2026-10-12");
+    expect(createdKey("Fri Aug 07 20:16:19 +0000 2026")).toBe("Fri Aug 07 20:16:19 +0000 2026");
+    expect(createdKey("")).toBe("");
+  });
+
+  it("sorts a bare date under every time on its day, and above the day before", () => {
+    const day = createdKey("2026-10-12");
+    expect(createdKey("2026-10-12 00:00") > day).toBe(true);
+    expect(day > createdKey("2026-10-11T23:59:59")).toBe(true);
+  });
+});
+
+describe("savedLabel", () => {
+  it("gives the date and the time when the note has one", () => {
+    expect(savedLabel("2026-10-12T14:30:05", "en-GB")).toBe("12 Oct 2026, 14:30");
+    expect(savedLabel("2026-10-12 09:05", "en-GB")).toBe("12 Oct 2026, 09:05");
+  });
+
+  it("gives the date alone for a note that has only the day", () => {
+    expect(savedLabel("2026-10-12", "en-GB")).toBe("12 Oct 2026");
+  });
+
+  it("follows the reader's conventions", () => {
+    expect(savedLabel("2026-10-12T14:30:05", "en-US")).toMatch(/^Oct 12, 2026, 2:30\sPM$/);
+  });
+
+  it("returns anything that is not a local date as it is", () => {
+    expect(savedLabel("last spring", "en-GB")).toBe("last spring");
+    expect(savedLabel("2026-13-45", "en-GB")).toBe("2026-13-45");
+    expect(savedLabel("2026-10-12T25:00", "en-GB")).toBe("2026-10-12T25:00");
   });
 });
 

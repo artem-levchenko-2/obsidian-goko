@@ -25,6 +25,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The wall paints a picture drawn from the SVG at 1600 px wide, never the
   SVG itself, which as markup could run scripts.
 
+### Changed
+
+- A clipping made in Goko records the time it was saved as well as the day,
+  as `created: 2026-10-12T14:30:05`, and the wall orders a day's clippings by
+  it, newest first, so the clip you just took is the first card. Notes that
+  have only the day stand under that day's newer ones, ordered by title as
+  before. The details panel shows when a clipping was saved as a date and a
+  time in your own format rather than as the raw value.
+
 ### Fixed
 
 - Goko and another plugin that used the same class names no longer restyle

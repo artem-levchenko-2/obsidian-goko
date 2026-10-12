@@ -85,8 +85,8 @@ describe("buildNote", () => {
     expect(buildNote(link({ published: "" }))).toContain("published:\n");
   });
 
-  it("writes created as an ISO date", () => {
-    expect(buildNote(link())).toMatch(/created: \d{4}-\d{2}-\d{2}/);
+  it("writes created as a local date and time, so a day's clippings keep their order", () => {
+    expect(buildNote(link())).toMatch(/\ncreated: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\n/);
   });
 
   it("includes the description as body text", () => {

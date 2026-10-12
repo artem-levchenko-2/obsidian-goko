@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { savedLabel } from "../src/core/dates";
 import {
   INSPECTOR_DEFAULT,
   INSPECTOR_MAX,
@@ -96,6 +97,14 @@ describe("fileFacts", () => {
     expect(facts[0].value).toBe("1500×2250");
     expect(facts[1].value).toBe("2.8 MB");
     expect(facts[2].value).toBe("PNG");
+    expect(facts[3].value).toBe(savedLabel("2026-04-25"));
+  });
+
+  it("says when a clipping was saved for a person to read, time included", () => {
+    const facts = fileFacts(tile({ record: record({ created: "2026-10-12T14:30:05" }) }), 0);
+    const saved = facts.find((fact) => fact.label === "Saved")!;
+    expect(saved.value).toBe(savedLabel("2026-10-12T14:30:05"));
+    expect(saved.value).not.toBe("2026-10-12T14:30:05");
   });
 
   it("leaves out a size nobody has measured, rather than printing zero", () => {

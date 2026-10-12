@@ -64,3 +64,14 @@ describe("byUpdated", () => {
     expect(out.map((r) => r.title)).toEqual(["padded", "plain"]);
   });
 });
+
+describe("byUpdated, among cards touched the same day", () => {
+  it("falls back to the newest created, time included", () => {
+    const out = byUpdated([
+      record("morning", "2026-10-12", "2026-10-12T09:00:00"),
+      record("bare", "2026-10-12", "2026-10-12"),
+      record("evening", "2026-10-12", "2026-10-12T20:00:00"),
+    ]);
+    expect(out.map((r) => r.title)).toEqual(["evening", "morning", "bare"]);
+  });
+});

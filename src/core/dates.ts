@@ -181,7 +181,8 @@ export function tokenLabel(value: string): string {
 const pad2 = (n: number): string => String(n).padStart(2, "0");
 
 /**
- * A date as ISO, matching what the Web Clipper writes to `created`.
+ * A date as ISO, as the Web Clipper writes `created` and every write stamps
+ * `updated`.
  *
  * Built from the local calendar rather than toISOString, which converts to UTC
  * first and so stamps tomorrow's date for anyone east of Greenwich in the
@@ -191,6 +192,68 @@ const pad2 = (n: number): string => String(n).padStart(2, "0");
  */
 export function todayISO(now: Date = new Date()): string {
   return `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
+}
+
+/**
+ * The moment as a local date and time, which is what `created` holds for a
+ * clipping made in Goko: `2026-10-12T14:30:05`, the form Obsidian's own
+ * Date & time property writes. The time is what orders a day's clippings,
+ * and it is written into the note rather than read off the file, because a
+ * phone dates a file by when iCloud delivered it.
+ */
+export function nowISO(now: Date = new Date()): string {
+  const time = `${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`;
+  return `${todayISO(now)}T${time}`;
+}
+
+/** A local date and time, written with a T or a space, with or without seconds. */
+const LOCAL_DATE_TIME = /^(\d{4}-\d{2}-\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?$/;
+
+/**
+ * A `created` value in the one form that sorts as text: a date and time as
+ * `YYYY-MM-DDTHH:mm:ss`, a bare date as it is. Obsidian writes the time with
+ * a T and seconds, a hand might write a space and leave the seconds off, and
+ * each would otherwise sort by its punctuation. Anything else is left alone.
+ *
+ * A bare date sorts under every time on the same day, since text that stops
+ * sooner sorts first: the notes from before times were written stand under
+ * that day's timed clippings.
+ */
+export function createdKey(value: string): string {
+  const trimmed = value.trim();
+  const parts = LOCAL_DATE_TIME.exec(trimmed);
+  return parts ? `${parts[1]}T${parts[2]}:${parts[3]}:${parts[4] ?? "00"}` : trimmed;
+}
+
+/**
+ * When a clipping was saved, for a person to read: the date, and the time
+ * when the note has one, in the reader's own conventions. A value that is
+ * not a local date comes back as it is.
+ *
+ * @param locale for tests; the reader's own when left out.
+ */
+export function savedLabel(value: string, locale?: string): string {
+  const key = createdKey(value);
+  const day = DATE_ONLY.exec(key);
+  const timed = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/.exec(key);
+  const parts = (day ?? timed)?.slice(1).map(Number);
+  if (!parts) return value;
+
+  const [year, month, date, hours = 0, minutes = 0, seconds = 0] = parts;
+  const at = new Date(year, month - 1, date, hours, minutes, seconds);
+  // The Date constructor rolls a thirteenth month into the next year rather
+  // than refusing it, so a value it had to move is not a date.
+  const exact =
+    at.getMonth() === month - 1 && at.getDate() === date && at.getHours() === hours && at.getMinutes() === minutes;
+  if (!exact) return value;
+  const style: Intl.DateTimeFormatOptions = timed
+    ? { dateStyle: "medium", timeStyle: "short" }
+    : { dateStyle: "medium" };
+  try {
+    return new Intl.DateTimeFormat(locale, style).format(at);
+  } catch {
+    return value;
+  }
 }
 
 const HOUR = 3_600_000;
