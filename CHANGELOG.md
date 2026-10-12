@@ -83,16 +83,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A clip made while a folder is open is flown to, as any other clip is,
   when grids follow the folders on disk. Filing it into the folder moved the
   note, and the wall kept looking for it where it had been.
-- A video Goko did not download itself, such as one dropped onto the wall
-  or embedded in a note by hand, shows on its card and plays like any
-  other. Such a card used to show only its title: a card shows a video by a
-  still of it, and only a video Goko had downloaded was given one.
+- A video Goko did not download itself, such as one dropped onto the wall,
+  embedded in a note by hand or set as a card's cover, shows on its card
+  and plays like any other. Such a card used to show only its title, or a
+  blank frame for a cover: a card shows a video by a still of it, and only
+  a video Goko had downloaded was given one.
 - With Autoplay videos off, a GIF moved by itself. It rests on its still
   now and plays while the pointer is over it, as a video does, and a GIF
-  dropped onto the wall or embedded by hand gets a still to rest on. A GIF
-  over 8 MB stays on its still on the wall, as it was always meant to,
-  since playing it costs more than the motion is worth; it plays once its
-  card is open.
+  dropped onto the wall, embedded by hand or set as a card's cover gets a
+  still to rest on. A GIF over 8 MB stays on its still on the wall, as it
+  was always meant to, since playing it costs more than the motion is
+  worth; it plays once its card is open.
 - A GIF picked on the wall showed only a still in the side panel, the one
   made for list rows. It plays there now, as a video does.
 - On a phone, Search offers Describe with AI and File as suggested for the

@@ -207,6 +207,42 @@ describe("buildTiles", () => {
     expect(tile.filePath).toBe("Attachments/Clippings/manual.png");
   });
 
+  it("rests a GIF set as the cover on its still, as an embedded one rests", () => {
+    const gif = "Attachments/Clippings/pasted-2031-04-07 081522.gif";
+    const still = "Attachments/Clippings/pasted-2031-04-07 081522.thumb.webp";
+    const record = scanClipping("Clippings/C.md", { ...COMBOLANDS_FM, cover: gif }, COMBOLANDS_BODY);
+    const cache = cacheWith([[gif, { file: gif, thumb: still, width: 480, height: 270, bytes: 101_000 }]]);
+    const tile = buildTiles([record], cache)[0];
+    expect(tile.filePath).toBe(gif);
+    expect(tile.posterPath).toBe(still);
+    expect(tile.animated).toBe(true);
+  });
+
+  it("posts a video set as the cover with the still made for it", () => {
+    const clip = "Attachments/Clippings/flower.mp4";
+    const record = scanClipping("Clippings/C.md", { ...COMBOLANDS_FM, cover: clip }, COMBOLANDS_BODY);
+    const cache = cacheWith([
+      [clip, { file: clip, kind: "video", thumb: "Attachments/Clippings/flower.poster.webp", width: 1080, height: 1920 }],
+    ]);
+    const tile = buildTiles([record], cache)[0];
+    expect(tile.kind).toBe("video");
+    expect(tile.filePath).toBe(clip);
+    expect(tile.posterPath).toBe("Attachments/Clippings/flower.poster.webp");
+  });
+
+  it("posts a clip's video with a GIF cover's still rather than the moving GIF", () => {
+    const source = "https://www.instagram.com/reel/AAA/";
+    const gif = "Attachments/Library/frame.gif";
+    const record = scanClipping("Clippings/Reel.md", { title: "Reel", source, cover: gif }, "body");
+    const cache = cacheWith([
+      [`ytdlp:${source}`, { file: "Attachments/Library/clip.mp4", kind: "video", thumb: "auto.webp" }],
+      [gif, { file: gif, thumb: "Attachments/Library/frame.thumb.webp", bytes: 101_000 }],
+    ]);
+    const tile = buildTiles([record], cache)[0];
+    expect(tile.kind).toBe("video");
+    expect(tile.posterPath).toBe("Attachments/Library/frame.thumb.webp");
+  });
+
   it("reads an explicit cover's kind from the file, so a clip is not an <img>", () => {
     const cover = (value: string): string =>
       buildTiles(

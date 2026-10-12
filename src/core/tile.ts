@@ -376,6 +376,11 @@ export function coverForMedia(item: CanonicalMedia, cache: MediaCache): MediaOut
  * and saying so lets the clipping fall back to its own words rather than to
  * a broken picture.
  *
+ * Whatever the cache holds is read from it, as an embed is. A video set as
+ * the cover is posted with its still and a GIF rests on its own, which a
+ * cover read off its path alone had neither of: the video stood blank and
+ * the GIF moved by itself on a wall whose autoplay is off.
+ *
  * An extension nothing recognises reads as a picture, which is what every
  * hand-set cover was before there was a choice to make.
  */
@@ -384,9 +389,10 @@ function handCover(record: ClippingRecord, cache: MediaCache): Cover | null {
   if (!cover) return null;
 
   const remote = isRemote(cover);
-  if (!remote && !isRenderable(extensionOf(cover))) {
+  if (!remote) {
     const entry = cache.byFile(cover);
-    return entry ? localCover(entry) : null;
+    if (entry) return localCover(entry);
+    if (!isRenderable(extensionOf(cover))) return null;
   }
 
   const kind = kindForExtension(extensionOf(cover)) ?? "image";
@@ -438,8 +444,11 @@ function pickCover(record: ClippingRecord, cache: MediaCache): Cover | null {
     //
     // Only a local one: a poster is a vault path, and a cover pointing at
     // somebody else's server has none to give.
+    //
+    // A GIF chosen as the cover gives its still: a poster is a frame, and
+    // one that moved would play by itself where nothing else does.
     const moving = hand.kind === "image" && !hand.remote ? movingCover(record, cache) : null;
-    return moving ? { ...moving, posterPath: hand.filePath } : hand;
+    return moving ? { ...moving, posterPath: hand.posterPath || hand.filePath } : hand;
   }
 
   // A video pulled from the post itself outranks the poster image that page
