@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the old way back on. This is the starting point of a new install: a vault
   that already has Goko keeps what its settings say. On a phone, which has
   no pointer, a video plays once its card is open.
+- A new install starts with no AI provider picked. It used to show OpenAI
+  picked with no key, which looked set up when it was not. Until a provider
+  is picked, AI descriptions show only that choice, and Describe says where
+  to make it. A vault that already has Goko keeps its provider.
 
 ### Fixed
 

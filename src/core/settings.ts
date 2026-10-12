@@ -5,7 +5,7 @@ import type { GridSpace, SharedClipTarget } from "./spaces";
 import { INSPECTOR_DEFAULT } from "./inspector";
 import { SIDEBAR_DEFAULT } from "./sidebar";
 import type { Effort, VisionProvider } from "./vision";
-import { DEFAULT_CONCURRENCY, DEFAULT_EFFORT, DEFAULT_MODELS } from "./vision";
+import { DEFAULT_CONCURRENCY, DEFAULT_EFFORT } from "./vision";
 import type { ArrivalMode } from "./arrivals";
 import { DEFAULT_ARRIVAL_MODE } from "./arrivals";
 
@@ -91,8 +91,12 @@ export interface GokoSettings {
    * the vault, and these settings are a file in the vault's plugin folder.
    * So they hold only the name of a secret in Obsidian's keychain, which
    * stays on the device, and the key is read from there when it is needed.
+   *
+   * No provider, "", until one is picked, and so no model either. A provider
+   * is nothing without a key or Claude Code, and a new install that showed
+   * OpenAI picked looked set up when it was not.
    */
-  aiProvider: VisionProvider;
+  aiProvider: VisionProvider | "";
   aiKeySecret: string;
   aiModel: string;
   /** Which property the model's tags go to. `tags` needs allowEditingTags. */
@@ -249,9 +253,9 @@ export const DEFAULT_SETTINGS: GokoSettings = {
   tileProperty: "categories",
   tileTitle: true,
   domainRules: "",
-  aiProvider: "openai",
+  aiProvider: "",
   aiKeySecret: "",
-  aiModel: DEFAULT_MODELS.openai,
+  aiModel: "",
   aiTagProperty: "categories",
   aiAutoDescribe: false,
   aiArrivals: DEFAULT_ARRIVAL_MODE,

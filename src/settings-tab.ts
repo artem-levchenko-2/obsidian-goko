@@ -1,7 +1,7 @@
 import { AbstractInputSuggest, App, Notice, Platform, PluginSettingTab, SecretComponent, Setting, setIcon } from "obsidian";
 import type { ButtonComponent, IconName, SettingDefinition, SettingDefinitionItem } from "obsidian";
 import { parseRules } from "./core/rules";
-import { CLI_MODELS, DEFAULT_MODELS, MAX_CONCURRENCY, clampConcurrency } from "./core/vision";
+import { CLI_MODELS, MAX_CONCURRENCY, clampConcurrency, modelAfterSwitch } from "./core/vision";
 import type { Effort, VisionProvider } from "./core/vision";
 import { slotCandidates, surveyProperties } from "./core/facet-catalog";
 import { facetLabel } from "./core/filter";
@@ -616,38 +616,40 @@ export class GokoSettingTab extends PluginSettingTab {
   }
 
   /**
-   * The AI group, which changes shape with the provider: an HTTP provider
-   * wants a key and a model name, Claude Code wants a model alias, an effort
-   * and maybe a path. Every row is defined and the ones that do not apply
-   * are hidden; choosing a provider or a model redraws the tab, because the
-   * descriptions and the model field's value change with them.
+   * The AI group, which changes shape with the provider: none shows only the
+   * choice, an HTTP provider wants a key and a model name, Claude Code wants
+   * a model alias, an effort and maybe a path. Every row is defined and the
+   * ones that do not apply are hidden; choosing a provider or a model redraws
+   * the tab, because the descriptions and the model field's value change
+   * with them.
    */
   private aiItems(): SettingDefinition[] {
     const settings = this.plugin.settings;
+    const none = (): boolean => settings.aiProvider === "";
+    const picked = (): boolean => !none();
     const cli = (): boolean => settings.aiProvider === "claude-cli";
+    const http = (): boolean => picked() && !cli();
     const alias = (): boolean => settings.aiModel in CLI_MODELS;
 
-    const providers: Record<string, string> = { openai: "OpenAI", anthropic: "Anthropic" };
+    const providers: Record<string, string> = { "": "None", openai: "OpenAI", anthropic: "Anthropic" };
     // Claude Code is a program on this machine; a phone has neither it nor a
     // way to run one. Still listed when it is already chosen, so the pane
     // shows the truth rather than the first option.
     if (Platform.isDesktopApp || cli()) providers["claude-cli"] = "Claude Code (local CLI)";
 
     const provider: SettingDefinition = {
-      ...words(cli() ? COPY.providerCli : COPY.provider),
+      ...words(none() ? COPY.providerNone : cli() ? COPY.providerCli : COPY.provider),
       render: (setting) => {
         setting.addDropdown((dropdown) =>
           dropdown
             .addOptions(providers)
             .setValue(settings.aiProvider)
             .onChange((value) => {
-              const next: VisionProvider = value === "anthropic" || value === "claude-cli" ? value : "openai";
+              const next: VisionProvider | "" =
+                value === "openai" || value === "anthropic" || value === "claude-cli" ? value : "";
               settings.aiProvider = next;
-              // A model name belongs to a provider. Switching keeps a
-              // custom one only if it plainly is not another's default.
-              if (Object.values(DEFAULT_MODELS).includes(settings.aiModel)) {
-                settings.aiModel = DEFAULT_MODELS[next];
-              }
+              // None keeps the model it had, for the provider coming back.
+              if (next) settings.aiModel = modelAfterSwitch(settings.aiModel, next);
               void this.plugin.saveSettings();
               this.update();
             })
@@ -657,7 +659,7 @@ export class GokoSettingTab extends PluginSettingTab {
 
     const apiKey: SettingDefinition = {
       ...words(COPY.apiKey),
-      visible: () => !cli(),
+      visible: http,
       // Obsidian's own keychain picker: the key is chosen or added there and
       // only its name is kept here. See aiKeySecret.
       render: (setting) => {
@@ -672,7 +674,7 @@ export class GokoSettingTab extends PluginSettingTab {
 
     const modelName: SettingDefinition = {
       ...words(COPY.model),
-      visible: () => !cli(),
+      visible: http,
       control: { type: "text", key: "aiModel" },
     };
 
@@ -718,6 +720,7 @@ export class GokoSettingTab extends PluginSettingTab {
 
     const concurrency: SettingDefinition = {
       ...words(COPY.concurrency),
+      visible: picked,
       control: {
         type: "dropdown",
         key: "aiConcurrency",
@@ -735,11 +738,13 @@ export class GokoSettingTab extends PluginSettingTab {
 
     const tagProperty: SettingDefinition = {
       ...words(COPY.tagProperty),
+      visible: picked,
       control: { type: "text", key: "aiTagProperty" },
     };
 
     const auto: SettingDefinition = {
       ...words(cli() ? COPY.autoDescribeCli : COPY.autoDescribe),
+      visible: picked,
       control: { type: "toggle", key: "aiAutoDescribe" },
     };
 
@@ -747,7 +752,7 @@ export class GokoSettingTab extends PluginSettingTab {
     // arrival-check.ts), so on a phone this row would decide nothing.
     const arrivals: SettingDefinition = {
       ...words(cli() ? COPY.arrivalsCli : COPY.arrivals),
-      visible: Platform.isDesktopApp,
+      visible: () => Platform.isDesktopApp && picked(),
       control: { type: "dropdown", key: "aiArrivals", options: ARRIVAL_LABELS },
     };
 

@@ -279,6 +279,11 @@ export const COPY = copy({
     desc: "Who describes your clippings, with your own API key and account. Nothing is sent until a clipping is described.",
     aliases: ["ai", "vision", "openai", "anthropic", "claude", "gpt", "cli"],
   },
+  providerNone: {
+    name: "Provider",
+    desc: "Pick one to have AI write a summary and categories for your clippings. Until then, nothing is sent anywhere.",
+    aliases: ["ai", "vision", "openai", "anthropic", "claude", "gpt", "cli"],
+  },
   providerCli: {
     name: "Provider",
     desc: "Claude Code on this computer describes your clippings, signed in as you. There's no API key; it uses your Claude subscription.",

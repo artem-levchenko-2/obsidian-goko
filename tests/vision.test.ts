@@ -16,6 +16,7 @@ import {
   extractText,
   imageMime,
   isDescribed,
+  modelAfterSwitch,
   parseCliResult,
   parseResponse,
   pickImage,
@@ -399,5 +400,21 @@ describe("DEFAULT_MODELS", () => {
     expect(DEFAULT_MODELS["claude-cli"]).toBe("sonnet");
     expect(Object.keys(CLI_MODELS)).toContain(DEFAULT_MODELS["claude-cli"]);
     expect(EFFORTS).toContain(DEFAULT_EFFORT);
+  });
+});
+
+describe("modelAfterSwitch", () => {
+  it("gives the first provider picked its own default", () => {
+    expect(modelAfterSwitch("", "openai")).toBe(DEFAULT_MODELS.openai);
+    expect(modelAfterSwitch("  ", "claude-cli")).toBe(DEFAULT_MODELS["claude-cli"]);
+  });
+
+  it("swaps one provider's default for the next one's", () => {
+    expect(modelAfterSwitch(DEFAULT_MODELS.openai, "anthropic")).toBe(DEFAULT_MODELS.anthropic);
+    expect(modelAfterSwitch(DEFAULT_MODELS.anthropic, "claude-cli")).toBe(DEFAULT_MODELS["claude-cli"]);
+  });
+
+  it("keeps a model typed by hand", () => {
+    expect(modelAfterSwitch("vision-model-7b", "anthropic")).toBe("vision-model-7b");
   });
 });

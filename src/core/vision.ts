@@ -484,3 +484,17 @@ export const DEFAULT_MODELS: Record<VisionProvider, string> = {
   anthropic: "claude-haiku-4-5-20251001",
   "claude-cli": "sonnet",
 };
+
+/**
+ * The model to hold once the provider becomes `next`.
+ *
+ * A model name belongs to a provider, and the defaults are the names known
+ * to belong to one, so one of them gives way to the new provider's own. So
+ * does no name at all, which is what a vault holds before any provider has
+ * been picked. A name typed by hand is kept, as it always was.
+ */
+export function modelAfterSwitch(model: string, next: VisionProvider): string {
+  const held = model.trim();
+  if (!held || Object.values(DEFAULT_MODELS).includes(held)) return DEFAULT_MODELS[next];
+  return model;
+}

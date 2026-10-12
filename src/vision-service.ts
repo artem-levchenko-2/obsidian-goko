@@ -89,8 +89,10 @@ export class VisionService {
     private annotator: AnnotateService
   ) {}
 
-  private vision(): VisionSettings {
+  /** What the provider is called with, or null while none is picked. */
+  private vision(): VisionSettings | null {
     const s = this.settings();
+    if (!s.aiProvider) return null;
     return {
       provider: s.aiProvider,
       apiKey: (s.aiKeySecret ? this.app.secretStorage.getSecret(s.aiKeySecret) : null)?.trim() ?? "",
@@ -102,12 +104,13 @@ export class VisionService {
   }
 
   /**
-   * Whether there is something to call with: a key for an HTTP provider, a
-   * desktop for Claude Code. The commands ask before queueing.
+   * Whether there is something to call with: a provider at all, then a key
+   * for an HTTP provider or a desktop for Claude Code. The commands ask
+   * before queueing.
    */
   get ready(): boolean {
     const v = this.vision();
-    if (!v.model) return false;
+    if (!v?.model) return false;
     return v.provider === "claude-cli" ? Platform.isDesktopApp : v.apiKey.length > 0;
   }
 
@@ -121,14 +124,16 @@ export class VisionService {
    */
   describe(paths: readonly string[], force = false, quiet = false): void {
     const v = this.vision();
-    if (!this.ready) {
+    if (!v || !this.ready) {
       if (quiet) return;
       new Notice(
-        v.provider === "claude-cli"
-          ? Platform.isDesktopApp
-            ? "Goko: pick a model under Settings → Goko → AI descriptions first"
-            : "Goko: Claude Code runs on the desktop only — pick a provider with an API key here"
-          : "Goko: add an API key and a model under Settings → Goko → AI descriptions first"
+        !v
+          ? "Goko: pick a provider under Settings → Goko → AI descriptions first"
+          : v.provider === "claude-cli"
+            ? Platform.isDesktopApp
+              ? "Goko: pick a model under Settings → Goko → AI descriptions first"
+              : "Goko: Claude Code runs on the desktop only — pick a provider with an API key here"
+            : "Goko: add an API key and a model under Settings → Goko → AI descriptions first"
       );
       return;
     }
@@ -271,6 +276,8 @@ export class VisionService {
     if (!cover && !article) return false;
 
     const settings = this.vision();
+    // The provider was set to None while the queue was running.
+    if (!settings) return "no provider is picked";
     const vocabulary = vocabularyOf(this.index.records(), settings.tagProperty);
     const prompt = buildPrompt(record, vocabulary, article);
 

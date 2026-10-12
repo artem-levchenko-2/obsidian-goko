@@ -19,4 +19,9 @@ describe("settings", () => {
   it("plays a video on the wall only while it is hovered", () => {
     expect(DEFAULT_SETTINGS.autoplayVideo).toBe(false);
   });
+
+  it("starts with no AI provider, and so no model", () => {
+    expect(DEFAULT_SETTINGS.aiProvider).toBe("");
+    expect(DEFAULT_SETTINGS.aiModel).toBe("");
+  });
 });
