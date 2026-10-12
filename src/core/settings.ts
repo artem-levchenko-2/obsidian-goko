@@ -126,8 +126,10 @@ export interface GokoSettings {
 
   /**
    * Let the plugin write `tags`, which the Web Clipper owns by convention.
-   * Off by default: a vault that treats the clipper's frontmatter as a
-   * contract keeps that contract until it says otherwise.
+   * On by default: they are the reader's own labels, which Obsidian's
+   * property editor lets anyone change anyway, so refusing only sent people
+   * there to do it. A vault that keeps the clipper's frontmatter as a
+   * contract turns it off.
    */
   allowEditingTags: boolean;
 
@@ -262,7 +264,7 @@ export const DEFAULT_SETTINGS: GokoSettings = {
   aiCliPath: "",
   aiEffort: DEFAULT_EFFORT,
   aiConcurrency: DEFAULT_CONCURRENCY,
-  allowEditingTags: false,
+  allowEditingTags: true,
   grids: [],
   folders: [],
   gridsFollowFolders: false,

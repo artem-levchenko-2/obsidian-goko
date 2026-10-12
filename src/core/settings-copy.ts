@@ -233,7 +233,7 @@ export const COPY = copy({
   // Properties
   allowEditingTags: {
     name: "Let Goko edit tags",
-    desc: "The Web Clipper writes tags, so Goko leaves them alone unless you allow it. Title, source, author, dates and description are never edited.",
+    desc: "Tags are the one Web Clipper property that holds your own labels. Title, source, author, dates and description are never edited.",
     lines: onOff(
       "You can add and remove tags in the details panel and the property menus.",
       "Tags can be read and filtered by, but not changed."

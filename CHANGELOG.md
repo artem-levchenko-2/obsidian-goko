@@ -57,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   picked with no key, which looked set up when it was not. Until a provider
   is picked, AI descriptions show only that choice, and Describe says where
   to make it. A vault that already has Goko keeps its provider.
+- A new install lets you add and remove tags in the details panel and the
+  property menus, as Obsidian's own property editor does. Turn off Let Goko
+  edit tags for a vault where only the Web Clipper writes them. A vault
+  that already has Goko keeps its setting.
 
 ### Fixed
 

@@ -20,6 +20,10 @@ describe("settings", () => {
     expect(DEFAULT_SETTINGS.autoplayVideo).toBe(false);
   });
 
+  it("lets the tags be edited, which are the reader's own labels", () => {
+    expect(DEFAULT_SETTINGS.allowEditingTags).toBe(true);
+  });
+
   it("starts with no AI provider, and so no model", () => {
     expect(DEFAULT_SETTINGS.aiProvider).toBe("");
     expect(DEFAULT_SETTINGS.aiModel).toBe("");

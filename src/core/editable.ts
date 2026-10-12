@@ -24,8 +24,9 @@ const CLIPPER_KEYS = new Set([
  * `tags` is the Clipper's too, but it is the one of its keys that is a list of
  * the reader's own labels rather than a record of the page: the vault's own
  * property editor lets anyone add to it, so refusing here only pushed the work
- * into another pane. Behind a setting, and off by the same default the vault
- * documents, so a clipper-managed vault is untouched until it opts in.
+ * into another pane. Behind a setting, which is on by default for that
+ * reason; a vault that keeps the clipper's frontmatter as a contract turns
+ * it off.
  */
 const OPTIONAL_CLIPPER_KEYS = new Set(["tags"]);
 
