@@ -23,6 +23,7 @@ import { previewOf } from "./core/tile";
 import { paintSwatchStrip, readSwatches } from "./core/swatch-strip";
 import { attachTip } from "./core/tip";
 import { systemAvailable } from "./core/system";
+import { SAVE_A_COPY, canShareFiles } from "./core/share";
 import { clampPan, detailLayout, fitZoomRange } from "./core/viewer";
 import type { DetailLayout } from "./core/viewer";
 import { watchedOnYoutube } from "./core/youtube";
@@ -978,26 +979,32 @@ export class DetailView {
         () => this.actions.onCopyImage(model)
       );
     }
-    // Both reach for the filesystem, which mobile does not have. Gated the way
-    // the wall's context menu already gates them: without this the bar shows
-    // two controls that cannot work, and Export answers a tap by claiming
-    // nothing has been archived, when the truth is there is nowhere to put it.
-    if (systemAvailable()) {
+    // Both mean something different on a phone, which has no Downloads
+    // folder and no file manager. Export goes to the share sheet there, and
+    // only where the host has one: a control that cannot work would answer a
+    // tap with an apology. Reveal opens the file in a tab instead.
+    const onDisk = systemAvailable();
+    if (onDisk || canShareFiles(navigator)) {
       add(
         "download",
-        "Export to Downloads",
+        onDisk ? "Export to Downloads" : SAVE_A_COPY,
         "\u2318E",
         (event) => mod(event) && !event.shiftKey && keyIs(event, "e"),
         () => this.actions.onExport(model.id)
       );
-      add(
-        "folder",
-        "Show in system explorer",
-        "\u2318\u21e7R",
-        (event) => mod(event) && event.shiftKey && keyIs(event, "r"),
-        () => this.actions.onReveal(model.id)
-      );
     }
+    add(
+      onDisk ? "folder" : "file",
+      onDisk ? "Show in system explorer" : "Open file",
+      "\u2318\u21e7R",
+      (event) => mod(event) && event.shiftKey && keyIs(event, "r"),
+      () => {
+        // The tab would open behind this overlay, so it closes first, the
+        // way Open note does. The file manager comes up in front on its own.
+        if (!onDisk) this.close();
+        this.actions.onReveal(model.id);
+      }
+    );
 
     rule();
 

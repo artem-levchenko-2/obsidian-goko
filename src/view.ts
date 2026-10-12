@@ -19,6 +19,7 @@ import {
 import { absolutePath, droppedFilePath, vaultRoot } from "./convert";
 import { exportFiles } from "./core/export-files";
 import { copyToDownloads, revealInFinder, systemAvailable } from "./core/system";
+import { SAVE_A_COPY, canShareFiles, shareFiles, shareNotice, shareType } from "./core/share";
 import { ActionBar } from "./action-bar";
 import { buildCommands, facetValueCommands } from "./core/commands";
 import type { PaletteContext } from "./core/commands";
@@ -250,6 +251,11 @@ export class GokoView extends ItemView {
   private snoozedCount = 0;
   /** Whether the inbox is showing what it is holding back. */
   private showSnoozed = false;
+  /**
+   * Files read for a share the host would not count as a tap, kept so the
+   * next tap on the same clippings shares them before anything is awaited.
+   */
+  private readyShare: { ids: string; files: File[] } | null = null;
   private menu: ContextMenu | null = null;
   private detail: DetailView | null = null;
   private spaceBar: SpaceBar | null = null;
@@ -1443,6 +1449,7 @@ export class GokoView extends ItemView {
     this.observer = null;
     this.playback?.destroy();
     this.playback = null;
+    this.readyShare = null;
     this.plugin.capture.onProgress = null;
     this.plugin.capture.onFinished = null;
     this.plugin.vision.onProgress = null;
@@ -1587,21 +1594,24 @@ export class GokoView extends ItemView {
       onSelect: () => void this.copyPaths(ids),
     });
 
-    if (systemAvailable()) {
+    // Downloads on a desktop, the share sheet on a phone, and the label says
+    // which. The same method answers both.
+    if (this.canExport()) {
       reach.push({
         icon: "download",
-        label: "Export to Downloads",
+        label: systemAvailable() ? "Export to Downloads" : SAVE_A_COPY,
         detail: "⌘E",
         onSelect: () => void this.exportToDownloads(ids),
       });
+    }
 
-      if (n === 1) {
-        reach.push({
-          icon: "folder",
-          label: "Show in system explorer",
-          onSelect: () => this.revealFirstFile(ids[0]),
-        });
-      }
+    // Revealing picks one file, so a selection of many has no single answer.
+    if (n === 1) {
+      reach.push({
+        icon: systemAvailable() ? "folder" : "file",
+        label: systemAvailable() ? "Show in system explorer" : "Open file",
+        onSelect: () => this.revealFirstFile(ids[0]),
+      });
     }
 
     if (this.canFile()) {
@@ -1853,10 +1863,29 @@ export class GokoView extends ItemView {
     new Notice(absolute ? `Goko: copied the ${what}` : `Goko: copied the vault ${what}`);
   }
 
+  /** Whether a copy of a clipping's files can leave Obsidian here at all. */
+  private canExport(): boolean {
+    return systemAvailable() || canShareFiles(navigator);
+  }
+
+  /**
+   * Shows the archived file itself.
+   *
+   * A desktop hands it to the file manager. A phone has none behind the app,
+   * so it opens the file in a tab, which is the nearest thing to the same
+   * answer: here is the file this clipping is made of. Obsidian shows a
+   * picture, a video and a PDF in a tab on every platform.
+   */
   private revealFirstFile(id: string): void {
     const file = this.filesFor(id)[0];
     if (!file) {
       new Notice("Goko: nothing archived for this clipping yet");
+      return;
+    }
+    if (!systemAvailable()) {
+      const found = this.app.vault.getAbstractFileByPath(normalizePath(file));
+      if (found instanceof TFile) void this.app.workspace.getLeaf(false).openFile(found);
+      else new Notice("Goko: that file is no longer in the vault");
       return;
     }
     const absolute = absolutePath(this.app.vault, normalizePath(file));
@@ -1865,7 +1894,16 @@ export class GokoView extends ItemView {
     }
   }
 
+  /**
+   * Saves a copy of everything archived for these clippings out of Obsidian:
+   * into ~/Downloads on a desktop, and on a phone wherever the share sheet is
+   * pointed, which is the person's choice and not Goko's.
+   */
   async exportToDownloads(ids: string[]): Promise<void> {
+    if (!systemAvailable()) {
+      await this.shareToDevice(ids);
+      return;
+    }
     let copied = 0;
     for (const id of ids) {
       for (const file of this.filesFor(id)) {
@@ -1880,6 +1918,49 @@ export class GokoView extends ItemView {
         ? "Goko: nothing archived to export yet"
         : `Goko: exported ${copied} file${copied === 1 ? "" : "s"} to Downloads`
     );
+  }
+
+  /**
+   * The phone's half of export: the files go to the share sheet, where iOS
+   * offers Save Image, Save Video and Save to Files beside every app that
+   * takes them.
+   *
+   * Read through the vault, since a phone has no disk path to read from, and
+   * only after the host has said it can share files at all, so nothing is
+   * held in memory to find out. The read comes between the tap and the
+   * share, and WebKit only shares inside the moment a tap grants; when a read
+   * outlasts it, the files stay ready and the next tap shares them before
+   * anything is awaited.
+   */
+  private async shareToDevice(ids: string[]): Promise<void> {
+    const key = ids.join("\n");
+    let files = this.readyShare?.ids === key ? this.readyShare.files : null;
+    this.readyShare = null;
+
+    if (!files) {
+      if (!canShareFiles(navigator)) {
+        new Notice(shareNotice("unsupported") ?? "");
+        return;
+      }
+      files = [];
+      for (const id of ids) {
+        for (const path of this.filesFor(id)) {
+          const file = this.app.vault.getAbstractFileByPath(normalizePath(path));
+          if (!(file instanceof TFile)) continue;
+          try {
+            const data = await this.app.vault.readBinary(file);
+            files.push(new File([data], file.name, { type: shareType(file.name) }));
+          } catch {
+            // One unreadable file does not cost the others their sheet.
+          }
+        }
+      }
+    }
+
+    const outcome = await shareFiles(navigator, files);
+    if (outcome === "blocked") this.readyShare = { ids: key, files };
+    const notice = shareNotice(outcome);
+    if (notice) new Notice(notice);
   }
 
   private confirmDelete(ids: string[]): void {
@@ -2486,6 +2567,7 @@ export class GokoView extends ItemView {
       facets: facetsOf(this.facets, defs),
       filter: this.activeFilter(),
       hasSystem: systemAvailable(),
+      canExport: this.canExport(),
       canGroup: this.isInbox(),
       grouped: this.plugin.settings.inboxGrouped,
       suggested: this.isInbox() ? selection.filter((id) => this.suggestionOf(id) !== null).length : 0,

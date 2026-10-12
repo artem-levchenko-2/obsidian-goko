@@ -24,6 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clipped without one, and a dropped or pasted SVG saved as a broken PNG.
   The wall paints a picture drawn from the SVG at 1600 px wide, never the
   SVG itself, which as markup could run scripts.
+- On a phone, Save a copy hands a clipping's files to the share sheet, where
+  Save Image, Save Video and Save to Files sit beside every app that takes
+  them, and Open file opens its picture or video in a tab. Both stand where
+  a desktop has Export to Downloads and Show in system explorer: in the
+  card's menu, in Search and in the full-screen view. Save a copy appears
+  only where the phone's share sheet can take files.
 
 ### Changed
 

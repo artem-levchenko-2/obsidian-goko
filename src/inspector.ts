@@ -470,10 +470,15 @@ export class Inspector {
       if (watchedOnYoutube(source)) {
         button("external-link", "Open on YouTube", () => window.open(source));
       }
-      // Nothing to reveal without a file manager to reveal it in, and nothing
-      // to reveal for a clipping whose media is still someone else's URL.
-      if (systemAvailable() && models[0].filePath && !models[0].remote) {
-        button("folder-open", "Show in system explorer", () => this.handlers.onReveal(ids[0]));
+      // Nothing to show for a clipping whose media is still someone else's
+      // URL. A phone has no file manager to reveal it in, so it opens the
+      // file in a tab there.
+      if (models[0].filePath && !models[0].remote) {
+        if (systemAvailable()) {
+          button("folder-open", "Show in system explorer", () => this.handlers.onReveal(ids[0]));
+        } else {
+          button("file", "Open file", () => this.handlers.onReveal(ids[0]));
+        }
       }
     }
     button("trash-2", "Delete", () => this.handlers.onDelete(ids), true);

@@ -4,6 +4,7 @@ import type { FolderSpace } from "./folders";
 import type { WallOrder } from "./order";
 import { hotkeyPosition } from "./spaces";
 import type { GridSpace } from "./spaces";
+import { SAVE_A_COPY } from "./share";
 
 /**
  * Everything the palette can do, built fresh from the wall's current state.
@@ -125,6 +126,11 @@ export interface PaletteContext {
   filter: FilterState;
   /** False off desktop, where there is no Finder and no Downloads folder. */
   hasSystem: boolean;
+  /**
+   * Whether a copy of the files can leave Obsidian at all: into Downloads on
+   * a desktop, through the share sheet on a phone that has one.
+   */
+  canExport: boolean;
   /** Whether the wall on screen is the inbox, which is the one wall that groups. */
   canGroup?: boolean;
   /** Whether the inbox is currently grouped by suggestion. */
@@ -190,14 +196,16 @@ function selectionCommands(context: PaletteContext): PaletteCommand[] {
     });
   }
 
-  if (context.hasSystem) {
+  // Downloads on a desktop, the share sheet on a phone, and the label says
+  // which, since a phone has no Downloads folder to promise.
+  if (context.canExport) {
     items.push({
       id: "selection:export",
-      label: "Export to Downloads",
+      label: context.hasSystem ? "Export to Downloads" : SAVE_A_COPY,
       icon: "download",
       section: "Actions",
       detail: one ? "⌘E" : count,
-      keywords: "save copy download file",
+      keywords: "save copy download file share export",
       run: () => actions.exportSelection(selection),
     });
   }
@@ -230,13 +238,15 @@ function selectionCommands(context: PaletteContext): PaletteCommand[] {
   });
 
   // Revealing picks one file, so a selection of many has no single answer.
-  if (context.hasSystem && one) {
+  // The file manager on a desktop; a phone has none behind the app, so the
+  // nearest "here is the file" there is opening it in a tab.
+  if (one) {
     items.push({
       id: "selection:reveal",
-      label: "Show in system explorer",
-      icon: "folder",
+      label: context.hasSystem ? "Show in system explorer" : "Open file",
+      icon: context.hasSystem ? "folder" : "file",
       section: "Actions",
-      keywords: "finder show file folder disk",
+      keywords: "finder show file folder disk open",
       run: () => actions.reveal(selection[0]),
     });
   }

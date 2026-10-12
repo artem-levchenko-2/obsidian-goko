@@ -57,6 +57,7 @@ function context(over: Partial<PaletteContext> = {}): PaletteContext {
     facets: { categories: [], status: [], kind: [], domain: [] },
     filter: emptyFilter(),
     hasSystem: true,
+    canExport: true,
     order: "newest" as const,
     actions,
     ...over,
@@ -91,10 +92,17 @@ describe("buildCommands", () => {
     expect(ids(context({ selection: ["a.md", "b.md"] }))).not.toContain("selection:reveal");
   });
 
-  it("drops the Finder and Downloads actions when the platform has neither", () => {
-    const list = ids(context({ selection: ["a.md"], hasSystem: false }));
+  it("saves a copy through the share sheet and opens the file on a phone", () => {
+    const phone = context({ selection: ["a.md"], hasSystem: false });
+    expect(find(phone, "selection:export")?.label).toBe("Save a copy");
+    expect(find(phone, "selection:reveal")?.label).toBe("Open file");
+    expect(find(phone, "selection:reveal")?.icon).toBe("file");
+  });
+
+  it("drops the export where nothing can leave the app", () => {
+    const list = ids(context({ selection: ["a.md"], hasSystem: false, canExport: false }));
     expect(list).not.toContain("selection:export");
-    expect(list).not.toContain("selection:reveal");
+    expect(list).toContain("selection:reveal");
   });
 
   it("keeps the model and the suggestions on a phone, which need no file system", () => {
