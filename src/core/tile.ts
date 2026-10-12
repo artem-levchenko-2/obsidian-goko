@@ -359,9 +359,14 @@ export function coverForMedia(item: CanonicalMedia, cache: MediaCache): MediaOut
     const cover = localCover(entry);
     return cover ? { kind: "cover", cover } : SKIP;
   }
+  // An SVG still at its address waits behind every other picture, as it will
+  // once it is downloaded and drawn. Otherwise a README's first badge would
+  // stand for it until then, and for good where nothing is downloaded on its
+  // own.
+  const cover = remoteCover(item.url, item.kind, item.widthHint, item.heightHint);
   return {
     kind: "cover",
-    cover: remoteCover(item.url, item.kind, item.widthHint, item.heightHint),
+    cover: isVector(extensionOf(item.url)) ? { ...cover, isVector: true } : cover,
   };
 }
 

@@ -820,6 +820,20 @@ describe("svg covers", () => {
     expect(buildTiles([readme()], cache)[0].filePath).toBe(photoFile);
   });
 
+  it("lets a picture of another kind stand ahead of an svg before either is downloaded", () => {
+    // Nothing archived yet, or nothing ever: Download media automatically is
+    // off. The badge first in a README must not stand for it meanwhile.
+    expect(buildTiles([readme()], new MediaCache())[0].filePath).toBe(photo);
+    expect(tilesForRecord(readme(), new MediaCache()).map((tile) => tile.filePath)).toEqual([photo]);
+  });
+
+  it("still shows an svg at its address when the clipping has no other picture", () => {
+    const record = scanClipping("Clippings/Logo.md", { title: "Logo" }, `![](${source})`);
+    const [tile] = buildTiles([record], new MediaCache());
+    expect(tile.filePath).toBe(source);
+    expect(tile.isVector).toBe(true);
+  });
+
   it("puts the page's own picture ahead of an svg", () => {
     const record = scanClipping("Clippings/Repo.md", { title: "Repo", source: page }, `![](${source})`);
     const cache = cacheWith([
