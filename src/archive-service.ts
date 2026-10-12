@@ -28,10 +28,11 @@ import {
   renderPoster,
   renderStill,
   renderThumbnail,
+  renderVector,
   thumbPath,
 } from "./core/derive";
 import type { Rendered } from "./core/derive";
-import { extensionOf, kindForExtension, needsPreview } from "./core/formats";
+import { extensionOf, isVector, kindForExtension, needsPreview } from "./core/formats";
 import { mimeForPath } from "./core/file-clip";
 import {
   WebviewDecodes,
@@ -271,14 +272,17 @@ export class ArchiveService {
       if (entry.thumbFailed && !(poster && retriesPoster(entry.thumbFailed, device))) continue;
 
       if (wantsPreview) {
-        // A PDF goes through the app's own pdf.js, everything else through
-        // a program or the webview. Each records its own failures, since
-        // each is the one that can tell a file it will never read from a
-        // device that cannot read it.
+        // A PDF goes through the app's own pdf.js, an SVG is drawn by the
+        // page, everything else goes through a program or the webview. Each
+        // records its own failures, since each is the one that can tell a
+        // file it will never read from a device that cannot read it.
+        const ext = extensionOf(entry.file);
         const preview =
-          extensionOf(entry.file) === "pdf"
+          ext === "pdf"
             ? await this.renderPdfPreview(entry.key, entry.file)
-            : await this.renderPreview(entry.key, entry.file, entry.kind);
+            : isVector(ext)
+              ? await this.renderVectorPreview(entry.key, entry.file)
+              : await this.renderPreview(entry.key, entry.file, entry.kind);
         if (preview) {
           this.cache.setThumb(entry.key, preview.path, preview.width, preview.height);
           derived++;
@@ -1031,6 +1035,37 @@ export class ArchiveService {
       return null;
     }
     return { path: target, width: still.width, height: still.height };
+  }
+
+  /**
+   * An SVG's preview, drawn by the page at full width. Every webview draws
+   * SVG, so unlike a HEIC's a failure here is about the file, an SVG that
+   * declares no shape or will not parse, and is written down.
+   */
+  private async renderVectorPreview(
+    key: string,
+    file: string
+  ): Promise<{ path: string; width: number; height: number } | null> {
+    const source = this.app.vault.getFileByPath(normalizePath(file));
+    if (!source) return null;
+
+    const data = await this.app.vault.readBinary(source);
+    const drawn = await renderVector(new Blob([data], { type: "image/svg+xml" }));
+    if (!drawn) {
+      this.cache.setThumbFailed(key, "render failed");
+      return null;
+    }
+
+    const target = normalizePath(previewPath(file));
+    try {
+      await this.app.vault.createBinary(target, drawn.data);
+    } catch (error) {
+      // Almost always the file landing twice, another device or an earlier
+      // pass having written it. adoptDerived picks it up next time round.
+      console.warn(`Goko: could not write ${target} (${String(error)})`);
+      return null;
+    }
+    return { path: target, width: drawn.width, height: drawn.height };
   }
 
   /**

@@ -701,3 +701,31 @@ describe("documents", () => {
     expect(after.signature).not.toBe(before.signature);
   });
 });
+
+describe("svg covers", () => {
+  const svg = "Attachments/Clippings/0a1b2c3d4e5f-og.svg";
+  const preview = "Attachments/Clippings/0a1b2c3d4e5f-og.preview.png";
+  const source = "https://example.com/og.svg";
+
+  function clipped(): ReturnType<typeof scanClipping> {
+    // What capture writes for a page whose only og:image is an SVG.
+    return scanClipping("Clippings/Site.md", { title: "Site", source: "https://example.com/" }, `![](${source})`);
+  }
+
+  it("paints the drawn preview, never the markup", () => {
+    const cache = cacheWith([[source, { file: svg, thumb: preview, width: 1600, height: 840 }]]);
+    const [tile] = buildTiles([clipped()], cache);
+    expect(tile.kind).toBe("image");
+    expect(tile.filePath).toBe(preview);
+  });
+
+  it("shows its own words until the preview has been drawn", () => {
+    const cache = cacheWith([[source, { file: svg, thumb: "" }]]);
+    expect(buildTiles([clipped()], cache)[0].kind).toBe("note");
+  });
+
+  it("does not paint an embedded svg that has no preview yet", () => {
+    const record = scanClipping("Clippings/Logo.md", { title: "Logo", cover: svg }, `![[${svg}]]`);
+    expect(buildTiles([record], new MediaCache())[0].kind).toBe("note");
+  });
+});

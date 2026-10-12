@@ -6,6 +6,7 @@ import {
   isExcluded,
   isRenderable,
   isSupported,
+  isVector,
   kindForExtension,
   kindForMime,
   needsPreview,
@@ -30,10 +31,22 @@ describe("the requested format matrix", () => {
     expect(kindForExtension("webp")).toBe("image");
   });
 
-  it("excludes svg", () => {
-    expect(isExcluded("svg")).toBe(true);
-    expect(kindForExtension("svg")).toBeNull();
-    expect(isSupported("svg")).toBe(false);
+  it("takes svg as an image that only ever paints through a drawn preview", () => {
+    expect(kindForExtension("svg")).toBe("image");
+    expect(isRenderable("svg")).toBe(false);
+    expect(needsPreview("svg")).toBe(true);
+    expect(isVector("svg")).toBe(true);
+    expect(isVector("png")).toBe(false);
+  });
+
+  it("still excludes gzipped svg, which an <img> will not inflate", () => {
+    expect(isExcluded("svgz")).toBe(true);
+    expect(isSupported("svgz")).toBe(false);
+    expect(needsPreview("svgz")).toBe(false);
+  });
+
+  it("names a file served as svg after what it is", () => {
+    expect(extensionForMime("image/svg+xml")).toBe("svg");
   });
 
   it("covers the common raw vendor extensions", () => {
@@ -76,7 +89,7 @@ describe("renderable versus opaque", () => {
   });
 
   it("never asks for a preview of an unsupported format", () => {
-    expect(needsPreview("svg")).toBe(false);
+    expect(needsPreview("svgz")).toBe(false);
     expect(needsPreview("zip")).toBe(false);
   });
 

@@ -22,6 +22,7 @@ const MIME_BY_EXT: Record<string, string> = {
   heif: "image/heif",
   tif: "image/tiff",
   tiff: "image/tiff",
+  svg: "image/svg+xml",
   mp4: "video/mp4",
   m4v: "video/mp4",
   mov: "video/quicktime",

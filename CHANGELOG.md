@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   download ran past three minutes. A clip tells you at once, and the pass
   that fills in missing media tells you once at the end. A post with no
   video in it stays quiet, as before.
+- SVG pictures get a card. A page whose only picture is an SVG used to be
+  clipped without one, and a dropped or pasted SVG saved as a broken PNG.
+  The wall paints a picture drawn from the SVG at 1600 px wide, never the
+  SVG itself, which as markup could run scripts.
 
 ### Fixed
 

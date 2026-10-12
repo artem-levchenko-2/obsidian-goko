@@ -28,6 +28,51 @@ export function scaledSize(
   return { width: targetWidth, height: Math.round((height / width) * targetWidth) };
 }
 
+/**
+ * How wide an SVG's preview is drawn. The preview stands in for the original
+ * everywhere, the full screen included, so it is drawn big enough to stay
+ * sharp on a Retina screen. A vector costs nothing to draw large, and one
+ * that calls itself a 24 px icon is drawn this wide too.
+ */
+export const VECTOR_WIDTH = 1600;
+
+/**
+ * The size to draw a vector at, from the shape it declares: VECTOR_WIDTH
+ * wide, held to the canvas an iPhone will draw for a very tall one. Null
+ * when it declares no shape at all.
+ */
+export function vectorSize(shape: { width: number; height: number } | null): { width: number; height: number } | null {
+  if (!shape || !(shape.width > 0) || !(shape.height > 0)) return null;
+  return previewSize(VECTOR_WIDTH, Math.max(1, Math.round((shape.height / shape.width) * VECTOR_WIDTH)));
+}
+
+/** A length in an SVG attribute, in user units, or 0 for one relative to something else. */
+function svgLength(value: string | undefined): number {
+  const match = /^\s*([0-9]*\.?[0-9]+)\s*(px)?\s*$/i.exec(value ?? "");
+  return match ? Number(match[1]) : 0;
+}
+
+/**
+ * The shape an SVG declares on its root element: its width and height when
+ * both are absolute lengths, otherwise its viewBox. Read from the markup
+ * because an <img> reports no size at all for an SVG that has only a
+ * viewBox, which is how most logos and diagrams are written.
+ */
+export function svgShape(markup: string): { width: number; height: number } | null {
+  const root = /<svg\b([^>]*)>/i.exec(markup);
+  if (!root) return null;
+  const attributes = new Map<string, string>();
+  for (const [, name, quoted, single] of root[1].matchAll(/([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    attributes.set(name.toLowerCase(), quoted ?? single);
+  }
+  const width = svgLength(attributes.get("width"));
+  const height = svgLength(attributes.get("height"));
+  if (width > 0 && height > 0) return { width, height };
+  const box = (attributes.get("viewbox") ?? "").trim().split(/[\s,]+/).map(Number);
+  if (box.length === 4 && box[2] > 0 && box[3] > 0) return { width: box[2], height: box[3] };
+  return null;
+}
+
 export interface Rendered {
   data: ArrayBuffer;
   width: number;
@@ -95,6 +140,40 @@ export async function renderThumbnail(
   const data = await encode(canvas);
   if (!data) return null;
   return { data, width: image.naturalWidth, height: image.naturalHeight };
+}
+
+/**
+ * Draws an SVG into a PNG at VECTOR_WIDTH, its preview. Through an <img>, so
+ * the markup runs no script and fetches nothing while it is drawn; the
+ * blob's type has to say SVG, or the <img> will not read it as one.
+ *
+ * A PNG rather than WebP: a vector is flat colour and hard edges, which a
+ * lossy encoder smears, and it is the format every other preview is in.
+ */
+export async function renderVector(blob: Blob): Promise<Rendered | null> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = new Image();
+    const loaded = new Promise<boolean>((resolve) => {
+      image.onload = () => resolve(true);
+      image.onerror = () => resolve(false);
+    });
+    image.src = url;
+    if (!(await loaded)) return null;
+
+    const declared = svgShape(await blob.text());
+    const natural = image.naturalWidth > 0 ? { width: image.naturalWidth, height: image.naturalHeight } : null;
+    const size = vectorSize(declared ?? natural);
+    if (!size) return null;
+
+    const canvas = draw(image, size);
+    if (!canvas) return null;
+    const data = await encode(canvas, "image/png");
+    if (!data) return null;
+    return { data, ...size };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 /** The spec's HAVE_CURRENT_DATA: a frame at the current position is decoded. */

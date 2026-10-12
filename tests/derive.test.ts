@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { posterPath, previewPath, scaledSize, thumbPath } from "../src/core/derive";
+import {
+  VECTOR_WIDTH,
+  posterPath,
+  previewPath,
+  scaledSize,
+  svgShape,
+  thumbPath,
+  vectorSize,
+} from "../src/core/derive";
 
 describe("thumbPath", () => {
   it("appends a thumb suffix before the extension", () => {
@@ -62,5 +70,49 @@ describe("previewPath", () => {
     expect(previewPath("Attachments/Clippings/abc")).toBe(
       "Attachments/Clippings/abc.preview.png"
     );
+  });
+});
+
+describe("svgShape", () => {
+  it("reads absolute width and height", () => {
+    expect(svgShape('<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630">')).toEqual({
+      width: 1200,
+      height: 630,
+    });
+    expect(svgShape("<svg width='64px' height='32px'></svg>")).toEqual({ width: 64, height: 32 });
+  });
+
+  it("falls back to the viewBox when the size is missing or relative", () => {
+    expect(svgShape('<svg viewBox="0 0 400 100">')).toEqual({ width: 400, height: 100 });
+    expect(svgShape('<svg width="100%" height="100%" viewBox="0,0,30,60">')).toEqual({ width: 30, height: 60 });
+  });
+
+  it("finds the root after a declaration and comments", () => {
+    const markup = '<?xml version="1.0"?>\n<!-- drawn by hand -->\n<svg\n  viewBox="0 0 10 20"\n>';
+    expect(svgShape(markup)).toEqual({ width: 10, height: 20 });
+  });
+
+  it("gives up on markup that declares no shape", () => {
+    expect(svgShape("<svg>")).toBeNull();
+    expect(svgShape('<svg viewBox="0 0 0 0">')).toBeNull();
+    expect(svgShape("not svg at all")).toBeNull();
+  });
+});
+
+describe("vectorSize", () => {
+  it("draws at the full vector width whatever the declared size", () => {
+    expect(vectorSize({ width: 1200, height: 630 })).toEqual({ width: VECTOR_WIDTH, height: 840 });
+    expect(vectorSize({ width: 24, height: 24 })).toEqual({ width: VECTOR_WIDTH, height: VECTOR_WIDTH });
+  });
+
+  it("keeps a very tall one inside the canvas an iPhone will draw", () => {
+    const size = vectorSize({ width: 10, height: 400 })!;
+    expect(size.width * size.height).toBeLessThanOrEqual(4096 * 4096);
+    expect(size.height / size.width).toBeCloseTo(40, 0);
+  });
+
+  it("gives up on a vector with no shape", () => {
+    expect(vectorSize(null)).toBeNull();
+    expect(vectorSize({ width: 0, height: 0 })).toBeNull();
   });
 });

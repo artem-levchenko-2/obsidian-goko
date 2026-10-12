@@ -75,11 +75,15 @@ const RENDERABLE_VIDEO = new Set(["mp4", "m4v", "webm", "ogv", "ogg", "mov"]);
 const OPAQUE_VIDEO = new Set(["avi", "mkv", "wmv", "flv", "mpg", "mpeg", "m2ts", "mts", "3gp"]);
 
 /**
- * Deliberately excluded. SVG is script-capable markup, and rendering
- * arbitrary clipped SVG inside the vault is not a risk worth taking for a
- * format that is rare in clippings.
+ * Painted only through a preview drawn from it. SVG is script-capable
+ * markup, so the file itself never reaches the wall; loaded into an <img>,
+ * as the preview is drawn, it runs no script and fetches nothing. Some
+ * sites' only og:image is an SVG, and their clippings had no picture at all.
  */
-const EXCLUDED = new Set(["svg", "svgz"]);
+const DRAWN_IMAGE = new Set(["svg"]);
+
+/** Deliberately excluded. An <img> will not inflate gzipped SVG. */
+const EXCLUDED = new Set(["svgz"]);
 
 export type MediaKind = "image" | "video";
 
@@ -105,7 +109,7 @@ export function kindForExtension(ext: string): MediaKind | null {
   const e = ext.toLowerCase();
   if (EXCLUDED.has(e)) return null;
   if (RENDERABLE_VIDEO.has(e) || OPAQUE_VIDEO.has(e)) return "video";
-  if (RENDERABLE_IMAGE.has(e) || OPAQUE_IMAGE.has(e)) return "image";
+  if (RENDERABLE_IMAGE.has(e) || OPAQUE_IMAGE.has(e) || DRAWN_IMAGE.has(e)) return "image";
   return null;
 }
 
@@ -118,7 +122,15 @@ export function isRenderable(ext: string): boolean {
 /** True when the file is supported but needs a generated preview to show. */
 export function needsPreview(ext: string): boolean {
   const e = ext.toLowerCase();
-  return OPAQUE_IMAGE.has(e) || OPAQUE_VIDEO.has(e);
+  return OPAQUE_IMAGE.has(e) || OPAQUE_VIDEO.has(e) || DRAWN_IMAGE.has(e);
+}
+
+/**
+ * True when the preview is drawn by the page from a vector, rather than
+ * converted by a program or decoded by the webview at the picture's size.
+ */
+export function isVector(ext: string): boolean {
+  return DRAWN_IMAGE.has(ext.toLowerCase());
 }
 
 export function isSupported(ext: string): boolean {
@@ -150,6 +162,7 @@ const MIME_TO_EXT: Record<string, string> = {
   "image/x-sony-arw": "arw",
   "image/x-exr": "exr",
   "image/vnd.radiance": "hdr",
+  "image/svg+xml": "svg",
   "video/mp4": "mp4",
   "video/quicktime": "mov",
   "video/webm": "webm",
