@@ -42,6 +42,7 @@ import {
   previewFailure,
   previewOutcome,
   previewRoutes,
+  unadoptedRefs,
 } from "./core/preview-route";
 import type { PreviewOutcome } from "./core/preview-route";
 import { posterFailure, posterRoutes, retriesPoster, webviewReads } from "./core/poster-route";
@@ -548,6 +549,27 @@ export class ArchiveService {
    */
   private adoptLocalMedia(record: ClippingRecord): void {
     for (const ref of localPreviewRefs(record)) this.adoptLocalFile(ref.key, ref.path, ref.kind);
+  }
+
+  /**
+   * Adopts the files a note was just edited to embed, and makes what they
+   * are missing, without fetching anything.
+   *
+   * The background pass adopts what is embedded by hand, and it runs when
+   * Obsidian starts and when a note arrives, not when one changes. A note
+   * written in Obsidian arrives empty and is given its embed after, so a
+   * video embedded in it waited for the next launch for its still, and its
+   * card stood as its title until then. An edit that embeds nothing new,
+   * which is nearly every edit, costs a look at the cache.
+   */
+  async adoptEmbeds(record: ClippingRecord): Promise<void> {
+    const fresh = unadoptedRefs(record, this.cache);
+    if (fresh.length === 0) return;
+    this.adoptLocalMedia(record);
+    // A file the note names and the vault does not hold stays out of the
+    // cache, and then there is nothing to make.
+    if (!fresh.some((ref) => this.cache.byFile(ref.path))) return;
+    await this.settleRecord(record);
   }
 
   private adoptLocalFile(key: string, path: string, kind: "image" | "video"): void {

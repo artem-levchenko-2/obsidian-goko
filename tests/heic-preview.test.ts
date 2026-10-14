@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MediaCache } from "../src/core/cache";
 import type { CacheEntry } from "../src/core/cache";
 import { previewPath } from "../src/core/derive";
 import { filesForRefs, liveRefs, orphanFiles } from "../src/core/media-refs";
@@ -13,6 +14,7 @@ import {
   previewOutcome,
   previewRoutes,
   previewSize,
+  unadoptedRefs,
 } from "../src/core/preview-route";
 import type { ClippingRecord } from "../src/core/scan";
 
@@ -157,6 +159,24 @@ describe("localPreviewRefs", () => {
       media: [{ url: "https://cdn.example.com/photo.heic", kind: "image", alt: "" }],
     });
     expect(localPreviewRefs(record)).toEqual([]);
+  });
+});
+
+describe("unadoptedRefs", () => {
+  const video = `${FOLDER}/walk.mov`;
+  const record = clipping({ media: [{ url: video, kind: "video", alt: "" }] });
+
+  it("names a video a note was just edited to embed, until the cache holds it", () => {
+    const cache = new MediaCache();
+    expect(unadoptedRefs(record, cache)).toEqual([{ key: video, path: video, kind: "video" }]);
+
+    cache.set({ key: video, file: video, thumb: "", kind: "video", width: 0, height: 0, bytes: 2048 });
+    expect(unadoptedRefs(record, cache)).toEqual([]);
+  });
+
+  it("has nothing for an edit that embeds only pictures that paint themselves", () => {
+    const pictures = clipping({ media: [{ url: `${FOLDER}/walk.jpg`, kind: "image", alt: "" }] });
+    expect(unadoptedRefs(pictures, new MediaCache())).toEqual([]);
   });
 });
 

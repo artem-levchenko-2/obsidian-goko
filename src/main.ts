@@ -476,7 +476,13 @@ export default class GokoPlugin extends Plugin {
     );
     this.registerEvent(
       this.app.vault.on("modify", (f: TAbstractFile) => {
-        if (f instanceof TFile && admits(f.path)) void this.index.handleModify(f);
+        if (!(f instanceof TFile) || !admits(f.path)) return;
+        void this.index.handleModify(f).then(() => {
+          // A note given a video, a GIF or a HEIC after it was written gets
+          // its still now rather than on the next launch: see adoptEmbeds.
+          const record = this.index.get(f.path);
+          if (record) void this.archiver.adoptEmbeds(record);
+        });
       })
     );
     this.registerEvent(

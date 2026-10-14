@@ -158,6 +158,17 @@ export function localPreviewRefs(
   return refs.filter((ref) => needsAdopting(ref.path, ref.kind));
 }
 
+/**
+ * Those of a clipping's files that need adopting and are not in the cache
+ * yet: what is left for the archiver when a note is edited to embed one.
+ */
+export function unadoptedRefs(
+  record: ClippingRecord,
+  cache: { byFile(path: string): CacheEntry | undefined }
+): Array<{ key: string; path: string; kind: MediaKind }> {
+  return localPreviewRefs(record).filter((ref) => !cache.byFile(ref.path));
+}
+
 function isRemote(url: string): boolean {
   return /^https?:\/\//i.test(url);
 }
