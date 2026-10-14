@@ -50,7 +50,7 @@ import {
   withShared,
 } from "./core/shared-config";
 import type { SharedConfig } from "./core/shared-config";
-import { describeFiles } from "./core/media-refs";
+import { describeFiles, notesToReread } from "./core/media-refs";
 import { pdfReadReport } from "./core/pdf";
 import { installRepair } from "./repair";
 import { sharedHttpUrl } from "./core/resolve";
@@ -458,7 +458,9 @@ export default class GokoPlugin extends Plugin {
 
     this.registerEvent(
       this.app.vault.on("create", (f: TAbstractFile) => {
-        if (!(f instanceof TFile) || !admits(f.path)) return;
+        if (!(f instanceof TFile)) return;
+        void this.followMedia(f, null);
+        if (!admits(f.path)) return;
         const isNew = this.index.get(f.path) === undefined;
         // Read now, not once the note is indexed: by then the layout may be
         // ready for a file that was announced while the vault was loading.
@@ -490,7 +492,9 @@ export default class GokoPlugin extends Plugin {
     );
     this.registerEvent(
       this.app.vault.on("rename", (f: TAbstractFile, oldPath: string) => {
-        if (f instanceof TFile && admits(oldPath)) void this.index.handleRename(f, oldPath);
+        if (!(f instanceof TFile)) return;
+        void this.followMedia(f, oldPath);
+        if (admits(oldPath)) void this.index.handleRename(f, oldPath);
       })
     );
 
@@ -502,6 +506,28 @@ export default class GokoPlugin extends Plugin {
         if (admits(f.path)) void this.index.handleModify(f);
       })
     );
+  }
+
+  /**
+   * Reads again the clippings that embed a file which has just appeared in
+   * the vault or moved, and gives each what it embeds now: see
+   * notesToReread for which those are, and adoptEmbeds for what they get.
+   *
+   * Not while Obsidian lists the vault at start-up, when every file is
+   * announced as created and the index is read whole once the layout is
+   * ready.
+   */
+  private async followMedia(file: TFile, oldPath: string | null): Promise<void> {
+    if (file.extension === "md" || !this.app.workspace.layoutReady) return;
+    const exists = (path: string): boolean =>
+      this.app.vault.getFileByPath(normalizePath(path)) !== null;
+    for (const path of notesToReread(this.index.records(), file, oldPath, exists)) {
+      const note = this.app.vault.getFileByPath(path);
+      if (!note) continue;
+      await this.index.handleModify(note);
+      const record = this.index.get(path);
+      if (record) await this.archiver.adoptEmbeds(record);
+    }
   }
 
   /**

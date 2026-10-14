@@ -90,7 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   video by a still of it, and only a video Goko had downloaded was given
   one.
 - A picture or video embedded by its name alone, as in `![[walk.mov]]`,
-  which is how Obsidian writes a link by default, shows on its card. Goko
+  which is how Obsidian writes a link by default, shows on its card, and
+  goes on showing when the file is moved or arrives after the note. Goko
   looked for such a file only at the top of the vault, so the card went
   without it, and Remove orphaned media could offer one Goko had saved as
   unused.

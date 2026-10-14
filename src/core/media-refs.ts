@@ -49,6 +49,35 @@ export function isPluginOwned(name: string): boolean {
 }
 
 /**
+ * The clippings to read again because a file has just appeared in the vault
+ * or moved, by note path.
+ *
+ * An embed is recorded as the path its link led to when the note was read.
+ * A link that names a file alone still leads to it after it moves, so
+ * Obsidian has no reason to touch the note, and the recorded path would go
+ * on pointing where the file was: the card lost its picture or its video
+ * until the next launch. Read again are a note whose embed led to the old
+ * path, one whose embed names the new path outright, and one whose embed
+ * led nowhere and names a file of this name. Nothing else: every file Goko
+ * downloads arrives this way too, hundreds to a pass.
+ */
+export function notesToReread(
+  records: readonly ClippingRecord[],
+  file: { path: string; name: string },
+  oldPath: string | null,
+  exists: (path: string) => boolean
+): string[] {
+  const name = file.name.toLowerCase();
+  const names = (url: string): boolean =>
+    url === oldPath ||
+    url === file.path ||
+    (basename(url).toLowerCase() === name && !exists(url));
+  return records
+    .filter((record) => record.media.some((media) => !isRemote(media.url) && names(media.url)))
+    .map((record) => record.path);
+}
+
+/**
  * Whether a pulled video can actually be shown, which is the same question
  * tile.ts asks: the file itself if the browser will play that container,
  * otherwise the frame extracted from it, and nothing if there is neither.

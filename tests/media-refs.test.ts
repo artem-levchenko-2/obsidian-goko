@@ -6,6 +6,7 @@ import {
   filesForRefs,
   isPluginOwned,
   liveRefs,
+  notesToReread,
   orphanFiles,
 } from "../src/core/media-refs";
 import { normalizeUrl, sourceVideoKeyFor } from "../src/core/normalize";
@@ -130,6 +131,39 @@ describe("orphanFiles", () => {
 
   it("ignores a cache entry whose file has already gone from disk", () => {
     expect(orphanFiles({ live: liveRefs([]), cache, onDisk: [] })).toEqual([]);
+  });
+});
+
+describe("notesToReread", () => {
+  const embeds = (path: string, ...urls: string[]): ClippingRecord =>
+    clipping({ path, media: urls.map((url) => ({ url, kind: "video" as const, alt: "" })) });
+  const moved = { path: "Media/Walks/walk.mov", name: "walk.mov" };
+
+  it("reads again a note whose embed led to where the file was before it moved", () => {
+    const note = embeds("Clippings/Walk.md", "Attachments/Inbox/walk.mov");
+    expect(notesToReread([note], moved, "Attachments/Inbox/walk.mov", () => false)).toEqual([
+      "Clippings/Walk.md",
+    ]);
+  });
+
+  it("reads again a note whose embed named the file alone before it arrived", () => {
+    const note = embeds("Clippings/Walk.md", "walk.mov");
+    expect(notesToReread([note], moved, null, () => false)).toEqual(["Clippings/Walk.md"]);
+  });
+
+  it("reads again a note that names the very path the file has just arrived at", () => {
+    const note = embeds("Clippings/Walk.md", "Media/Walks/walk.mov");
+    expect(notesToReread([note], moved, null, () => true)).toEqual(["Clippings/Walk.md"]);
+  });
+
+  it("leaves a note alone whose embed of another file by that name still leads to it", () => {
+    const note = embeds("Clippings/Other.md", "Media/Runs/walk.mov");
+    expect(notesToReread([note], moved, null, () => true)).toEqual([]);
+  });
+
+  it("leaves alone the notes that embed only what is on the web, as clipped notes do", () => {
+    const note = embeds("Clippings/Post.md", "https://cdn.example.com/walk.mov");
+    expect(notesToReread([note], moved, null, () => false)).toEqual([]);
   });
 });
 
