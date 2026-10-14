@@ -66,6 +66,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   GitHub `categories: code`. The box used to start empty, so a rule was
   something you read about before you saw one work. They are ordinary
   rules, to change or delete. A vault that already has Goko keeps its own.
+- Preview width, in the settings, sets the width of video stills alone. A
+  GIF's still is drawn at the GIF's own size, so a GIF resting on it is as
+  sharp as when it plays, however big its card. Stills an earlier version
+  drew narrower are drawn again, once, and Remove orphaned media offers
+  the old files.
 
 ### Fixed
 

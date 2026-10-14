@@ -1,27 +1,51 @@
 import { describe, expect, it } from "vitest";
 import {
   VECTOR_WIDTH,
+  isNarrowStill,
   posterPath,
   previewPath,
   scaledSize,
+  stillPath,
   svgShape,
-  thumbPath,
   vectorSize,
 } from "../src/core/derive";
 
-describe("thumbPath", () => {
-  it("appends a thumb suffix before the extension", () => {
-    expect(thumbPath("Attachments/Clippings/abc-a.jpg")).toBe(
-      "Attachments/Clippings/abc-a.thumb.webp"
+describe("stillPath", () => {
+  it("appends a still suffix before the extension", () => {
+    expect(stillPath("Attachments/Clippings/abc-a.gif")).toBe(
+      "Attachments/Clippings/abc-a.still.webp"
     );
   });
 
   it("handles files with no extension", () => {
-    expect(thumbPath("Attachments/Clippings/abc")).toBe("Attachments/Clippings/abc.thumb.webp");
+    expect(stillPath("Attachments/Clippings/abc")).toBe("Attachments/Clippings/abc.still.webp");
   });
 
   it("is not confused by a dot in a folder name", () => {
-    expect(thumbPath("My.Files/abc")).toBe("My.Files/abc.thumb.webp");
+    expect(stillPath("My.Files/abc")).toBe("My.Files/abc.still.webp");
+  });
+});
+
+describe("isNarrowStill", () => {
+  const GIF = "Attachments/Goko/3f9a0c2e71b4-loop.gif";
+
+  it("is true of a GIF still drawn at the Preview width, so it is drawn again", () => {
+    expect(isNarrowStill({ file: GIF, thumb: "Attachments/Goko/3f9a0c2e71b4-loop.thumb.webp" })).toBe(true);
+    expect(isNarrowStill({ file: "Attachments/LOOP.GIF", thumb: "Attachments/LOOP.THUMB.WEBP" })).toBe(true);
+  });
+
+  it("is false of a GIF still drawn at the GIF's own size, so it is drawn once", () => {
+    expect(isNarrowStill({ file: GIF, thumb: stillPath(GIF) })).toBe(false);
+  });
+
+  it("is false of a GIF with no still yet, which is drawn as any other", () => {
+    expect(isNarrowStill({ file: GIF, thumb: "" })).toBe(false);
+  });
+
+  it("leaves a video's poster alone, which the Preview width still sets", () => {
+    const video = "Attachments/Goko/3f9a0c2e71b4-clip.mp4";
+    expect(isNarrowStill({ file: video, thumb: posterPath(video) })).toBe(false);
+    expect(isNarrowStill({ file: video, thumb: "Attachments/Goko/3f9a0c2e71b4-clip.thumb.webp" })).toBe(false);
   });
 });
 
@@ -32,8 +56,8 @@ describe("posterPath", () => {
     );
   });
 
-  it("differs from the thumb path for the same file", () => {
-    expect(posterPath("a/b.mp4")).not.toBe(thumbPath("a/b.mp4"));
+  it("differs from the still path for the same file", () => {
+    expect(posterPath("a/b.mp4")).not.toBe(stillPath("a/b.mp4"));
   });
 });
 

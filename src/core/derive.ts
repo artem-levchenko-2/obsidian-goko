@@ -6,8 +6,23 @@ function replaceExtension(path: string, suffix: string): string {
   return dot > slash ? path.slice(0, dot) + suffix : path + suffix;
 }
 
-export function thumbPath(originalPath: string): string {
-  return replaceExtension(originalPath, ".thumb.webp");
+/**
+ * A GIF's still, the frame the wall rests it on. Not the .thumb.webp a still
+ * drawn at the Preview width was written as, so that one can be told apart
+ * by its name; see isNarrowStill.
+ */
+export function stillPath(originalPath: string): string {
+  return replaceExtension(originalPath, ".still.webp");
+}
+
+/**
+ * Whether a GIF's still was drawn at the Preview width, as stills were
+ * before they were drawn at the GIF's own size. Such a still goes soft on
+ * any card wider than it, so it is drawn again. Told by its name, so no
+ * still has to be read on every launch to find out.
+ */
+export function isNarrowStill(entry: { file: string; thumb: string }): boolean {
+  return /\.gif$/i.test(entry.file) && /\.thumb\.webp$/i.test(entry.thumb);
 }
 
 export function posterPath(originalPath: string): string {
@@ -123,6 +138,20 @@ async function loadImage(url: string): Promise<HTMLImageElement | null> {
   return image.naturalWidth > 0 ? image : null;
 }
 
+async function renderImage(
+  sourceUrl: string,
+  sizeFor: (width: number, height: number) => { width: number; height: number }
+): Promise<Rendered | null> {
+  const image = await loadImage(sourceUrl);
+  if (!image) return null;
+
+  const canvas = draw(image, sizeFor(image.naturalWidth, image.naturalHeight));
+  if (!canvas) return null;
+  const data = await encode(canvas);
+  if (!data) return null;
+  return { data, width: image.naturalWidth, height: image.naturalHeight };
+}
+
 /**
  * Downscales an archived image for the grid. Decoding a 1920x1080 JPEG to
  * paint a 300px tile is most of the cost of a naive grid; this is the single
@@ -132,14 +161,18 @@ export async function renderThumbnail(
   sourceUrl: string,
   targetWidth: number
 ): Promise<Rendered | null> {
-  const image = await loadImage(sourceUrl);
-  if (!image) return null;
+  return renderImage(sourceUrl, (width, height) => scaledSize(width, height, targetWidth));
+}
 
-  const canvas = draw(image, scaledSize(image.naturalWidth, image.naturalHeight, targetWidth));
-  if (!canvas) return null;
-  const data = await encode(canvas);
-  if (!data) return null;
-  return { data, width: image.naturalWidth, height: image.naturalHeight };
+/**
+ * Draws a GIF's first frame at the GIF's own size, for the wall to rest it
+ * on. The still stands in for the GIF at whatever size its card is, a phone's
+ * full width included, and a GIF is never sharper than its own size, so
+ * neither need its still be. Capped at what an iPhone will draw, as a
+ * preview is.
+ */
+export async function renderGifStill(sourceUrl: string): Promise<Rendered | null> {
+  return renderImage(sourceUrl, (width, height) => previewSize(width, height));
 }
 
 /**

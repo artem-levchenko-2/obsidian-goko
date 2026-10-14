@@ -24,13 +24,15 @@ import {
   ytdlpPath,
 } from "./convert";
 import {
+  isNarrowStill,
   posterPath,
   previewPath,
+  renderGifStill,
   renderPoster,
   renderStill,
   renderThumbnail,
   renderVector,
-  thumbPath,
+  stillPath,
 } from "./core/derive";
 import type { Rendered } from "./core/derive";
 import { extensionOf, isVector, kindForExtension, needsPreview } from "./core/formats";
@@ -243,7 +245,11 @@ export class ArchiveService {
 
     for (const entry of this.cache.entries()) {
       if (keys && !keys.has(entry.key)) continue;
-      if (!entry.file || entry.thumb) continue;
+      // A GIF still drawn at the Preview width is drawn again at the GIF's
+      // own size. The old file stays where it is, for Remove orphaned media:
+      // Goko deletes nothing unasked, and another device not yet updated
+      // goes on showing it.
+      if (!entry.file || (entry.thumb && !isNarrowStill(entry))) continue;
       try {
         if (await this.deriveOne(entry, width, device)) derived++;
       } catch (error) {
@@ -272,7 +278,7 @@ export class ArchiveService {
       : entry.kind === "video"
         ? posterPath(entry.file)
         : /\.gif$/i.test(entry.file)
-          ? thumbPath(entry.file)
+          ? stillPath(entry.file)
           : null;
     if (!target) return false;
 
@@ -327,7 +333,7 @@ export class ArchiveService {
     if (!source) return false;
 
     try {
-      const rendered = await renderThumbnail(source.url, width);
+      const rendered = await renderGifStill(source.url);
       if (!rendered) {
         // Recorded so a GIF this device cannot decode is not asked about on
         // every pass. The explicit archive-everything command clears these

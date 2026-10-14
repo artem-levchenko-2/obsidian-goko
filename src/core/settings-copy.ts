@@ -226,8 +226,8 @@ export const COPY = copy({
   },
   thumbnailWidth: {
     name: "Preview width (px)",
-    desc: "The width of stills made from videos and GIFs. Wider is sharper but takes more space.",
-    aliases: ["thumbnail", "still", "resolution", "gif"],
+    desc: "The width of stills made from videos. Wider is sharper but takes more space.",
+    aliases: ["thumbnail", "still", "resolution", "video"],
   },
 
   // Properties
