@@ -494,7 +494,14 @@ export default class GokoPlugin extends Plugin {
       this.app.vault.on("rename", (f: TAbstractFile, oldPath: string) => {
         if (!(f instanceof TFile)) return;
         void this.followMedia(f, oldPath);
-        if (admits(oldPath)) void this.index.handleRename(f, oldPath);
+        if (!admits(oldPath)) return;
+        void this.index.handleRename(f, oldPath).then(() => {
+          // A note written elsewhere, where Obsidian puts a new one, and
+          // moved into the folder with its video already in it: no edit
+          // follows to give that video its still. See adoptEmbeds.
+          const record = this.index.get(f.path);
+          if (record) void this.archiver.adoptEmbeds(record);
+        });
       })
     );
 

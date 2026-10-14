@@ -85,9 +85,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   note, and the wall kept looking for it where it had been.
 - A video Goko did not download itself, such as one dropped onto the wall,
   embedded in a note by hand or set as a card's cover, shows on its card
-  as soon as the note names it, and plays like any other. Such a card used
-  to show only its title, or a blank frame for a cover: a card shows a
-  video by a still of it, and only a video Goko had downloaded was given
+  as soon as the note names it, or as soon as a note that names it is
+  moved into the clippings folder, and plays like any other. Such a card
+  used to show only its title, or a blank frame for a cover: a card shows
+  a video by a still of it, and only a video Goko had downloaded was given
   one.
 - A picture or video embedded by its name alone, as in `![[walk.mov]]`,
   which is how Obsidian writes a link by default, shows on its card, and
