@@ -146,6 +146,16 @@ describe("notesToReread", () => {
     ]);
   });
 
+  it("reads again a note whose embed led to a file since renamed, though its link now leads nowhere", () => {
+    // Read again, the link is kept as written and the card stands as its
+    // title, rather than pointing at a file that is no longer there.
+    const note = embeds("Clippings/Walk.md", "Attachments/Inbox/walk.mov");
+    const renamed = { path: "Attachments/Inbox/run.mov", name: "run.mov" };
+    expect(notesToReread([note], renamed, "Attachments/Inbox/walk.mov", () => false)).toEqual([
+      "Clippings/Walk.md",
+    ]);
+  });
+
   it("reads again a note whose embed named the file alone before it arrived", () => {
     const note = embeds("Clippings/Walk.md", "walk.mov");
     expect(notesToReread([note], moved, null, () => false)).toEqual(["Clippings/Walk.md"]);
