@@ -9,6 +9,7 @@ import {
   orphanFiles,
 } from "../src/core/media-refs";
 import { normalizeUrl, sourceVideoKeyFor } from "../src/core/normalize";
+import { scanClipping } from "../src/core/scan";
 import type { ClippingRecord } from "../src/core/scan";
 
 const FOLDER = "Attachments/Clippings";
@@ -117,6 +118,14 @@ describe("orphanFiles", () => {
   it("never touches a file the plugin did not make", () => {
     const mine = `${FOLDER}/holiday photo.jpg`;
     expect(orphanFiles({ live: liveRefs([]), cache: [], onDisk: [mine] })).toEqual([]);
+  });
+
+  it("keeps a file a note links to by its name alone, as Obsidian writes a link", () => {
+    const file = `${FOLDER}/pasted-2026-08-18 215104.png`;
+    const note = scanClipping("Clippings/A.md", {}, "![[pasted-2026-08-18 215104.png]]", (link) =>
+      link === "pasted-2026-08-18 215104.png" ? file : null
+    );
+    expect(orphanFiles({ live: liveRefs([note]), cache: [], onDisk: [file] })).toEqual([]);
   });
 
   it("ignores a cache entry whose file has already gone from disk", () => {

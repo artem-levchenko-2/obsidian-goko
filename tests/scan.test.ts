@@ -296,6 +296,36 @@ describe("scanClipping wikilink embeds", () => {
   });
 });
 
+describe("scanClipping wikilink embeds that name the file alone", () => {
+  // Obsidian's default way of writing a link: the name, without its folder,
+  // wherever the name is unique in the vault.
+  const vault: Record<string, string> = {
+    "walk.mov": "Attachments/Inbox/walk.mov",
+    "sketch.png": "Media/Drawings/sketch.png",
+    "Media/Drawings/sketch.png": "Media/Drawings/sketch.png",
+  };
+  const resolve = (link: string): string | null => vault[link] ?? null;
+
+  it("finds each file where Obsidian finds it, by its path in the vault", () => {
+    const r = scanClipping("Clippings/Walk.md", {}, "![[walk.mov]]\n\n![[sketch.png|my sketch]]", resolve);
+    expect(r.media).toMatchObject([
+      { url: "Attachments/Inbox/walk.mov", kind: "video", alt: "" },
+      { url: "Media/Drawings/sketch.png", kind: "image", alt: "my sketch" },
+    ]);
+  });
+
+  it("counts a file linked once by its name and once by its path as one", () => {
+    const body = "![[sketch.png]]\n![[Media/Drawings/sketch.png]]";
+    const r = scanClipping("Clippings/Twice.md", {}, body, resolve);
+    expect(r.media.map((m) => m.url)).toEqual(["Media/Drawings/sketch.png"]);
+  });
+
+  it("keeps a link that names nothing in the vault as it was written", () => {
+    const r = scanClipping("Clippings/Gone.md", {}, "![[missing.mp4]]", resolve);
+    expect(r.media.map((m) => m.url)).toEqual(["missing.mp4"]);
+  });
+});
+
 describe("bodyText", () => {
   it("keeps prose so a word from the article is findable", () => {
     expect(bodyText("The checkout flow uses Apple Pay.")).toBe(

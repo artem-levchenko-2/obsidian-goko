@@ -265,10 +265,18 @@ export function splitFrontmatter(body: string): { yaml: string; rest: string } {
 export const NOTE_KEY = "note";
 export const SUMMARY_KEY = "summary";
 
+/**
+ * The vault path of the file a wikilink in the note opens, as Obsidian
+ * resolves it, or null when it names nothing in the vault. Passed in, since
+ * only Obsidian knows which files the vault holds.
+ */
+export type LinkResolver = (link: string) => string | null;
+
 export function scanClipping(
   path: string,
   frontmatter: Record<string, unknown>,
-  body: string
+  body: string,
+  resolve?: LinkResolver
 ): ClippingRecord {
   const clean = stripCode(body);
   const found: Array<{ index: number; ref: MediaRef }> = [];
@@ -309,8 +317,16 @@ export function scanClipping(
   // read off the extension and the label, if any, is the alt. Without this
   // a link clipping's own picture never reached the tile, and it rendered
   // only through a second copy fetched as the page's cover.
+  //
+  // Goko writes the whole path, but a link written in Obsidian names the
+  // file alone wherever its name is unique, which is Obsidian's default.
+  // Everything further on finds a file by its path, and found none for such
+  // a link unless the file sat at the top of the vault, so the link is
+  // turned into the path Obsidian opens for it here. One that names nothing
+  // is kept as written.
   for (const m of clean.matchAll(WIKI_EMBED)) {
-    const target = m[1].trim();
+    const written = m[1].trim();
+    const target = resolve?.(written) ?? written;
     const kind = kindForExtension(extensionOf(target));
     if (!kind || seen.has(target + kind)) continue;
     seen.add(target + kind);

@@ -116,7 +116,12 @@ export class ClippingIndex {
   async ingest(file: TFile): Promise<void> {
     if (!isInFolder(file.path, this.folder())) return;
     const body = await this.app.vault.cachedRead(file);
-    const record = scanClipping(file.path, this.frontmatterOf(file, body), body);
+    const record = scanClipping(
+      file.path,
+      this.frontmatterOf(file, body),
+      body,
+      (link) => this.app.metadataCache.getFirstLinkpathDest(link, file.path)?.path ?? null
+    );
     // In folder mode the path is the answer and the keys are ignored. Left in
     // the note rather than stripped: turning the mode off must give the vault
     // back exactly as it was, and a key nothing reads is harmless.

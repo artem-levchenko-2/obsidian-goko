@@ -88,6 +88,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and plays like any other. Such a card used to show only its title, or a
   blank frame for a cover: a card shows a video by a still of it, and only
   a video Goko had downloaded was given one.
+- A picture or video embedded by its name alone, as in `![[walk.mov]]`,
+  which is how Obsidian writes a link by default, shows on its card. Goko
+  looked for such a file only at the top of the vault, so the card went
+  without it, and Remove orphaned media could offer one Goko had saved as
+  unused.
 - With Autoplay videos off, a GIF moved by itself. It rests on its still
   now and plays while the pointer is over it, as a video does, and a GIF
   dropped onto the wall, embedded by hand or set as a card's cover gets a

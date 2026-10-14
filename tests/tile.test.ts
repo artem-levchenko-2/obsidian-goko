@@ -553,6 +553,17 @@ describe("buildTiles with local embeds", () => {
     expect(tile.filePath).toBe("Attachments/Clippings/df1c6f006c20-61f8IVzjEDL.jpg");
   });
 
+  it("plays a video linked by its name alone, from where Obsidian finds it", () => {
+    const file = "Attachments/Inbox/walk.mov";
+    const video = scanClipping("Clippings/W.md", { title: "W" }, "![[walk.mov]]", (link) =>
+      link === "walk.mov" ? file : null
+    );
+    const cache = cacheWith([[file, { file, thumb: "Attachments/Inbox/walk.poster.webp", kind: "video" }]]);
+    const [tile] = buildTiles([video], cache);
+    expect(tile.kind).toBe("video");
+    expect(tile.filePath).toBe(file);
+  });
+
   it("has no picture for an embedded video with no poster, so shows words", () => {
     const video = scanClipping("Clippings/V.md", { title: "V" }, "![[Attachments/Clippings/a.mp4]]");
     expect(buildTiles([video], new MediaCache())[0].kind).toBe("note");
