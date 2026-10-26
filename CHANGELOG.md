@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the panel or leave full screen. Open videos muted, next to Autoplay
   videos in the settings, turns this off. A video used to start with sound
   the moment it was opened.
+- Goko's floating panels, the selection bar, Search, the menus, the bottom
+  bar and the rest, take their colours from your Obsidian theme instead of
+  a fixed grey: on Nord, Catppuccin or Solarized they used to stand out as
+  a grey slab. Their text, highlights and dividers follow the theme's text
+  colour. On Obsidian's default theme they look as before, and the strip
+  of pictures in full screen and the band over a card's cover keep their
+  own glass, since they sit over a picture rather than the wall.
 
 ### Fixed
 

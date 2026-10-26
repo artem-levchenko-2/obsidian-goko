@@ -38,7 +38,26 @@
      The specular rim and top sheen this replaced were the glossy part: they
      read as varnish rather than as glass, and there is no version of that
      which is subtle. Flat fill, one hairline, one soft shadow. */
-  --goko-surface: rgba(32, 32, 35, 0.88);
+  /* Tinted by the theme rather than fixed, so a blue or warm theme gets blue
+     or warm panels instead of a grey slab. The base is --background-primary
+     because that is what the wall paints, and so what every panel floats
+     over: a panel built from the sidebar's colour would sit as a different
+     tone from the surface it is lifted off. Lifted 2% toward the text colour,
+     which on Obsidian's own dark theme lands within two or three units per
+     channel of the neutral grey this replaced. Mixed in sRGB because that is
+     where those numbers were measured, and the alpha is the old one. */
+  --goko-ink: var(--text-normal);
+  --goko-glass-base: color-mix(in srgb, var(--background-primary) 98%, var(--goko-ink));
+  --goko-surface: color-mix(in srgb, var(--goko-glass-base) 88%, transparent);
+  /* The material for what sits on a picture instead of on the pane: the
+     badges and bands over a card's media and the strip of thumbnails in the
+     full screen. Whatever the theme, they keep this fixed glass, because a
+     photograph does not take on the theme's colours and a tinted panel over
+     one would read as a stain. It is the values --goko-surface had before it
+     followed the theme, and the light theme restates them below. */
+  --goko-photo-surface: rgba(32, 32, 35, 0.88);
+  --goko-photo-text: rgba(255, 255, 255, 0.88);
+  --goko-photo-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
   --goko-surface-radius: 22px;
   --goko-surface-pad: 10px;
 
@@ -78,20 +97,27 @@
      being lighter than what is behind it, with the edge only just resolving
      the boundary. At 0.075 it was drawing an outline, which puts the panel
      in front of the wall rather than just above it. */
-  --goko-surface-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
-  --goko-surface-ring-line: rgba(255, 255, 255, 0.05);
+  --goko-surface-ring: inset 0 0 0 1px color-mix(in srgb, var(--goko-ink) 4%, transparent);
+  --goko-surface-ring-line: color-mix(in srgb, var(--goko-ink) 6%, transparent);
   /* Every value below is a role, not a colour, so the light theme can
      restate the set without touching a single rule that uses them. The
      alphas differ between themes on purpose: a wash that reads as a gentle
-     lift on a dark panel reads as a smudge on a light one. */
-  --goko-surface-mid: rgba(255, 255, 255, 0.72);
-  --goko-surface-dim: rgba(255, 255, 255, 0.45);
-  --goko-surface-faint: rgba(255, 255, 255, 0.35);
-  --goko-inner-active: rgba(255, 255, 255, 0.14);
-  --goko-inner-press: rgba(255, 255, 255, 0.22);
-  --goko-inner-well: rgba(255, 255, 255, 0.07);
-  --goko-inner-chip: rgba(255, 255, 255, 0.1);
-  --goko-rule: rgba(255, 255, 255, 0.12);
+     lift on a dark panel reads as a smudge on a light one.
+
+     They are all the theme's text colour at a strength, never its muted or
+     faint colours: some themes draw --text-faint barely off the background,
+     and quieter text on a panel has to stay readable. The strengths are not
+     the old alphas. Those were white, and Obsidian's text is a little less
+     than white (#dadada), so each is raised until the result on the default
+     theme matches what the white one drew. */
+  --goko-surface-mid: color-mix(in srgb, var(--goko-ink) 86%, transparent);
+  --goko-surface-dim: color-mix(in srgb, var(--goko-ink) 54%, transparent);
+  --goko-surface-faint: color-mix(in srgb, var(--goko-ink) 42%, transparent);
+  --goko-inner-active: color-mix(in srgb, var(--goko-ink) 16%, transparent);
+  --goko-inner-press: color-mix(in srgb, var(--goko-ink) 26%, transparent);
+  --goko-inner-well: color-mix(in srgb, var(--goko-ink) 8%, transparent);
+  --goko-inner-chip: color-mix(in srgb, var(--goko-ink) 12%, transparent);
+  --goko-rule: color-mix(in srgb, var(--goko-ink) 14%, transparent);
   --goko-scrim: rgba(0, 0, 0, 0.42);
 
   /* What sits above what inside a card. Written down because it was not:
@@ -128,12 +154,12 @@
      second outline underneath the first. */
   --goko-surface-lift: 0 1px 6px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.16);
 
-  --goko-surface-text: rgba(255, 255, 255, 0.88);
+  --goko-surface-text: var(--goko-ink);
 
   /* Concentric: an inner corner should be the outer corner less the padding
      between them, or the two curves fight each other at the corner. */
   --goko-inner-radius: calc(var(--goko-surface-radius) - var(--goko-surface-pad));
-  --goko-inner-hover: rgba(255, 255, 255, 0.09);
+  --goko-inner-hover: color-mix(in srgb, var(--goko-ink) 10%, transparent);
 
   position: relative;
   height: 100%;
@@ -151,20 +177,25 @@
 /* Obsidian carries the theme on the body, so the panels follow it with no
    setting of ours and no flash on load. */
 .theme-light .goko-view {
-  --goko-surface: rgba(252, 252, 253, 0.9);
-  --goko-surface-ring: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
-  --goko-surface-ring-line: rgba(0, 0, 0, 0.08);
+  /* Light glass lifts toward white, the way paper catches light, and keeps
+     the theme's own tint on the way. */
+  --goko-glass-base: color-mix(in srgb, var(--background-primary) 80%, #fff);
+  --goko-surface: color-mix(in srgb, var(--goko-glass-base) 90%, transparent);
+  --goko-photo-surface: rgba(252, 252, 253, 0.9);
+  --goko-photo-text: rgba(22, 22, 26, 0.92);
+  --goko-photo-ring: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  --goko-surface-ring: inset 0 0 0 1px color-mix(in srgb, var(--goko-ink) 10%, transparent);
+  --goko-surface-ring-line: color-mix(in srgb, var(--goko-ink) 10%, transparent);
   --goko-surface-lift: 0 1px 6px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.09);
-  --goko-surface-text: rgba(22, 22, 26, 0.92);
-  --goko-surface-mid: rgba(22, 22, 26, 0.72);
-  --goko-surface-dim: rgba(22, 22, 26, 0.5);
-  --goko-surface-faint: rgba(22, 22, 26, 0.38);
-  --goko-inner-hover: rgba(0, 0, 0, 0.06);
-  --goko-inner-active: rgba(0, 0, 0, 0.09);
-  --goko-inner-press: rgba(0, 0, 0, 0.14);
-  --goko-inner-well: rgba(0, 0, 0, 0.05);
-  --goko-inner-chip: rgba(0, 0, 0, 0.07);
-  --goko-rule: rgba(0, 0, 0, 0.1);
+  --goko-surface-mid: color-mix(in srgb, var(--goko-ink) 76%, transparent);
+  --goko-surface-dim: color-mix(in srgb, var(--goko-ink) 53%, transparent);
+  --goko-surface-faint: color-mix(in srgb, var(--goko-ink) 41%, transparent);
+  --goko-inner-hover: color-mix(in srgb, var(--goko-ink) 8%, transparent);
+  --goko-inner-active: color-mix(in srgb, var(--goko-ink) 12%, transparent);
+  --goko-inner-press: color-mix(in srgb, var(--goko-ink) 17%, transparent);
+  --goko-inner-well: color-mix(in srgb, var(--goko-ink) 7%, transparent);
+  --goko-inner-chip: color-mix(in srgb, var(--goko-ink) 9%, transparent);
+  --goko-rule: color-mix(in srgb, var(--goko-ink) 13%, transparent);
   --goko-scrim: rgba(0, 0, 0, 0.25);
   --goko-peek-ring: rgba(28, 28, 32, 0.6);
   --goko-stage-lift: 0 20px 56px rgba(0, 0, 0, 0.18);
@@ -648,8 +679,8 @@ body.goko-resizing {
   padding: 0 6px;
   overflow: hidden;
   border-radius: 0 0 calc(10px * var(--goko-band-scale, 1)) calc(10px * var(--goko-band-scale, 1));
-  background: var(--goko-surface);
-  color: var(--goko-surface-text);
+  background: var(--goko-photo-surface);
+  color: var(--goko-photo-text);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.15;
@@ -668,7 +699,7 @@ body.goko-resizing {
       hsl(from var(--interactive-accent) h s l / 0.32),
       hsl(from var(--interactive-accent) h s l / 0.32)
     ),
-    var(--goko-surface);
+    var(--goko-photo-surface);
   box-shadow: inset 0 0 0 3px var(--interactive-accent);
 }
 
@@ -4107,10 +4138,10 @@ button.goko-setting-button {
   height: calc(var(--goko-reel-dot) + 4px + 2 * var(--goko-surface-pad));
   max-width: 100%;
   border-radius: var(--goko-surface-radius);
-  background-color: var(--goko-surface);
+  background-color: var(--goko-photo-surface);
   backdrop-filter: var(--goko-surface-blur);
   -webkit-backdrop-filter: var(--goko-surface-blur);
-  box-shadow: var(--goko-surface-ring), var(--goko-surface-lift);
+  box-shadow: var(--goko-photo-ring), var(--goko-surface-lift);
   cursor: pointer;
   transition:
     width 260ms cubic-bezier(0.19, 1, 0.26, 1),
