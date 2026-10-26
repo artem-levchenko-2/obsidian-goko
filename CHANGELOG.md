@@ -5,6 +5,15 @@ All notable changes to Goko are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Describing a clip through Claude Code always uses your Claude
+  subscription. An Obsidian started from a terminal that had an Anthropic
+  API key set passed that key on, so the description was billed to the API
+  instead, or failed on a key that was not meant for it.
+
 ## [1.0.11] - 2026-10-14
 
 ### Added

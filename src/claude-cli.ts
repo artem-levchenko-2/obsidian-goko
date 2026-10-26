@@ -1,6 +1,7 @@
 import { Platform } from "obsidian";
 import { resolveTool } from "./convert";
 import { nodeRequire } from "./core/system";
+import { buildCliEnv } from "./core/cli-env";
 import type { CliRun } from "./core/vision";
 
 /**
@@ -59,12 +60,7 @@ export function runClaude(binary: string, args: string[], cwd: string): Promise<
   if (!cp) return Promise.resolve({ stdout: "", stderr: "", code: null, timedOut: false, missing: true });
 
   const host = (window as unknown as { process?: { env?: Record<string, string | undefined> } }).process;
-  const env = { ...(host?.env ?? {}) };
-  // The CLI refuses to start inside another Claude Code session, which it
-  // detects by these. Obsidian is not a session, but an Obsidian launched
-  // from a Claude Code terminal would have inherited them.
-  delete env.CLAUDECODE;
-  delete env.CLAUDE_CODE_ENTRYPOINT;
+  const env = buildCliEnv(host?.env ?? {});
 
   return new Promise<CliRun>((resolve) => {
     try {
