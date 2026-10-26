@@ -65,6 +65,13 @@ const SRC_ATTR = /\bsrc\s*=\s*["']([^"']+)["']/i;
 const SOURCE_SRC = /<source\b[^>]*?\bsrc\s*=\s*["']([^"']+)["'][^>]*>/i;
 const HTML_ALT = /\balt\s*=\s*["']([^"']*)["']/i;
 const ARIA_LABEL = /\baria-label\s*=\s*["']([^"']*)["']/i;
+/**
+ * `![alt](target)` as Obsidian writes it for a file in the vault: the target
+ * bare, or in `<…>` when the name has a space, with an optional title. Apart
+ * from MD_IMAGE, which cannot read a space and is left as it was for the
+ * addresses it serves.
+ */
+const MD_LOCAL_EMBED = /!\[([^\]]*)\]\(\s*(?:<([^>]*)>|([^)\s]+))(?:\s+"[^"]*")?\s*\)/g;
 /** `![[path]]`, `![[path|label]]`, `![[path#heading]]`: an embed of a file in the vault. */
 const WIKI_EMBED = /!\[\[([^\]|#]+)(?:[#|]([^\]]*))?\]\]/g;
 const FENCED_CODE = /(^|\n)(```|~~~)[\s\S]*?\n\2[ \t]*(?=\n|$)/g;
@@ -143,6 +150,26 @@ export function plainProse(rest: string): string {
 
 function isRemote(url: string): boolean {
   return /^https?:\/\//i.test(url);
+}
+
+/**
+ * The vault path a Markdown link's target names, or null when it is an
+ * address with a scheme, or one that borrows the page's scheme, as
+ * `//cdn.example.com/p.png` does: with its slashes stripped below it would
+ * pass for a file in the vault. A target that will not decode is taken as
+ * written.
+ */
+function localTarget(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (/^[a-z][a-z0-9+.-]*:/i.test(trimmed) || trimmed.startsWith("//")) return null;
+  let path = trimmed.replace(/#.*$/, "");
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // A stray percent sign in a file name: keep the text as it is.
+  }
+  path = path.replace(/^\/+/, "");
+  return path || null;
 }
 
 function widthHint(url: string): number | undefined {
@@ -312,6 +339,24 @@ export function scanClipping(
     push(m.index ?? 0, m[1], "video", alt);
   }
 
+  // A file embedded both as a wikilink and as a link is one entry, placed
+  // where the note first mentions it, whichever pass met it first.
+  const embedded = new Map<string, { index: number }>();
+  const embed = (index: number, target: string, alt: string): void => {
+    const kind = kindForExtension(extensionOf(target));
+    if (!kind) return;
+    const earlier = embedded.get(target + kind);
+    if (earlier) {
+      earlier.index = Math.min(earlier.index, index);
+      return;
+    }
+    if (seen.has(target + kind)) return;
+    seen.add(target + kind);
+    const entry = { index, ref: { url: target, kind, alt } };
+    embedded.set(target + kind, entry);
+    found.push(entry);
+  };
+
   // The plugin's own notes embed their archived media as wikilinks, paths in
   // the vault rather than URLs, so they get a pass of their own: the kind is
   // read off the extension and the label, if any, is the alt. Without this
@@ -327,10 +372,23 @@ export function scanClipping(
   for (const m of clean.matchAll(WIKI_EMBED)) {
     const written = m[1].trim();
     const target = resolve?.(written) ?? written;
-    const kind = kindForExtension(extensionOf(target));
-    if (!kind || seen.has(target + kind)) continue;
-    seen.add(target + kind);
-    found.push({ index: m.index ?? 0, ref: { url: target, kind, alt: (m[2] ?? "").trim() } });
+    embed(m.index ?? 0, target, (m[2] ?? "").trim());
+  }
+
+  // The same embed written as a Markdown link, which is what Obsidian inserts
+  // when wikilinks are off. Whatever has a scheme is an address, not a file in
+  // the vault: http(s) was read above, and `data:`, `mailto:` and the rest
+  // are not media to archive. The target arrives percent-encoded and, in a
+  // path from the vault root, may lead with a slash that the vault's own
+  // paths do not have; a fragment such as `#page=2` names a place inside the
+  // file. What is left goes through the same resolver and the same kind
+  // rules as a wikilink, so the two read alike and one file embedded both
+  // ways is one card entry.
+  for (const m of clean.matchAll(MD_LOCAL_EMBED)) {
+    const written = localTarget(m[2] ?? m[3] ?? "");
+    if (!written) continue;
+    const target = resolve?.(written) ?? written;
+    embed(m.index ?? 0, target, (m[1] ?? "").trim());
   }
 
   found.sort((a, b) => a.index - b.index);

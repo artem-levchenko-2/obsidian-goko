@@ -135,6 +135,19 @@ describe("orphanFiles", () => {
 });
 
 describe("notesToReread", () => {
+  it("reads again a note whose media came from a markdown link when that file is renamed", () => {
+    const note = scanClipping(
+      "Clippings/Walk.md",
+      {},
+      "![](<Attachments/my walk.mov>)",
+      (link) => (link === "Attachments/my walk.mov" ? link : null)
+    );
+    const renamed = { path: "Attachments/stroll.mov", name: "stroll.mov" };
+    expect(notesToReread([note], renamed, "Attachments/my walk.mov", () => false)).toEqual([
+      "Clippings/Walk.md",
+    ]);
+  });
+
   const embeds = (path: string, ...urls: string[]): ClippingRecord =>
     clipping({ path, media: urls.map((url) => ({ url, kind: "video" as const, alt: "" })) });
   const moved = { path: "Media/Walks/walk.mov", name: "walk.mov" };

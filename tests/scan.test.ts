@@ -147,10 +147,10 @@ describe("scanClipping", () => {
     expect(scanClipping("Clippings/X.md", { ...NOOK_FM, media: 42 }, "").media).toEqual([]);
   });
 
-  it("skips data URIs and relative markdown links, but keeps a wikilink embed", () => {
+  it("skips data URIs, but keeps a wikilink embed and a local markdown embed", () => {
     const body = "![a](data:image/png;base64,AAAA)\n![b](Attachments/local.png)\n![[embed.png]]";
     const r = scanClipping("Clippings/X.md", NOOK_FM, body);
-    expect(r.media.map((m) => m.url)).toEqual(["embed.png"]);
+    expect(r.media.map((m) => m.url)).toEqual(["Attachments/local.png", "embed.png"]);
   });
 
   it("tolerates missing frontmatter fields", () => {
@@ -323,6 +323,84 @@ describe("scanClipping wikilink embeds that name the file alone", () => {
   it("keeps a link that names nothing in the vault as it was written", () => {
     const r = scanClipping("Clippings/Gone.md", {}, "![[missing.mp4]]", resolve);
     expect(r.media.map((m) => m.url)).toEqual(["missing.mp4"]);
+  });
+});
+
+describe("scanClipping embeds written as markdown links", () => {
+  // The vault as Obsidian answers for a note in Clippings/: a bare name, a
+  // path from the root, and a path relative to the note.
+  const vault: Record<string, string> = {
+    "walk.mov": "Attachments/walk.mov",
+    "Attachments/my walk.mov": "Attachments/my walk.mov",
+    "../Attachments/walk.mov": "Attachments/walk.mov",
+    "Attachments/loop.gif": "Attachments/loop.gif",
+  };
+  const resolve = (link: string): string | null => vault[link] ?? null;
+  const urls = (body: string): string[] =>
+    scanClipping("Clippings/Walk.md", {}, body, resolve).media.map((m) => m.url);
+
+  it("reads a bare name as the file Obsidian opens, with its kind from the extension", () => {
+    const r = scanClipping("Clippings/Walk.md", {}, "![](walk.mov)\n![the loop](Attachments/loop.gif)", resolve);
+    expect(r.media).toMatchObject([
+      { url: "Attachments/walk.mov", kind: "video", alt: "" },
+      { url: "Attachments/loop.gif", kind: "image", alt: "the loop" },
+    ]);
+  });
+
+  it("resolves a path relative to the note", () => {
+    expect(urls("![](../Attachments/walk.mov)")).toEqual(["Attachments/walk.mov"]);
+  });
+
+  it("takes a leading slash as the vault root", () => {
+    expect(urls("![](/Attachments/loop.gif)")).toEqual(["Attachments/loop.gif"]);
+  });
+
+  it("decodes percent escapes", () => {
+    expect(urls("![](Attachments/my%20walk.mov)")).toEqual(["Attachments/my walk.mov"]);
+  });
+
+  it("reads the angle-bracket form with spaces", () => {
+    expect(urls("![](<Attachments/my walk.mov>)")).toEqual(["Attachments/my walk.mov"]);
+  });
+
+  it("ignores a title after the target", () => {
+    expect(urls('![](walk.mov "a walk")\n![](<Attachments/my walk.mov> "again")')).toEqual([
+      "Attachments/walk.mov",
+      "Attachments/my walk.mov",
+    ]);
+  });
+
+  it("keeps a link that names nothing in the vault as it was written", () => {
+    expect(urls("![](missing%20clip.mp4)")).toEqual(["missing clip.mp4"]);
+  });
+
+  it("leaves a remote address as it was", () => {
+    const r = scanClipping("Clippings/Walk.md", {}, "![a](https://cdn.example.com/p.png?w=300)", resolve);
+    expect(r.media).toMatchObject([{ url: "https://cdn.example.com/p.png?w=300", widthHint: 300 }]);
+  });
+
+  it("ignores every other scheme", () => {
+    const body = [
+      "![](data:image/png;base64,AAAA)",
+      "![](obsidian://open?vault=a&file=b.png)",
+      "![](mailto:someone@example.com)",
+      "![](file:///tmp/walk.mov)",
+      "![](//cdn.example.com/p.png)",
+    ].join("\n");
+    expect(urls(body)).toEqual([]);
+  });
+
+  it("ignores a local link that is not media", () => {
+    expect(urls("![](notes/plan.md)\n![](Attachments/notes.txt)")).toEqual([]);
+  });
+
+  it("counts a file embedded as a wikilink and as a link once, and keeps the note's order", () => {
+    const body = "![](Attachments/loop.gif)\n![[walk.mov]]\n![](walk.mov)\n![[Attachments/loop.gif]]";
+    expect(urls(body)).toEqual(["Attachments/loop.gif", "Attachments/walk.mov"]);
+  });
+
+  it("leaves a link inside a code fence alone", () => {
+    expect(urls("```\n![](walk.mov)\n```")).toEqual([]);
   });
 });
 
