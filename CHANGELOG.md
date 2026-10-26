@@ -44,11 +44,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   within a second, as a broken link does, and the still goes to the trash
   with the file, as your Deleted files setting says. Restoring the file
   from the trash brings its still back.
-- Moving a video or a GIF that a note embeds, in Finder or in Obsidian,
-  left its still behind in the old folder and drew a second one at the new
-  place, which on a phone is slow and for a very large video not possible
-  at all. The still now moves with the file and nothing is drawn again,
-  also when the whole folder is moved.
+- Moving a video or a GIF that a note embeds left its still behind in the
+  old folder and drew a second one at the new place, which on a phone is
+  slow and for a very large video not possible at all. Moved in Obsidian,
+  the still now goes with the file and nothing is drawn again, also when
+  the whole folder is moved. A move in Finder reaches Obsidian as a
+  deletion and a new file: the old still goes to the trash and a new one
+  is drawn.
 
 ## [1.0.11] - 2026-10-14
 

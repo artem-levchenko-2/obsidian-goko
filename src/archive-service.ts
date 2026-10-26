@@ -584,18 +584,26 @@ export class ArchiveService {
       this.app.vault.getFileByPath(normalizePath(path)) !== null;
     const plan = planFileMove(this.cache.entries(), oldPath, newPath, exists);
     if (plan.entries.length === 0) return;
+    // A rename that resolved is taken at its word. Asked at once, the vault
+    // can still list the still where it was: this runs inside the vault's
+    // own rename of the original, and the still's move is reported after
+    // it. Reading the vault then kept the entry on the old path, and the
+    // card lost its still although the file had moved.
+    const moved = new Set<string>();
     for (const { from, to } of plan.renames) {
       const still = this.app.vault.getFileByPath(normalizePath(from));
       if (!still) continue;
       try {
         await this.app.fileManager.renameFile(still, normalizePath(to));
+        moved.add(from);
       } catch {
         // Left where it is; the entry below then keeps pointing at it.
       }
     }
     for (const { from, entry, stillFrom } of plan.entries) {
-      const moved = stillFrom !== null && !exists(stillFrom) && exists(entry.thumb);
-      const kept = stillFrom !== null && !moved ? { ...entry, thumb: stillFrom } : entry;
+      const went =
+        stillFrom !== null && (moved.has(stillFrom) || (!exists(stillFrom) && exists(entry.thumb)));
+      const kept = stillFrom !== null && !went ? { ...entry, thumb: stillFrom } : entry;
       if (from !== kept.key) this.cache.delete(from);
       this.cache.set(kept);
     }
