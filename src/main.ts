@@ -531,6 +531,9 @@ export default class GokoPlugin extends Plugin {
     if (file.extension === "md" || !this.app.workspace.layoutReady) return;
     const exists = (path: string): boolean =>
       this.app.vault.getFileByPath(normalizePath(path)) !== null;
+    // First, so that the notes read below find the entry, and its still, at
+    // the new place and have nothing to draw.
+    if (oldPath !== null) await this.archiver.followMove(oldPath, file.path);
     for (const path of notesToReread(this.index.records(), file, oldPath, exists)) {
       const note = this.app.vault.getFileByPath(path);
       if (!note) continue;

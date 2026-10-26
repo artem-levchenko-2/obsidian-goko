@@ -1,4 +1,5 @@
 import type { CacheEntry } from "./cache";
+import { posterPath, previewPath, stillPath } from "./derive";
 import { extensionOf, isRenderable } from "./formats";
 import { dedupeMedia, normalizeUrl, sourceVideoKeyFor } from "./normalize";
 import type { ClippingRecord } from "./scan";
@@ -248,6 +249,68 @@ export function planFileDeletion(
     trash: [...trash],
     reread: notesToReread(records, file, null, (path) => path !== file.path && exists(path)),
   };
+}
+
+/** What one moved file in the vault takes along. */
+export interface MovePlan {
+  /** Entries to write at their new place; `from` is the key they had. */
+  entries: Array<{ from: string; entry: CacheEntry; stillFrom: string | null }>;
+  /** Derived stills to rename beside the file, `from` the old path. */
+  renames: Array<{ from: string; to: string }>;
+}
+
+/**
+ * What follows from a file, other than a note, having moved in the vault.
+ *
+ * The entry that holds it follows: its file is the new path, and so is its
+ * key where the key was the vault path, as for a file a note embeds. A file
+ * Goko downloaded is keyed by its source URL, which does not move. Its
+ * still follows it to the path derived from the new location, so nothing
+ * has to be drawn again.
+ *
+ * Moving a folder announces every file in it, stills included, in no order
+ * we control, so the still is looked for where it is: already at its new
+ * place, it only has to be written down; gone from both places, it is
+ * forgotten and drawn again; and when the new place is taken by something
+ * else, both files are left alone and the entry keeps the still that
+ * exists. A still named otherwise than by derive.ts is not moved.
+ *
+ * Told what is in the vault rather than looking, like the rest of this file.
+ */
+export function planFileMove(
+  cache: readonly CacheEntry[],
+  oldPath: string,
+  newPath: string,
+  exists: (path: string) => boolean
+): MovePlan {
+  const plan: MovePlan = { entries: [], renames: [] };
+  const taken = new Set(cache.map((entry) => entry.key));
+  for (const entry of cache) {
+    if (entry.file !== oldPath) continue;
+    const key = entry.key === normalizeUrl(oldPath) ? normalizeUrl(newPath) : entry.key;
+    // Another entry already stands at the new place: not ours to overwrite.
+    if (key !== entry.key && taken.has(key)) continue;
+
+    let thumb = entry.thumb;
+    let stillFrom: string | null = null;
+    const derive = [posterPath, stillPath, previewPath].find((fn) => fn(oldPath) === entry.thumb);
+    if (derive) {
+      const target = derive(newPath);
+      if (!exists(entry.thumb) && exists(target)) {
+        thumb = target;
+      } else if (!exists(entry.thumb)) {
+        thumb = "";
+      } else if (!exists(target)) {
+        thumb = target;
+        stillFrom = entry.thumb;
+        plan.renames.push({ from: entry.thumb, to: target });
+      }
+    }
+    const next: CacheEntry = { ...entry, key, file: newPath, thumb };
+    if (thumb === "" && entry.thumb !== "") delete next.thumbFailed;
+    plan.entries.push({ from: entry.key, entry: next, stillFrom });
+  }
+  return plan;
 }
 
 /** A set of files considered together, with what they weigh. */

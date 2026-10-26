@@ -50,6 +50,7 @@ import type { PreviewOutcome } from "./core/preview-route";
 import { posterFailure, posterRoutes, retriesPoster, webviewReads } from "./core/poster-route";
 import type { PosterDevice, PosterRoute } from "./core/poster-route";
 import { renderPdfCover } from "./pdf-cover";
+import { planFileMove } from "./core/media-refs";
 import { ClippingIndex } from "./index-store";
 import { hashUrl } from "./core/hash";
 import { dedupeMedia, normalizeUrl, sourceVideoKeyFor } from "./core/normalize";
@@ -567,6 +568,36 @@ export class ArchiveService {
     for (const key of unthumb) {
       const entry = this.cache.get(key);
       if (entry) this.cache.set({ ...entry, thumb: "", thumbFailed: undefined });
+    }
+    await this.saveCache();
+    this.emit();
+  }
+
+  /**
+   * Carries what the cache holds about a file to where it has moved to,
+   * its still along with it, so that nothing is drawn again: see
+   * planFileMove. Done before the notes that embed the file are read, so
+   * they find the entry at its new place.
+   */
+  async followMove(oldPath: string, newPath: string): Promise<void> {
+    const exists = (path: string): boolean =>
+      this.app.vault.getFileByPath(normalizePath(path)) !== null;
+    const plan = planFileMove(this.cache.entries(), oldPath, newPath, exists);
+    if (plan.entries.length === 0) return;
+    for (const { from, to } of plan.renames) {
+      const still = this.app.vault.getFileByPath(normalizePath(from));
+      if (!still) continue;
+      try {
+        await this.app.fileManager.renameFile(still, normalizePath(to));
+      } catch {
+        // Left where it is; the entry below then keeps pointing at it.
+      }
+    }
+    for (const { from, entry, stillFrom } of plan.entries) {
+      const moved = stillFrom !== null && !exists(stillFrom) && exists(entry.thumb);
+      const kept = stillFrom !== null && !moved ? { ...entry, thumb: stillFrom } : entry;
+      if (from !== kept.key) this.cache.delete(from);
+      this.cache.set(kept);
     }
     await this.saveCache();
     this.emit();
