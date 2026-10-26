@@ -38,6 +38,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and goes on showing when the file is moved. Such a card used to stay a
   bare title. The link may name the file alone or give its path from the
   vault or from the note, with spaces escaped or in angle brackets.
+- Deleting a video or a GIF that a note embeds, in Finder or in Obsidian,
+  went unnoticed: the card went on standing on the still of a file that
+  was gone, and the still stayed on disk. The card now becomes a title
+  within a second, as a broken link does, and the still goes to the trash
+  with the file, as your Deleted files setting says. Restoring the file
+  from the trash brings its still back.
 
 ## [1.0.11] - 2026-10-14
 

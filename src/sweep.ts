@@ -91,6 +91,13 @@ export async function removeMedia(
 ): Promise<number> {
   let removed = 0;
 
+  // Forgotten before the first file goes rather than after the last. Each
+  // file trashed is announced as deleted, and the plugin answers a deleted
+  // file by dropping its entry and trashing its still itself; with the
+  // entries already gone that answer finds nothing to do, instead of racing
+  // this loop to the same still.
+  for (const key of deadKeys(cache.entries(), paths)) cache.delete(key);
+
   for (const path of paths) {
     const file = app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) continue;
@@ -102,7 +109,6 @@ export async function removeMedia(
     }
   }
 
-  for (const key of deadKeys(cache.entries(), paths)) cache.delete(key);
   return removed;
 }
 

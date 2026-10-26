@@ -50,7 +50,7 @@ import {
   withShared,
 } from "./core/shared-config";
 import type { SharedConfig } from "./core/shared-config";
-import { describeFiles, notesToReread } from "./core/media-refs";
+import { describeFiles, notesToReread, planFileDeletion } from "./core/media-refs";
 import { pdfReadReport } from "./core/pdf";
 import { installRepair } from "./repair";
 import { sharedHttpUrl } from "./core/resolve";
@@ -488,7 +488,10 @@ export default class GokoPlugin extends Plugin {
       })
     );
     this.registerEvent(
-      this.app.vault.on("delete", (f: TAbstractFile) => this.index.handleDelete(f.path))
+      this.app.vault.on("delete", (f: TAbstractFile) => {
+        this.index.handleDelete(f.path);
+        if (f instanceof TFile) void this.followDeletedMedia(f);
+      })
     );
     this.registerEvent(
       this.app.vault.on("rename", (f: TAbstractFile, oldPath: string) => {
@@ -534,6 +537,42 @@ export default class GokoPlugin extends Plugin {
       await this.index.handleModify(note);
       const record = this.index.get(path);
       if (record) await this.archiver.adoptEmbeds(record);
+    }
+  }
+
+  /**
+   * Lets go of a video, a GIF or a picture that has left the vault: the
+   * cache stops describing it, the clippings that embed it are read again
+   * so their card becomes a title as a broken link does, and its derived
+   * still goes to the trash after it. See planFileDeletion.
+   *
+   * Not while Obsidian lists the vault at start-up, as with followMedia.
+   * Harmless when Goko itself deleted the file, in the orphan sweep or with
+   * a clipping: the entries are then already gone, and a still that went
+   * with it is skipped below because it is no longer there.
+   */
+  private async followDeletedMedia(file: TFile): Promise<void> {
+    if (file.extension === "md" || !this.app.workspace.layoutReady) return;
+    const exists = (path: string): boolean =>
+      this.app.vault.getFileByPath(normalizePath(path)) !== null;
+    const plan = planFileDeletion(this.archiver.cache.entries(), this.index.records(), file, exists);
+    if (plan.drop.length > 0 || plan.unthumb.length > 0) {
+      await this.archiver.forget(plan.drop, plan.unthumb);
+    }
+    for (const path of plan.trash) {
+      const still = this.app.vault.getFileByPath(normalizePath(path));
+      if (!still) continue;
+      try {
+        await this.app.fileManager.trashFile(still);
+      } catch (error) {
+        if (this.app.vault.getFileByPath(still.path)) {
+          new Notice(`Goko: could not remove ${still.name} (${String(error)})`);
+        }
+      }
+    }
+    for (const path of plan.reread) {
+      const note = this.app.vault.getFileByPath(path);
+      if (note) await this.index.handleModify(note);
     }
   }
 

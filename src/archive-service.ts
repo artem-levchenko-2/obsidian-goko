@@ -558,6 +558,21 @@ export class ArchiveService {
   }
 
   /**
+   * Forgets what the cache held about a file that has left the vault: the
+   * entries that described it are dropped, and those that only had it as
+   * their still lose the still, so the next pass can draw one again.
+   */
+  async forget(drop: readonly string[], unthumb: readonly string[]): Promise<void> {
+    for (const key of drop) this.cache.delete(key);
+    for (const key of unthumb) {
+      const entry = this.cache.get(key);
+      if (entry) this.cache.set({ ...entry, thumb: "", thumbFailed: undefined });
+    }
+    await this.saveCache();
+    this.emit();
+  }
+
+  /**
    * Adopts the files a note was just edited to embed, and makes what they
    * are missing, without fetching anything.
    *

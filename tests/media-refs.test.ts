@@ -8,6 +8,7 @@ import {
   liveRefs,
   notesToReread,
   orphanFiles,
+  planFileDeletion,
 } from "../src/core/media-refs";
 import { normalizeUrl, sourceVideoKeyFor } from "../src/core/normalize";
 import { scanClipping } from "../src/core/scan";
@@ -318,5 +319,106 @@ describe("liveRefs and a post whose video was pulled", () => {
   it("keeps the page cover when the video entry has no file, only a failure", () => {
     const failed: CacheEntry = { ...video("", ""), failed: "404" };
     expect(liveRefs([record], [failed]).keys.has(pageKey)).toBe(true);
+  });
+});
+
+describe("planFileDeletion", () => {
+  const video = (key: string, file: string, thumb = ""): CacheEntry => ({
+    ...entry(key, file, thumb),
+    kind: "video",
+  });
+  const embeds = (path: string, ...urls: string[]): ClippingRecord =>
+    clipping({ path, media: urls.map((url) => ({ url, kind: "video" as const, alt: "" })) });
+  const gone = (path: string): { path: string; name: string } => ({
+    path,
+    name: path.slice(path.lastIndexOf("/") + 1),
+  });
+  const absent = (): boolean => false;
+
+  it("drops a deleted embedded video, takes its still, and reads its note again", () => {
+    const path = "Media/walk.mov";
+    const plan = planFileDeletion(
+      [video(normalizeUrl(path), path, "Media/walk.poster.webp")],
+      [embeds("Clippings/Walk.md", path)],
+      gone(path),
+      absent
+    );
+    expect(plan).toEqual({
+      drop: [normalizeUrl(path)],
+      unthumb: [],
+      trash: ["Media/walk.poster.webp"],
+      reread: ["Clippings/Walk.md"],
+    });
+  });
+
+  it("does nothing for a file no entry knows", () => {
+    const plan = planFileDeletion(
+      [video("k", "Media/walk.mov", "Media/walk.poster.webp")],
+      [embeds("Clippings/Walk.md", "Media/walk.mov")],
+      gone("Media/other.png"),
+      absent
+    );
+    expect(plan).toEqual({ drop: [], unthumb: [], trash: [], reread: [] });
+  });
+
+  it("keeps a still that a surviving entry still uses", () => {
+    const shared = "Media/shared.still.webp";
+    const plan = planFileDeletion(
+      [video("a", "Media/a.mov", shared), video("b", "Media/b.mov", shared)],
+      [],
+      gone("Media/a.mov"),
+      absent
+    );
+    expect(plan.drop).toEqual(["a"]);
+    expect(plan.trash).toEqual([]);
+  });
+
+  it("never takes another entry's original as a still", () => {
+    const plan = planFileDeletion(
+      [video("a", "Media/a.mov", "Media/b.mov"), video("b", "Media/b.mov")],
+      [],
+      gone("Media/a.mov"),
+      absent
+    );
+    expect(plan.trash).toEqual([]);
+  });
+
+  it("takes the still of a file Goko downloaded, keyed by its URL", () => {
+    const url = "https://cdn.example.com/clip.mp4";
+    const file = "Attachments/Clippings/0123456789ab-clip.mp4";
+    const plan = planFileDeletion(
+      [video(normalizeUrl(url), file, "Attachments/Clippings/0123456789ab-clip.poster.webp")],
+      [embeds("Clippings/Post.md", file)],
+      gone(file),
+      absent
+    );
+    expect(plan.drop).toEqual([normalizeUrl(url)]);
+    expect(plan.trash).toEqual(["Attachments/Clippings/0123456789ab-clip.poster.webp"]);
+    expect(plan.reread).toEqual(["Clippings/Post.md"]);
+  });
+
+  it("makes the entry forget a still deleted alone, and drops nothing", () => {
+    const plan = planFileDeletion(
+      [video("a", "Media/a.mov", "Media/a.poster.webp")],
+      [embeds("Clippings/A.md", "Media/a.mov")],
+      gone("Media/a.poster.webp"),
+      absent
+    );
+    expect(plan).toEqual({ drop: [], unthumb: ["a"], trash: [], reread: [] });
+  });
+
+  it("reads again only the notes that embed the file, not one of the same name elsewhere", () => {
+    const path = "Media/walk.mov";
+    const plan = planFileDeletion(
+      [video("a", path)],
+      [
+        embeds("Clippings/Walk.md", path),
+        embeds("Clippings/Other.md", "Media/Runs/walk.mov"),
+        embeds("Clippings/Unrelated.md", "Media/run.mov"),
+      ],
+      gone(path),
+      (p) => p === "Media/Runs/walk.mov" || p === path
+    );
+    expect(plan.reread).toEqual(["Clippings/Walk.md"]);
   });
 });

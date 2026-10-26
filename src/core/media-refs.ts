@@ -185,6 +185,71 @@ export function deadKeys(cache: readonly CacheEntry[], removed: readonly string[
     .map((entry) => entry.key);
 }
 
+/** What one deleted file in the vault takes with it. */
+export interface DeletionPlan {
+  /** Cache keys of the entries that described the file. */
+  drop: string[];
+  /** Surviving entries whose derived still was the file, so they forget it. */
+  unthumb: string[];
+  /** Derived stills that go to the trash with the file. */
+  trash: string[];
+  /** Clippings that embed the file, to be read again. */
+  reread: string[];
+}
+
+/** The endings of a file Goko draws from an original: see derive.ts. */
+const DERIVED = [".poster.webp", ".still.webp", ".thumb.webp", ".preview.png"];
+
+function isDerived(path: string): boolean {
+  const lower = path.toLowerCase();
+  return DERIVED.some((ending) => lower.endsWith(ending));
+}
+
+/**
+ * What follows from a file, other than a note, having left the vault.
+ *
+ * The cache entries that name it are dropped, so the card stops standing on
+ * a file that is gone. Its still goes with it: the still is part of what
+ * the person deleted, as it moves with the file when that is moved, and
+ * restoring the original from the trash makes it again. Only a still no
+ * surviving entry uses, and only one told by its name to be derived, so an
+ * original that another entry holds is never taken. Where just a still was
+ * deleted, the entry that named it forgets it and the next pass draws it
+ * again.
+ *
+ * Told what is in the vault rather than looking, like the rest of this file;
+ * `exists` is asked about other paths and answers for the deleted one itself.
+ */
+export function planFileDeletion(
+  cache: readonly CacheEntry[],
+  records: readonly ClippingRecord[],
+  file: { path: string; name: string },
+  exists: (path: string) => boolean
+): DeletionPlan {
+  const drop = deadKeys(cache, [file.path]);
+  const dropped = new Set(drop);
+  const surviving = cache.filter((entry) => !dropped.has(entry.key));
+  const used = new Set<string>();
+  for (const entry of surviving) {
+    if (entry.file) used.add(entry.file);
+    if (entry.thumb) used.add(entry.thumb);
+  }
+
+  const trash = new Set<string>();
+  for (const entry of cache) {
+    if (!dropped.has(entry.key)) continue;
+    const { thumb } = entry;
+    if (thumb && thumb !== file.path && isDerived(thumb) && !used.has(thumb)) trash.add(thumb);
+  }
+
+  return {
+    drop,
+    unthumb: surviving.filter((entry) => entry.thumb === file.path).map((entry) => entry.key),
+    trash: [...trash],
+    reread: notesToReread(records, file, null, (path) => path !== file.path && exists(path)),
+  };
+}
+
 /** A set of files considered together, with what they weigh. */
 export interface Sweepable {
   paths: string[];
