@@ -42,10 +42,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the card's text.
 - Deleting a video or a GIF that a note embeds, in Finder or in Obsidian,
   went unnoticed: the card went on standing on the still of a file that
-  was gone, and the still stayed on disk. The card now becomes a title
-  within a second, as a broken link does, and the still goes to the trash
-  with the file, as your Deleted files setting says. Restoring the file
-  from the trash brings its still back.
+  was gone, and the still stayed on disk. Now the still goes to the trash
+  with the file, as your Deleted files setting says, and within a second
+  a card that showed the video moves on to the next picture or video the
+  note embeds, or becomes a title when nothing else is left. Restoring the
+  file from the trash brings its still back. A file Goko downloaded itself
+  is downloaded again, since the clipping still links its address, and
+  its still is drawn again: at the next launch or when the next clip
+  arrives, with Download media automatically on. Deleting the clipping in
+  Goko, which takes its media with it, removes it for good.
 - Moving a video or a GIF that a note embeds left its still behind in the
   old folder and drew a second one at the new place, which on a phone is
   slow and for a very large video not possible at all. Moved in Obsidian,

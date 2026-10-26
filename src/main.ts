@@ -545,9 +545,10 @@ export default class GokoPlugin extends Plugin {
 
   /**
    * Lets go of a video, a GIF or a picture that has left the vault: the
-   * cache stops describing it, the clippings that embed it are read again
-   * so their card becomes a title as a broken link does, and its derived
-   * still goes to the trash after it. See planFileDeletion.
+   * cache stops describing it, the clippings that embed it are read again,
+   * so a card that stood on a video moves on to what else the note embeds
+   * and becomes a title only when nothing is left, and its derived still
+   * goes to the trash after it. See planFileDeletion.
    *
    * Not while Obsidian lists the vault at start-up, as with followMedia.
    * Harmless when Goko itself deleted the file, in the orphan sweep or with
