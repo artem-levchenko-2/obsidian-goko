@@ -29,6 +29,15 @@ export class MediaCache {
    * it is folded in; see absorb.
    */
   private dropped = new Set<string>();
+  /**
+   * Stills this session forgot because they left the vault, by the key of
+   * the entry that had them. A copy of cache.json written before then, by
+   * this device or another, still names such a still, and betterEntry gives
+   * an entry without a still the one the other record names: absorb would
+   * hand the deleted still back, and nothing would draw a new one. A key
+   * leaves this list once a still is recorded for it again.
+   */
+  private forgottenStills = new Map<string, string>();
 
   get(key: string): CacheEntry | undefined {
     return this.entriesByKey.get(key);
@@ -84,12 +93,16 @@ export class MediaCache {
    * the desktop saved. Now every save reads the file first and keeps what
    * it does not know about: an entry it lacks is taken as it is, and for an
    * entry both hold, the one that knows more wins (see betterEntry). What
-   * this session deleted stays deleted. Returns how many entries changed.
+   * this session deleted stays deleted, and a still it forgot stays
+   * forgotten. Returns how many entries changed.
    */
   absorb(other: MediaCache): number {
     let changed = 0;
-    for (const theirs of other.entries()) {
+    for (let theirs of other.entries()) {
       if (this.dropped.has(theirs.key)) continue;
+      if (theirs.thumb && theirs.thumb === this.forgottenStills.get(theirs.key)) {
+        theirs = { ...theirs, thumb: "" };
+      }
       const mine = this.entriesByKey.get(theirs.key);
       const next = mine ? betterEntry(mine, theirs) : theirs;
       if (next === mine) continue;
@@ -129,10 +142,24 @@ export class MediaCache {
     if (!entry) return;
     entry.thumb = thumb;
     delete entry.thumbFailed;
+    this.forgottenStills.delete(key);
     // Video has no parseable header, so the poster capture is the only
     // source of its intrinsic size.
     if (width > 0) entry.width = width;
     if (height > 0) entry.height = height;
+  }
+
+  /**
+   * Lets go of an entry's still because the still has left the vault, so
+   * that a pass can draw it again, and remembers which one it was: see
+   * forgottenStills.
+   */
+  forgetThumb(key: string): void {
+    const entry = this.entriesByKey.get(key);
+    if (!entry) return;
+    if (entry.thumb) this.forgottenStills.set(key, entry.thumb);
+    entry.thumb = "";
+    delete entry.thumbFailed;
   }
 
   setThumbFailed(key: string, reason: string): void {

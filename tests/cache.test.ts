@@ -263,6 +263,34 @@ describe("absorb", () => {
     expect(desktop.has("gone")).toBe(false);
   });
 
+  it("does not hand back a still this session forgot", () => {
+    const walk = entry("a/walk.mov", {
+      file: "a/walk.mov",
+      thumb: "a/walk.poster.webp",
+      kind: "video",
+      width: 1,
+      height: 1,
+      bytes: 1,
+    });
+    const swim = entry("b/swim.mov", { file: "b/swim.mov", kind: "video" });
+    const desktop = new MediaCache();
+    desktop.set(walk);
+    desktop.set(swim);
+    // What this device last saved, and a phone that has not heard of the
+    // deletion and has drawn the other video's still meanwhile.
+    const saved = MediaCache.fromJSON(JSON.parse(JSON.stringify(desktop.toJSON())));
+    const phone = new MediaCache();
+    phone.set({ ...walk });
+    phone.set({ ...swim, thumb: "b/swim.poster.webp" });
+
+    desktop.forgetThumb("a/walk.mov");
+    desktop.absorb(saved);
+    desktop.absorb(phone);
+
+    expect(desktop.get("a/walk.mov")?.thumb).toBe("");
+    expect(desktop.get("b/swim.mov")?.thumb).toBe("b/swim.poster.webp");
+  });
+
   it("forgets the deletion once the key is written again here", () => {
     const desktop = new MediaCache();
     desktop.set(entry("k", { file: "K.jpg" }));

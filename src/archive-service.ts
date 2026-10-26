@@ -565,10 +565,7 @@ export class ArchiveService {
    */
   async forget(drop: readonly string[], unthumb: readonly string[]): Promise<void> {
     for (const key of drop) this.cache.delete(key);
-    for (const key of unthumb) {
-      const entry = this.cache.get(key);
-      if (entry) this.cache.set({ ...entry, thumb: "", thumbFailed: undefined });
-    }
+    for (const key of unthumb) this.cache.forgetThumb(key);
     await this.saveCache();
     this.emit();
   }
