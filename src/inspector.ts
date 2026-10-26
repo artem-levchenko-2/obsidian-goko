@@ -318,9 +318,12 @@ export class Inspector {
     video.src = model.remote ? model.filePath : this.handlers.resource(model.filePath);
     if (model.posterPath) video.poster = this.handlers.resource(model.posterPath);
     video.controls = true;
-    // Set before the listener, so this first assignment is not mistaken for
-    // the person choosing. Only the viewer's own controls fire the event
-    // afterwards: taking the element out of the page does not.
+    // Muting queues a volumechange that the listener below still receives,
+    // as the event fires in a later task. It changes nothing: the handler
+    // reads video.muted, the value set here, and a video starts muted only
+    // while soundOn is already off. Starting with sound fires no event, a
+    // new element being unmuted already. After that only the viewer's own
+    // controls fire it: taking the element out of the page does not.
     video.muted = startsMuted(this.handlers.openMuted(), this.soundOn);
     video.addEventListener("volumechange", () => {
       if (video.isConnected) this.soundOn = !video.muted;
