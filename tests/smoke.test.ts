@@ -20,6 +20,10 @@ describe("settings", () => {
     expect(DEFAULT_SETTINGS.autoplayVideo).toBe(false);
   });
 
+  it("opens a video without sound", () => {
+    expect(DEFAULT_SETTINGS.openVideosMuted).toBe(true);
+  });
+
   it("lets the tags be edited, which are the reader's own labels", () => {
     expect(DEFAULT_SETTINGS.allowEditingTags).toBe(true);
   });

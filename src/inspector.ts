@@ -14,6 +14,7 @@ import { setGlyph } from "./glyph";
 import { paintSwatchStrip, readSwatches } from "./core/swatch-strip";
 import { systemAvailable } from "./core/system";
 import { pictureOf } from "./core/tile";
+import { startsMuted } from "./core/video-sound";
 import type { TileModel } from "./core/tile";
 import { attachTip } from "./core/tip";
 import { watchedOnYoutube } from "./core/youtube";
@@ -72,6 +73,8 @@ export interface InspectorHandlers {
   onSetCoverFrame: (id: string, frame: Blob) => void;
   /** The card's own list of properties (Settings → Properties → Card). */
   properties: () => string[];
+  /** Whether videos open without sound, read fresh for every video. */
+  openMuted: () => boolean;
   /** Whether this plugin may write that key. */
   editable: (key: string) => boolean;
 }
@@ -93,6 +96,11 @@ export class Inspector {
   private shown = false;
   /** Which folded sections are open, kept across repaints of the same card. */
   private unfolded = new Set<string>();
+  /**
+   * Set once the person unmutes a video here, so the next card they pick
+   * plays with sound too. Forgotten when the panel closes or is hidden.
+   */
+  private soundOn = false;
   /** A repaint asked for this frame, so a marquee paints once rather than
       once per card it sweeps over. */
   private frame = 0;
@@ -172,6 +180,8 @@ export class Inspector {
       (Platform.isMobile ? !this.hidden : inspectorVisible(paneWidth, this.hidden));
     const changed = shown !== this.shown;
     this.shown = shown;
+    // A closed panel starts the next viewing from the setting again.
+    if (!shown) this.soundOn = false;
 
     this.root.toggleClass("is-showing", shown);
     this.root.style.width = Platform.isMobile ? "" : `${this.width}px`;
@@ -308,6 +318,13 @@ export class Inspector {
     video.src = model.remote ? model.filePath : this.handlers.resource(model.filePath);
     if (model.posterPath) video.poster = this.handlers.resource(model.posterPath);
     video.controls = true;
+    // Set before the listener, so this first assignment is not mistaken for
+    // the person choosing. Only the viewer's own controls fire the event
+    // afterwards: taking the element out of the page does not.
+    video.muted = startsMuted(this.handlers.openMuted(), this.soundOn);
+    video.addEventListener("volumechange", () => {
+      if (video.isConnected) this.soundOn = !video.muted;
+    });
     video.autoplay = true;
     video.loop = true;
     video.playsInline = true;
@@ -554,6 +571,7 @@ export class Inspector {
   }
 
   destroy(): void {
+    this.soundOn = false;
     if (this.frame) window.cancelAnimationFrame(this.frame);
     this.frame = 0;
     this.root.remove();

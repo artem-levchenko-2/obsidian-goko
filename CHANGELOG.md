@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- A video opened in the side panel or in full screen starts without sound.
+  Unmute it, and the videos you move to next keep the sound until you close
+  the panel or leave full screen. Open videos muted, next to Autoplay
+  videos in the settings, turns this off. A video used to start with sound
+  the moment it was opened.
+
 ### Fixed
 
 - Describing a clip through Claude Code always uses your Claude

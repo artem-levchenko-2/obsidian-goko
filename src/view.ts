@@ -674,6 +674,7 @@ export class GokoView extends ItemView {
         reelFor: (model) => tilesForRecord(model.record, this.plugin.archiver.cache),
         onSetCoverFrame: (id, frame) => void this.setCoverFrom(id, frame),
         properties: () => this.plugin.settings.cardProperties,
+        openMuted: () => this.plugin.settings.openVideosMuted,
         editable: (key) => isEditable(key, this.editPolicy()),
       },
       this.plugin.settings.inspectorWidth
@@ -871,6 +872,7 @@ export class GokoView extends ItemView {
       onCopyImage: (model) => void this.copyImage(model),
       onMediaMenu: (model, x, y) => this.openMediaMenu(model, x, y),
     }, () => this.plugin.settings.cardProperties,
+      () => this.plugin.settings.openVideosMuted,
       (model) => tilesForRecord(model.record, this.plugin.archiver.cache),
       (key) => isEditable(key, this.editPolicy()));
     this.detail.onClosed = () => {

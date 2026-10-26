@@ -436,6 +436,10 @@ export class GokoSettingTab extends PluginSettingTab {
             control: { type: "toggle", key: "autoplayVideo" },
           },
           {
+            ...words(COPY.openVideosMuted),
+            control: { type: "toggle", key: "openVideosMuted" },
+          },
+          {
             ...words(COPY.detailStyle),
             // A phone's panel is a sheet along the bottom already.
             visible: () => !Platform.isMobile,

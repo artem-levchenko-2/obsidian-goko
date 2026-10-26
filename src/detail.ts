@@ -1,5 +1,6 @@
 import { App, Platform, setIcon } from "obsidian";
 import { keyIs } from "./core/keys";
+import { startsMuted } from "./core/video-sound";
 import {
   KEY_ZOOM_STEP,
   pinchCamera,
@@ -235,6 +236,11 @@ export class DetailView {
   /** Live touches on the stage, by pointer id. Two of them are a pinch. */
   private touches = new Map<number, Point>();
   private pinchStart: PinchStart | null = null;
+  /**
+   * Unmuting one video keeps the sound on for the clips stepped to next, so a
+   * run of them can be watched with sound. Leaving full screen forgets it.
+   */
+  private soundOn = false;
   private hotkeys: Array<{ match: (event: KeyboardEvent) => boolean; run: () => void }> = [];
 
   constructor(
@@ -244,6 +250,8 @@ export class DetailView {
     /** The filter properties, read fresh so the panel follows a settings
         change without the view being rebuilt. */
     private properties: () => string[],
+    /** Whether videos open without sound, read fresh like the properties. */
+    private openMuted: () => boolean,
     /**
      * Every media the clipping holds, as tiles. Injected rather than computed
      * here: it needs the media cache, and this view is deliberately ignorant
@@ -643,6 +651,13 @@ export class DetailView {
       if (Platform.isMobile) {
         video.addEventListener("click", () => (video.controls = true), { once: true });
       }
+      // Set before the listener, so this first assignment is not mistaken for
+      // the person choosing. Only the viewer's own controls fire the event
+      // afterwards: taking the element out of the page does not.
+      video.muted = startsMuted(this.openMuted(), this.soundOn);
+      video.addEventListener("volumechange", () => {
+        if (video.isConnected) this.soundOn = !video.muted;
+      });
       video.autoplay = true;
       video.loop = true;
       video.playsInline = true;
@@ -1464,6 +1479,7 @@ export class DetailView {
 
   private teardown(): void {
     this.cancelApply();
+    this.soundOn = false;
     if (this.onKey) this.container.doc.removeEventListener("keydown", this.onKey, true);
     this.onKey = null;
     this.stopWatchingVisibility();

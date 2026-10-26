@@ -33,6 +33,12 @@ export interface GokoSettings {
    * as its still on the wall and plays once its card is open.
    */
   autoplayVideo: boolean;
+  /**
+   * Whether a video opened in the side panel or full screen starts without
+   * sound. Not per wall: it is about the viewer, not about how a wall looks.
+   * On by default, so a clip never blares out the moment it is opened.
+   */
+  openVideosMuted: boolean;
   maxBytes: number;
   /**
    * The longest ordinary YouTube video to download, in minutes; 0 downloads
@@ -248,6 +254,7 @@ export const DEFAULT_SETTINGS: GokoSettings = {
   archiveOnCreate: true,
   watchClippings: true,
   autoplayVideo: false,
+  openVideosMuted: true,
   maxBytes: 26214400,
   youtubeVideoMinutes: 0,
   thumbnailWidth: 400,

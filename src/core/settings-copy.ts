@@ -125,6 +125,11 @@ export const COPY = copy({
     ),
     aliases: ["video", "play", "motion", "memory"],
   },
+  openVideosMuted: {
+    name: "Open videos muted",
+    desc: "Videos you open start without sound. Unmute one and the next ones you move to keep the sound until you close the panel or full screen.",
+    aliases: ["mute", "sound", "audio", "volume"],
+  },
   detailStyle: {
     name: "Card details",
     lines: [
