@@ -37,7 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [[Wikilinks]] off, shows on its card like one embedded as `![[walk.mov]]`,
   and goes on showing when the file is moved. Such a card used to stay a
   bare title. The link may name the file alone or give its path from the
-  vault or from the note, with spaces escaped or in angle brackets.
+  vault or from the note, with spaces escaped or in angle brackets. A link
+  whose address is in angle brackets no longer leaves `![]( )` or `[text]( )`
+  in the card's text.
 - Deleting a video or a GIF that a note embeds, in Finder or in Obsidian,
   went unnoticed: the card went on standing on the still of a file that
   was gone, and the still stayed on disk. The card now becomes a title

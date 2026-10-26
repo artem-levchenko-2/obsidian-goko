@@ -424,6 +424,11 @@ describe("bodyText", () => {
     expect(bodyText("![a dark dashboard](https://x.test/a.png)")).toBe("a dark dashboard");
   });
 
+  it("drops a target in angle brackets whole, spaces and all", () => {
+    expect(bodyText("before ![](<harbor walk.mov>) after")).toBe("before after");
+    expect(bodyText('[the pier](<notes/pier at dusk.md> "Pier") after')).toBe("the pier after");
+  });
+
   it("keeps a wikilink's label, or its target when unlabelled", () => {
     expect(bodyText("![[Attachments/a.png|hero shot]]")).toBe("hero shot");
     expect(bodyText("[[Some Note]]")).toBe("some note");

@@ -111,8 +111,12 @@ const BODY_BUDGET = 20000;
  */
 const EXCERPT_BUDGET = 600;
 
-/** `![alt](url)` and `[text](url)`: keep what was written, drop the address. */
-const MD_LINK = /!?\[([^\]]*)\]\(\s*<?[^)\s>]+>?(?:\s+"[^"]*")?\s*\)/g;
+/**
+ * `![alt](url)` and `[text](url)`: keep what was written, drop the address.
+ * An address in angle brackets may hold spaces; left unmatched, the tag strip
+ * below took the brackets and left `![]( )` in the card's text.
+ */
+const MD_LINK = /!?\[([^\]]*)\]\(\s*(?:<[^>]*>|[^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
 /** `![[path|label]]` and `[[path|label]]`, likewise. */
 const WIKI_LINK = /!?\[\[([^\]|#]+)(?:[#|]([^\]]*))?\]\]/g;
 const HTML_TAG = /<[^>]+>/g;
