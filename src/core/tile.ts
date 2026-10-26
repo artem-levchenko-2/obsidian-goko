@@ -3,6 +3,7 @@ import { extensionOf, isRenderable, isVector, kindForExtension } from "./formats
 import { dedupeMedia, normalizeUrl, sourceVideoKeyFor } from "./normalize";
 import type { CanonicalMedia } from "./normalize";
 import { knownHostThumbnail } from "./page-cover";
+import { needsAdopting } from "./preview-route";
 import type { ClippingRecord } from "./scan";
 import { watchedOnYoutube } from "./youtube";
 
@@ -318,16 +319,20 @@ export function coverForMedia(item: CanonicalMedia, cache: MediaCache): MediaOut
       const cover = localCover(archived);
       return cover ? { kind: "cover", cover } : SKIP;
     }
-    // A video needs a poster to stand in for it, and there is none until the
-    // archiver has the file in its cache and has made one.
-    if (item.kind === "video") return SKIP;
-    // Nor does a format the browser cannot decode: a PDF, a HEIC, a RAW.
-    // Pointing an <img> at one only errors, and the wall answers an error by
-    // dropping the tile for the session — so the clipping would disappear
-    // rather than wait. Nothing yet is the honest answer: the card shows its
-    // own words until the archiver has rendered a preview, and swaps to the
-    // picture when it lands.
-    if (!isRenderable(extensionOf(item.url))) return SKIP;
+    // Whatever the archiver adopts into its cache waits until it is there,
+    // and the card shows the next thing the note embeds, or its own words,
+    // meanwhile. A video needs a poster to stand in for it, and there is
+    // none until the archiver has the file in its cache and has made one. A
+    // PDF, a HEIC or a RAW is painted only through a preview, made the same
+    // way; an <img> pointed at the file itself only errors, and the wall
+    // answers an error by dropping the tile for the session, so the clipping
+    // would disappear rather than wait. A GIF could be painted as it stands,
+    // but with no entry nothing says it is still there: deleting one drops
+    // its entry, and an <img> of a file that is gone would take the card off
+    // the wall on every launch, since nothing can adopt it back. The wait is
+    // short where the file exists: every device adopts at launch, when a
+    // note is edited to embed a file, and when the file appears.
+    if (needsAdopting(item.url, item.kind)) return SKIP;
     return {
       kind: "cover",
       cover: {
@@ -386,6 +391,12 @@ export function coverForMedia(item: CanonicalMedia, cache: MediaCache): MediaOut
  * cover read off its path alone had neither of: the video stood blank and
  * the GIF moved by itself on a wall whose autoplay is off.
  *
+ * A GIF in the vault with no entry is not painted from its path, though it
+ * could be: nothing then says the file is still there, and a cover of a
+ * deleted GIF would take the card off the wall. The clipping falls back to
+ * what it embeds until the archiver adopts the file, as an embedded GIF
+ * waits in coverForMedia.
+ *
  * An extension nothing recognises reads as a picture, which is what every
  * hand-set cover was before there was a choice to make.
  */
@@ -397,7 +408,7 @@ function handCover(record: ClippingRecord, cache: MediaCache): Cover | null {
   if (!remote) {
     const entry = cache.byFile(cover);
     if (entry) return localCover(entry);
-    if (!isRenderable(extensionOf(cover))) return null;
+    if (!isRenderable(extensionOf(cover)) || ANIMATED_EXT.test(cover)) return null;
   }
 
   const kind = kindForExtension(extensionOf(cover)) ?? "image";

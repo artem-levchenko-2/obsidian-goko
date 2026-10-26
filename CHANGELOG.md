@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   went unnoticed: the card went on standing on the still of a file that
   was gone, and the still stayed on disk. Now the still goes to the trash
   with the file, as your Deleted files setting says, and within a second
-  a card that showed the video moves on to the next picture or video the
+  a card that showed the file moves on to the next picture or video the
   note embeds, or becomes a title when nothing else is left. Restoring the
   file from the trash brings its still back. A file Goko downloaded itself
   is downloaded again, since the clipping still links its address, and

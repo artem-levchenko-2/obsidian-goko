@@ -218,6 +218,19 @@ describe("buildTiles", () => {
     expect(tile.animated).toBe(true);
   });
 
+  it("falls back to the embeds from a GIF cover the archive does not hold", () => {
+    // Deleting the GIF drops its entry. Painted from its path, the cover was
+    // an <img> of a file that is gone, and the card left the wall.
+    const record = scanClipping(
+      "Clippings/C.md",
+      { ...COMBOLANDS_FM, cover: "Attachments/Clippings/dance.gif" },
+      COMBOLANDS_BODY
+    );
+    const tile = buildTiles([record], new MediaCache())[0];
+    expect(tile.kind).toBe("image");
+    expect(tile.filePath).toContain("combolands-7.jpg");
+  });
+
   it("posts a video set as the cover with the still made for it", () => {
     const clip = "Attachments/Clippings/flower.mp4";
     const record = scanClipping("Clippings/C.md", { ...COMBOLANDS_FM, cover: clip }, COMBOLANDS_BODY);
@@ -579,6 +592,38 @@ describe("buildTiles with local embeds", () => {
     expect(tile.kind).toBe("video");
     expect(tile.filePath).toBe(file);
     expect(tile.posterPath).toBe("Attachments/Clippings/a.poster.webp");
+  });
+
+  // A GIF that is in the vault gets its entry at the next adopting pass, so
+  // with none the file may be gone: deleting it drops its entry. An <img> of
+  // a missing file errors, and the wall drops the card.
+  it("has no picture for an embedded GIF the archive does not hold, so shows words", () => {
+    const gif = scanClipping("Clippings/D.md", { title: "D" }, "![[Attachments/Clippings/dance.gif]]");
+    expect(buildTiles([gif], new MediaCache())[0].kind).toBe("note");
+    expect(tilesForRecord(gif, new MediaCache())).toEqual([]);
+  });
+
+  it("moves past an embedded GIF the archive does not hold to the next embed", () => {
+    const jpg = "Attachments/Clippings/harbor.jpg";
+    const record = scanClipping(
+      "Clippings/D.md",
+      { title: "D" },
+      `![[Attachments/Clippings/dance.gif]]\n![[${jpg}]]`
+    );
+    const [tile] = buildTiles([record], new MediaCache());
+    expect(tile.kind).toBe("image");
+    expect(tile.filePath).toBe(jpg);
+    expect(tilesForRecord(record, new MediaCache()).map((t) => t.filePath)).toEqual([jpg]);
+  });
+
+  it("shows an embedded GIF once the archiver has adopted it, before it has a still", () => {
+    const file = "Attachments/Clippings/dance.gif";
+    const gif = scanClipping("Clippings/D.md", { title: "D" }, `![[${file}]]`);
+    const cache = cacheWith([[file, { file, thumb: "", width: 0, height: 0 }]]);
+    const [tile] = buildTiles([gif], cache);
+    expect(tile.kind).toBe("image");
+    expect(tile.filePath).toBe(file);
+    expect(tile.provisional).toBe(true);
   });
 });
 
